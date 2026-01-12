@@ -10,7 +10,8 @@
     "wat-to-wasm": "wat2wasm code.wat --output code.wasm",
     "test": "vitest",
     "eval": "node --stack-size=8192 --max-old-space-size=16384 --max-semi-space-size=16384 --import tsx/esm ./evaluate/run.ts",
-    "eval:spawn": "node --import tsx/esm ./evaluate/spawn.ts"
+    "eval:spawn": "node --import tsx/esm ./evaluate/spawn.ts",
+    "benchmark": "node --stack-size=8192 --max-old-space-size=16384 --import tsx/esm ./benchmark.ts"
   },
   "devDependencies": {
     "http-server": "^14.1.1"
