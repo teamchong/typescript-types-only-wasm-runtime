@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 indexmap = "2.1.0"
 wast = "70.0.0"
+wasmparser = "0.121.0"
