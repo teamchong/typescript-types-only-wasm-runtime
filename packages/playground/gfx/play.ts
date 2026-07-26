@@ -11,6 +11,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createSession, run } from "../cfg/drive";
 import { decodeTrie } from "../cfg/trie";
+import { toGif } from "./gif";
+import type { Frame } from "./pixels";
 import { readFrame, toAscii, toPng, toTerminal } from "./pixels";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,6 +25,7 @@ const height = Number(process.env.HEIGHT ?? 48);
 const bits = Number(process.env.BITS ?? 15);
 const digitBits = Number(process.env.DIGIT ?? 3);
 const writePng = process.env.PNG === "1";
+const writeGif = process.env.GIF;
 const scripted = process.env.BUTTONS?.split(",").map(Number);
 
 let pressed = 0;
@@ -47,6 +50,7 @@ let fuel = Number(process.env.FUEL ?? 4000);
 let frame = 0;
 let evaluations = 0;
 const pngs: string[] = [];
+const captured: Frame[] = [];
 const started = performance.now();
 
 if (process.env.ASCII !== "1") process.stdout.write("\u001b[2J\u001b[?25l");
@@ -81,6 +85,7 @@ try {
     out += `  w/s to move, q to quit${process.stdin.isTTY ? "" : "   (no tty: scripted input)"}   \n`;
     process.stdout.write(out);
 
+    if (writeGif) captured.push(picture);
     if (writePng) {
       const name = `frame-${String(frame).padStart(4, "0")}.png`;
       writeFileSync(join(framesDir, name), toPng(picture));
@@ -112,6 +117,12 @@ try {
 </script>`,
     );
     console.log(`\nwrote ${pngs.length} frames to ${framesDir} (open index.html to replay)`);
+  }
+  if (writeGif && captured.length) {
+    const path = writeGif.endsWith(".gif") ? writeGif : join(framesDir, "pong.gif");
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, toGif(captured, Number(process.env.SCALE ?? 6)));
+    console.log(`\nwrote ${captured.length} frames to ${path}`);
   }
   console.log(
     `${frame} frames in ${elapsed.toFixed(1)}s - ${(frame / elapsed).toFixed(1)} fps, ` +
