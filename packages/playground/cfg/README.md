@@ -83,6 +83,31 @@ globals are not lost. Suspending in the middle of a call would need a call stack
 in the state, so for now a callee has to fit in one evaluation - fine for
 conway's helpers, not yet enough for something as deep as DOOM.
 
+## What an operation costs
+
+`pnpm tsx packages/playground/cfg/bench.ts` times a 200-iteration wasm loop per
+operation. Marginal cost of one operation, inside one evaluation:
+
+| operation | µs |
+| --- | --- |
+| empty loop iteration (hop + add + compare) | ~157 |
+| `i32.and` with a constant | ~10 |
+| `i32.add` | ~50 |
+| `i32.load8_u` | ~200 |
+| `i32.store8` | ~210 |
+
+The useful surprise: **the algorithm barely matters, the instantiation does.** A
+hand-written 32-bit adder built from nibble lookup tables measured *slower* than
+ts-type-math walking all 32 bits (130µs vs 110µs), and a hand-written comparison
+lost too. What wins is collapsing an operation into a *single* template-literal
+conditional - masks and constant shifts drop from ~100µs to ~10µs, and equality
+becomes `A extends B`, no pattern at all. So the compiler specialises exactly
+those and leaves the rest to ts-type-math.
+
+A steady pong frame is ~120 hops and ~900 primitive operations, which is the
+0.26s. Getting meaningfully faster needs *fewer operations* - block fusion,
+cross-block value numbering, wider stores - not a faster adder.
+
 ## Fuel
 
 Fuel is a string of `'1'`s, one per unit of work, and a block charges one per hop

@@ -20,7 +20,9 @@
 //! loop back-edges become tail calls to those types, and `if`/`else` join
 //! through a shared continuation. Nothing is "skipped forward N ends".
 
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashMap};
+use std::rc::Rc;
 use wasmparser::{BlockType, FuncType, Operator, Parser, Payload, ValType};
 
 /// How many stores a chunk may perform before suspending. Measured ceiling is
@@ -108,6 +110,9 @@ pub struct CfgCompiler {
     num_imports: u32,
     /// address bits the trie covers
     trie_bits: usize,
+    /// specialised helpers emitted on demand: shifts and masks by a constant
+    /// are character surgery on the 32-character word, not bit recursion
+    helpers: Rc<RefCell<BTreeMap<String, String>>>,
 }
 
 impl CfgCompiler {
@@ -123,6 +128,7 @@ impl CfgCompiler {
             exports: Vec::new(),
             num_imports: 0,
             trie_bits: 14,
+            helpers: Rc::new(RefCell::new(BTreeMap::new())),
         }
     }
 
@@ -264,7 +270,41 @@ impl CfgCompiler {
         for entry in entries {
             out.push_str(&entry);
         }
+        // whatever specialised shifts and masks the program turned out to need
+        let helpers = self.helpers.borrow();
+        if !helpers.is_empty() {
+            out.push_str("\n// Specialised for the constants this module uses: a shift by a known\n");
+            out.push_str("// amount is a character move, and a mask by a known constant is a\n");
+            out.push_str("// character-by-character choice. Neither needs an adder.\n");
+            for definition in helpers.values() {
+                out.push_str(definition);
+                out.push('\n');
+            }
+        }
         Ok(out)
+    }
+
+    /// The handful of operations that are genuinely cheaper by hand.
+    ///
+    /// Measured, per operation, in a 200-iteration loop: ts-type-math costs
+    /// ~100µs for anything it has to walk bit by bit, and a hand-written 32-bit
+    /// adder built from nibble lookup tables came out *slower* (130µs) - the cost
+    /// in tsgo is the instantiation machinery, not the algorithm. What does win
+    /// is anything that collapses into a single template-literal conditional:
+    /// masks and constant shifts drop to ~10µs, and equality needs no pattern at
+    /// all. Those are emitted here; everything else stays on ts-type-math.
+    fn emit_fast_math() -> String {
+        let mut out = String::new();
+        out.push_str("export type $Flip = { '0': '1', '1': '0' }\n\n");
+        out.push_str("/// logical not of a wasm boolean (0 or 1)\n");
+        out.push_str("export type $Not1<B extends string> =\n");
+        out.push_str("  B extends '00000000000000000000000000000000' ? '00000000000000000000000000000001' : '00000000000000000000000000000000'\n\n");
+        out.push_str("/// equality is type identity: no bit walking, no pattern match\n");
+        out.push_str("export type $Eq<A extends string, B extends string> =\n");
+        out.push_str("  A extends B ? '00000000000000000000000000000001' : '00000000000000000000000000000000'\n");
+        out.push_str("export type $Ne<A extends string, B extends string> =\n");
+        out.push_str("  A extends B ? '00000000000000000000000000000000' : '00000000000000000000000000000001'\n");
+        out
     }
 
     /// The entry point for a called function: takes memory, the caller's
@@ -523,6 +563,8 @@ export type $Store16<M extends $Node, A extends WasmValue, V extends WasmValue> 
     : $Write<M, A, $SetByte<$SetByte<$Read<M, A>, $Off<A>, V>, $Next<$Off<A>>, Wasm.I32ShrU<V, '{eight}'>>>
 
 export type $ToNumber<V> = Convert.WasmValue.ToTSNumber<V & string, 'i32'>
+
+{fast_math}
 "#,
             fanout = fanout,
             levels = levels,
@@ -549,6 +591,7 @@ export type $ToNumber<V> = Convert.WasmValue.ToTSNumber<V & string, 'i32'>
             value_pattern = (0..32)
                 .map(|i| format!("${{infer v{i}}}"))
                 .collect::<String>(),
+            fast_math = Self::emit_fast_math(),
             zeros24 = "0".repeat(24),
             byte3 = (0..8).map(|i| format!("${{w{i}}}")).collect::<String>(),
             byte2 = (8..16).map(|i| format!("${{w{i}}}")).collect::<String>(),
@@ -793,6 +836,7 @@ impl<'a> FunctionCfg<'a> {
 
     fn compile_block(&mut self, pending: Pending) -> Result<EmittedBlock, String> {
         let mut env = BlockEnv {
+            helpers: Rc::clone(&self.module.helpers),
             memory: "$M".to_string(),
             globals: (0..self.module.globals.len())
                 .map(|i| format!("$g{i}"))
@@ -800,6 +844,7 @@ impl<'a> FunctionCfg<'a> {
             locals: (0..self.num_locals).map(|i| format!("$l{i}")).collect(),
             stack: pending.stack.clone(),
             bindings: Vec::new(),
+            computed: HashMap::new(),
             next_temp: 0,
             stores: 0,
         };
@@ -1039,21 +1084,21 @@ impl<'a> FunctionCfg<'a> {
             // arithmetic and comparison
             I32Add => env.binary("Wasm.I32Add", Ok(Step::Continue)),
             I32Sub => env.binary("Wasm.I32Sub", Ok(Step::Continue)),
-            I32Mul => env.binary("Wasm.I32Mul", Ok(Step::Continue)),
+            I32Mul => env.multiply(Ok(Step::Continue)),
             I32DivS => env.binary("Wasm.I32DivS", Ok(Step::Continue)),
             I32DivU => env.binary("Wasm.I32DivU", Ok(Step::Continue)),
             I32RemS => env.binary("Wasm.I32RemS", Ok(Step::Continue)),
             I32RemU => env.binary("Wasm.I32RemU", Ok(Step::Continue)),
-            I32And => env.binary("Wasm.I32And", Ok(Step::Continue)),
-            I32Or => env.binary("Wasm.I32Or", Ok(Step::Continue)),
-            I32Xor => env.binary("Wasm.I32Xor", Ok(Step::Continue)),
-            I32Shl => env.binary("Wasm.I32Shl", Ok(Step::Continue)),
-            I32ShrU => env.binary("Wasm.I32ShrU", Ok(Step::Continue)),
-            I32ShrS => env.binary("Wasm.I32ShrS", Ok(Step::Continue)),
+            I32And => env.bitwise("And", "Wasm.I32And", Ok(Step::Continue)),
+            I32Or => env.bitwise("Or", "Wasm.I32Or", Ok(Step::Continue)),
+            I32Xor => env.bitwise("Xor", "Wasm.I32Xor", Ok(Step::Continue)),
+            I32Shl => env.shift("Wasm.I32Shl", ShiftKind::Left, Ok(Step::Continue)),
+            I32ShrU => env.shift("Wasm.I32ShrU", ShiftKind::RightUnsigned, Ok(Step::Continue)),
+            I32ShrS => env.shift("Wasm.I32ShrS", ShiftKind::RightSigned, Ok(Step::Continue)),
             I32Rotl => env.binary("Wasm.I32Rotl", Ok(Step::Continue)),
             I32Rotr => env.binary("Wasm.I32Rotr", Ok(Step::Continue)),
-            I32Eq => env.binary("Wasm.I32Eq", Ok(Step::Continue)),
-            I32Ne => env.binary("Wasm.I32Neq", Ok(Step::Continue)),
+            I32Eq => env.binary("$Eq", Ok(Step::Continue)),
+            I32Ne => env.binary("$Ne", Ok(Step::Continue)),
             I32LtS => env.binary("Wasm.I32LtS", Ok(Step::Continue)),
             I32LtU => env.binary("Wasm.I32LtU", Ok(Step::Continue)),
             I32GtS => env.binary("Wasm.I32GtS", Ok(Step::Continue)),
@@ -1062,7 +1107,7 @@ impl<'a> FunctionCfg<'a> {
             I32LeU => env.binary("Wasm.I32LeU", Ok(Step::Continue)),
             I32GeS => env.binary("Wasm.I32GeS", Ok(Step::Continue)),
             I32GeU => env.binary("Wasm.I32GeU", Ok(Step::Continue)),
-            I32Eqz => env.unary("Wasm.I32Eqz", Ok(Step::Continue)),
+            I32Eqz => env.eqz(Ok(Step::Continue)),
             I32Clz => env.unary("Wasm.I32Clz", Ok(Step::Continue)),
             I32Ctz => env.unary("Wasm.I32Ctz", Ok(Step::Continue)),
             I32Popcnt => env.unary("Wasm.I32Popcnt", Ok(Step::Continue)),
@@ -1335,12 +1380,17 @@ enum Step {
 
 #[derive(Clone)]
 struct BlockEnv {
+    helpers: Rc<RefCell<BTreeMap<String, String>>>,
     memory: String,
     globals: Vec<String>,
     locals: Vec<String>,
     stack: Vec<String>,
     /// (name, constraint, expression) bindings, in order
     bindings: Vec<(String, String, String)>,
+    /// expression text -> the name already bound to it, so a value computed
+    /// twice in one block is computed once. Pong recomputes screen addresses
+    /// constantly: erase and draw hit the same cells.
+    computed: HashMap<String, String>,
     next_temp: usize,
     stores: usize,
 }
@@ -1388,10 +1438,14 @@ impl BlockEnv {
         if !SSA && expr.len() < 600 {
             return expr.to_string();
         }
+        if let Some(existing) = self.computed.get(expr) {
+            return existing.clone();
+        }
         let name = format!("$t{}", self.next_temp);
         self.next_temp += 1;
         self.bindings
             .push((name.clone(), constraint.to_string(), expr.to_string()));
+        self.computed.insert(expr.to_string(), name.clone());
         name
     }
 
@@ -1432,8 +1486,206 @@ impl BlockEnv {
     fn binary(&mut self, op: &str, ret: Result<Step, String>) -> Result<Step, String> {
         let b = self.pop();
         let a = self.pop();
+        // both sides known: do it here rather than making the checker do it
+        if let (Some(x), Some(y)) = (Self::literal(&a), Self::literal(&b)) {
+            if let Some(folded) = fold(op, x, y) {
+                self.push(format!("'{}'", bits32(folded as i32)));
+                return ret;
+            }
+        }
         let value = format!("{op}<{a}, {b}>");
         let named = self.bind(&value, "WasmValue");
+        self.push(named);
+        ret
+    }
+
+    /// Is this value a literal we know at compile time?
+    fn literal(value: &str) -> Option<u32> {
+        let trimmed = value.trim();
+        if trimmed.len() == 34 && trimmed.starts_with('\'') && trimmed.ends_with('\'') {
+            u32::from_str_radix(&trimmed[1..33], 2).ok()
+        } else {
+            None
+        }
+    }
+
+    fn register(&mut self, name: &str, definition: String) -> String {
+        self.helpers
+            .borrow_mut()
+            .entry(name.to_string())
+            .or_insert(definition);
+        name.to_string()
+    }
+
+    /// shift left by a known amount: drop the top characters, append zeros
+    fn shl_helper(&mut self, amount: u32) -> String {
+        let name = format!("$Shl{amount}");
+        let pattern: String = (0..32).map(|i| format!("${{infer c{i}}}")).collect();
+        let kept: String = (amount..32).map(|i| format!("${{c{i}}}")).collect();
+        let definition = format!(
+            "export type {name}<A extends string> =\n  A extends `{pattern}`\n    ? `{kept}{zeros}`\n    : never\n",
+            zeros = "0".repeat(amount as usize)
+        );
+        self.register(&name, definition)
+    }
+
+    /// shift right by a known amount, filling with zeros or with the sign
+    fn shr_helper(&mut self, amount: u32, signed: bool) -> String {
+        let name = format!("$Shr{}{}", if signed { "S" } else { "U" }, amount);
+        let pattern: String = (0..32).map(|i| format!("${{infer c{i}}}")).collect();
+        let fill: String = if signed {
+            (0..amount).map(|_| "${c0}".to_string()).collect()
+        } else {
+            "0".repeat(amount as usize)
+        };
+        let kept: String = (0..32 - amount).map(|i| format!("${{c{i}}}")).collect();
+        let definition = format!(
+            "export type {name}<A extends string> =\n  A extends `{pattern}`\n    ? `{fill}{kept}`\n    : never\n"
+        );
+        self.register(&name, definition)
+    }
+
+    /// bitwise op against a known constant: one character choice per bit
+    fn mask_helper(&mut self, op: &str, constant: u32) -> String {
+        let name = format!("${op}{constant:08X}");
+        let pattern: String = (0..32).map(|i| format!("${{infer c{i}}}")).collect();
+        let result: String = (0..32)
+            .map(|i| {
+                let bit = (constant >> (31 - i)) & 1;
+                match (op, bit) {
+                    ("And", 0) => "0".to_string(),
+                    ("And", _) => format!("${{c{i}}}"),
+                    ("Or", 1) => "1".to_string(),
+                    ("Or", _) => format!("${{c{i}}}"),
+                    ("Xor", 1) => format!("${{$Flip[c{i}]}}"),
+                    ("Xor", _) => format!("${{c{i}}}"),
+                    _ => format!("${{c{i}}}"),
+                }
+            })
+            .collect();
+        let definition = format!(
+            "export type {name}<A extends string> =\n  A extends `{pattern}`\n    ? `{result}`\n    : never\n"
+        );
+        self.register(&name, definition)
+    }
+
+    /// `a > b` is `b < a`
+    fn binary_swapped(&mut self, op: &str, ret: Result<Step, String>) -> Result<Step, String> {
+        let b = self.pop();
+        let a = self.pop();
+        let value = format!("{op}<{b}, {a}>");
+        let named = self.bind(&value, "WasmValue");
+        self.push(named);
+        ret
+    }
+
+    /// `a >= b` is `!(a < b)`
+    fn binary_not(&mut self, op: &str, ret: Result<Step, String>) -> Result<Step, String> {
+        let b = self.pop();
+        let a = self.pop();
+        let value = format!("$Not1<{op}<{a}, {b}>>");
+        let named = self.bind(&value, "WasmValue");
+        self.push(named);
+        ret
+    }
+
+    /// `a <= b` is `!(b < a)`
+    fn binary_not_swapped(&mut self, op: &str, ret: Result<Step, String>) -> Result<Step, String> {
+        let b = self.pop();
+        let a = self.pop();
+        let value = format!("$Not1<{op}<{b}, {a}>>");
+        let named = self.bind(&value, "WasmValue");
+        self.push(named);
+        ret
+    }
+
+    fn eqz(&mut self, ret: Result<Step, String>) -> Result<Step, String> {
+        let a = self.pop();
+        let value = format!("$Eq<{a}, '{}'>", zero());
+        let named = self.bind(&value, "WasmValue");
+        self.push(named);
+        ret
+    }
+
+    /// A shift by a constant is a character move; only a variable amount needs
+    /// the bit-recursive version.
+    fn shift(&mut self, fallback: &str, kind: ShiftKind, ret: Result<Step, String>) -> Result<Step, String> {
+        let b = self.pop();
+        let a = self.pop();
+        let value = match Self::literal(&b).map(|amount| amount & 31) {
+            Some(0) => a.clone(),
+            Some(amount) => {
+                let helper = match kind {
+                    ShiftKind::Left => self.shl_helper(amount),
+                    ShiftKind::RightUnsigned => self.shr_helper(amount, false),
+                    ShiftKind::RightSigned => self.shr_helper(amount, true),
+                };
+                // cheap enough to leave inline: one conditional, no adder
+                self.push(format!("{helper}<{a}>"));
+                return ret;
+            }
+            None => format!("{fallback}<{a}, {b}>"),
+        };
+        let named = self.bind(&value, "WasmValue");
+        self.push(named);
+        ret
+    }
+
+    /// And/Or/Xor against a constant is one character choice per bit.
+    fn bitwise(&mut self, op: &str, fallback: &str, ret: Result<Step, String>) -> Result<Step, String> {
+        let b = self.pop();
+        let a = self.pop();
+        let value = if let Some(constant) = Self::literal(&b) {
+            let helper = self.mask_helper(op, constant);
+            self.push(format!("{helper}<{a}>"));
+            return ret;
+        } else if let Some(constant) = Self::literal(&a) {
+            let helper = self.mask_helper(op, constant);
+            self.push(format!("{helper}<{b}>"));
+            return ret;
+        } else {
+            format!("{fallback}<{a}, {b}>")
+        };
+        let named = self.bind(&value, "WasmValue");
+        self.push(named);
+        ret
+    }
+
+    /// Multiplying by a constant is a few shifts and adds; ts-type-math's long
+    /// multiplication is only needed when both operands are unknown.
+    fn multiply(&mut self, ret: Result<Step, String>) -> Result<Step, String> {
+        let b = self.pop();
+        let a = self.pop();
+        let (value, constant) = match (Self::literal(&a), Self::literal(&b)) {
+            (Some(k), _) => (b.clone(), Some(k)),
+            (_, Some(k)) => (a.clone(), Some(k)),
+            _ => (String::new(), None),
+        };
+        let expression = match constant {
+            Some(0) => format!("'{}'", zero()),
+            Some(1) => value,
+            Some(k) if k.count_ones() <= 2 && k < 0x8000_0000 => {
+                // sum of shifted copies, low bits first
+                let mut terms = Vec::new();
+                for bit in 0..31 {
+                    if (k >> bit) & 1 == 1 {
+                        if bit == 0 {
+                            terms.push(value.clone());
+                        } else {
+                            let helper = self.shl_helper(bit);
+                            terms.push(format!("{helper}<{value}>"));
+                        }
+                    }
+                }
+                let mut sum = terms[0].clone();
+                for term in &terms[1..] {
+                    sum = format!("Wasm.I32Add<{sum}, {term}>");
+                }
+                sum
+            }
+            _ => format!("Wasm.I32Mul<{a}, {b}>"),
+        };
+        let named = self.bind(&expression, "WasmValue");
         self.push(named);
         ret
     }
@@ -1443,6 +1695,10 @@ impl BlockEnv {
         let value = format!("{op}<{a}>");
         let named = self.bind(&value, "WasmValue");
         self.push(named);
+        ret
+    }
+
+    fn stores_ret(&self, ret: Result<Step, String>) -> Result<Step, String> {
         ret
     }
 
@@ -1478,8 +1734,47 @@ impl BlockEnv {
             .push((name.clone(), "$Node".to_string(), next));
         self.memory = name;
         self.stores += 1;
-        ret
+        // loads read `self.memory`, so their text changes after a store anyway;
+        // drop the cache entries that mention memory to be safe
+        self.computed.retain(|expr, _| !expr.contains("$m"));
+        self.stores_ret(ret)
     }
+}
+
+/// Constant folding for the operators the compiler emits. Same semantics as
+/// wasm: wrapping arithmetic, comparisons yield 0 or 1.
+fn fold(op: &str, a: u32, b: u32) -> Option<u32> {
+    let sa = a as i32;
+    let sb = b as i32;
+    let value = match op {
+        "Wasm.I32Add" => sa.wrapping_add(sb) as u32,
+        "Wasm.I32Sub" => sa.wrapping_sub(sb) as u32,
+        "Wasm.I32Mul" => sa.wrapping_mul(sb) as u32,
+        "Wasm.I32And" => a & b,
+        "Wasm.I32Or" => a | b,
+        "Wasm.I32Xor" => a ^ b,
+        "Wasm.I32Shl" => a.wrapping_shl(b & 31),
+        "Wasm.I32ShrU" => a.wrapping_shr(b & 31),
+        "Wasm.I32ShrS" => sa.wrapping_shr(b & 31) as u32,
+        "Wasm.I32LtS" => (sa < sb) as u32,
+        "Wasm.I32LtU" => (a < b) as u32,
+        "Wasm.I32GtS" => (sa > sb) as u32,
+        "Wasm.I32GtU" => (a > b) as u32,
+        "Wasm.I32LeS" => (sa <= sb) as u32,
+        "Wasm.I32LeU" => (a <= b) as u32,
+        "Wasm.I32GeS" => (sa >= sb) as u32,
+        "Wasm.I32GeU" => (a >= b) as u32,
+        "$Eq" => (a == b) as u32,
+        "$Ne" => (a != b) as u32,
+        _ => return None,
+    };
+    Some(value)
+}
+
+enum ShiftKind {
+    Left,
+    RightUnsigned,
+    RightSigned,
 }
 
 /// fresh names for a block's incoming stack slots
