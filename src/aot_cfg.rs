@@ -127,7 +127,13 @@ impl CfgCompiler {
     pub fn new() -> Self {
         Self {
             bits_override: None,
-            digit_bits: 3,
+            // address bits per trie level. 3 is an 8-way trie, five levels deep
+            // for a 15-bit address space; TRIE_DIGIT_BITS sweeps it.
+            digit_bits: std::env::var("TRIE_DIGIT_BITS")
+                .ok()
+                .and_then(|value| value.parse().ok())
+                .filter(|bits| (1..=6).contains(bits))
+                .unwrap_or(3),
             func_types: Vec::new(),
             func_type_indices: Vec::new(),
             data: Vec::new(),

@@ -189,6 +189,26 @@ The pixel game does three things a normal pong would not:
 
 Steady frame 0.06s -> 0.03s, with every pixel still identical to V8.
 
+Unrolling the sprite loops took the work in a frame from 278 units to 102 - a
+paddle row inside a loop costs the store plus a compare, an increment and a
+jump, while unrolled the row offsets fold into the store instruction. The frame
+time did not move. Fuel counts hops and stores, not arithmetic, and what
+unrolling removed were the cheap units; a store at ~200µs is now most of a
+frame. Worth keeping for the headroom, not for the clock.
+
+Two other things that did not work, recorded so they are not tried twice:
+
+- **a wider trie.** 32-way, three levels deep, against 8-way at five: 0.04s a
+  frame against 0.03s. Rebuilding a 32-element node costs more than the two
+  levels it saves. `TRIE_DIGIT_BITS` sweeps it.
+- **blaming the infer constraint.** `infer $t extends WasmValue`, `infer $t
+  extends string` and a plain `infer $t` all explode identically with depth
+  (~3.2s at 24). The nesting is the problem, not the constraint.
+
+The floor, for reference: an evaluation that hands back the same 30kB of state
+without touching it costs 4ms. A frame is 33ms, so the round trip is not what is
+in the way yet.
+
 ## Fuel
 
 Fuel is a string of `'1'`s, one per unit of work, and a block charges one per hop
