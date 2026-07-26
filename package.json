@@ -7,6 +7,8 @@
     "pnpm": ">=8"
   },
   "scripts": {
+    "gfx": "cargo run --quiet -- --aot-cfg packages/playground/gfx/gfx.wasm && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/gfx/play.ts",
+    "gfx:verify": "cargo run --quiet -- --aot-cfg packages/playground/gfx/gfx.wasm && WASM=packages/playground/gfx/gfx.wasm MODULE=packages/playground/gfx/gfx.cfg.ts WIDTH=64 HEIGHT=48 FUEL=4000 node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/verify.ts",
     "arcade": "cargo run --quiet -- --aot-cfg packages/playground/pong-tiny/pong-tiny.wasm && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/arcade.ts",
     "arcade:verify": "cargo run --quiet -- --aot-cfg packages/playground/pong-tiny/pong-tiny.wasm && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/verify.ts",
     "arcade:conform": "cargo build --quiet && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/conform.ts",
