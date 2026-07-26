@@ -1,7 +1,10 @@
 
-import { dirname } from "path";
-import {createDefaultMapFromNodeModules, createFSBackedSystem, createVirtualTypeScriptEnvironment, VirtualTypeScriptEnvironment} from "@typescript/vfs";
-import ts from "typescript";
+import { existsSync } from "node:fs";
+import { relative, resolve } from "node:path";
+import { API, NodeBuilderFlags, type Program, type Project, type Snapshot } from "typescript/unstable/sync";
+import { createVirtualFileSystem } from "typescript/unstable/fs";
+import { isTypeAliasDeclaration } from "typescript/unstable/ast/is";
+import type { TypeAliasDeclaration } from "typescript/unstable/ast";
 import {
   createResultFilePath,
   globalDefinitions,
@@ -17,53 +20,125 @@ import {
 import { Meter } from "./metering";
 import { consoleLog, finalizeProgram, fsWorker, gaspForBreath, getCurrent, preBreakFile, printType } from './utils';
 
-export const createEnv = (startFilePath: string) => {
-  const configFile = ts.readConfigFile(tsconfigFilePath, ts.sys.readFile);
-  const { options } = ts.parseJsonConfigFileContent(
-    configFile.config,
-    ts.sys,
-    dirname(tsconfigFilePath),
-  );
+export interface EvaluationProgram {
+  readonly native: Program;
+  getSourceFile: Program["getSourceFile"];
+  getSourceFileNames: Program["getSourceFileNames"];
+  getTypeChecker: () => Project["checker"];
+}
 
-  const libFiles = createDefaultMapFromNodeModules(options);
-  const system = createFSBackedSystem(libFiles, projectRoot, ts);
+export interface EvaluationEnvironment {
+  sys: { fileExists: (filePath: string) => boolean };
+  languageService: { getProgram: () => EvaluationProgram | undefined };
+  createFile: (filePath: string, contents: string) => void;
+  deleteFile: (filePath: string) => void;
+  close: () => void;
+}
 
-  return createVirtualTypeScriptEnvironment(
-    system,
-    [globalDefinitions, startFilePath],
-    ts,
-    options,
-  );
+export const createEnv = (startFilePath: string): EvaluationEnvironment => {
+  const evaluatorConfigPath = resolve(projectRoot, "tsconfig.evaluator.json");
+  const rootFiles = new Set([globalDefinitions, startFilePath]);
+  const getEvaluatorConfig = () => JSON.stringify({
+    extends: "./tsconfig.json",
+    files: [...rootFiles].map(filePath => relative(projectRoot, filePath)),
+  });
+  const files = createVirtualFileSystem({
+    [evaluatorConfigPath]: getEvaluatorConfig(),
+  });
+  const deletedFiles = new Set<string>();
+  const api = new API({
+    cwd: projectRoot,
+    fs: {
+      readFile(filePath) {
+        if (deletedFiles.has(filePath)) return null;
+        const contents = files.readFile?.(filePath);
+        return contents === null ? undefined : contents;
+      },
+      fileExists(filePath) {
+        if (deletedFiles.has(filePath)) return false;
+        return files.fileExists?.(filePath) ? true : undefined;
+      },
+    },
+  });
+  let snapshot: Snapshot = api.updateSnapshot({
+    openProjects: [evaluatorConfigPath],
+    openFiles: [globalDefinitions, startFilePath],
+  });
+  let project: Project | undefined;
+
+  const updateProject = () => {
+    project = snapshot.getProject(evaluatorConfigPath)
+      ?? snapshot.getDefaultProjectForFile(startFilePath)
+      ?? snapshot.getProjects()[0];
+  };
+  const updateSnapshot = (params: Parameters<API["updateSnapshot"]>[0]) => {
+    const previous = snapshot;
+    snapshot = api.updateSnapshot(params);
+    previous.dispose();
+    updateProject();
+  };
+  const getProgram = (): EvaluationProgram | undefined => project && ({
+    native: project.program,
+    getSourceFile: project.program.getSourceFile.bind(project.program),
+    getSourceFileNames: project.program.getSourceFileNames.bind(project.program),
+    getTypeChecker: () => project!.checker,
+  });
+  updateProject();
+
+  return {
+    sys: {
+      fileExists: (filePath) => !deletedFiles.has(filePath)
+        && (files.fileExists?.(filePath) === true || existsSync(filePath)),
+    },
+    languageService: { getProgram },
+    createFile(filePath, contents) {
+      const exists = files.fileExists?.(filePath) === true;
+      files.writeFile?.(filePath, contents);
+      deletedFiles.delete(filePath);
+      rootFiles.add(filePath);
+      files.writeFile?.(evaluatorConfigPath, getEvaluatorConfig());
+      updateSnapshot({
+        fileChanges: exists
+          ? { changed: [filePath, evaluatorConfigPath] }
+          : { created: [filePath], changed: [evaluatorConfigPath] },
+        ...(exists ? {} : { openFiles: [filePath] }),
+      });
+    },
+    deleteFile(filePath) {
+      files.removeFile?.(filePath);
+      deletedFiles.add(filePath);
+      rootFiles.delete(filePath);
+      files.writeFile?.(evaluatorConfigPath, getEvaluatorConfig());
+      updateSnapshot({
+        fileChanges: { deleted: [filePath], changed: [evaluatorConfigPath] },
+        closeFiles: [filePath],
+      });
+    },
+    close() {
+      snapshot.dispose();
+      api.close();
+    },
+  };
 };
 
-export const reportErrors = (program: ts.Program) => {
-  ts.getPreEmitDiagnostics(program).forEach((diagnostic) => {
-    console.log();
-    if (diagnostic.file) {
-      let { line, character } = ts.getLineAndCharacterOfPosition(
-        diagnostic.file,
-        diagnostic.start!,
-      );
-      let message = ts.flattenDiagnosticMessageText(
-        diagnostic.messageText,
-        "\n",
-      );
-      throw new Error(
-        `${diagnostic.file.fileName} (${line + 1},${
-          character + 1
-        }): ${message}`,
-      );
-    }
-    throw new Error(
-      ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"),
-    );
-  });
+export const reportErrors = (program: EvaluationProgram) => {
+  const diagnostics = [
+    ...program.native.getConfigFileParsingDiagnostics(),
+    ...program.native.getProgramDiagnostics(),
+    ...program.native.getSyntacticDiagnostics(),
+    ...program.native.getBindDiagnostics(),
+    ...program.native.getSemanticDiagnostics(),
+  ];
+  const diagnostic = diagnostics[0];
+  if (diagnostic) {
+    throw new Error(`${diagnostic.fileName ?? "TypeScript"}:${diagnostic.pos}: ${diagnostic.text}`);
+  }
 };
 
 export const evaluateType = async (
-  env: VirtualTypeScriptEnvironment,
+  env: EvaluationEnvironment,
   filePath: string,
-  program: ts.Program,
+  program: EvaluationProgram,
   meter: Meter = new Meter(),
   searchFor = nextResultTypeName,
   force = false,
@@ -71,23 +146,16 @@ export const evaluateType = async (
   meter.start("getSourceFile");
   const inputSourceFile = program.getSourceFile(filePath);
   if (!inputSourceFile) {
-    consoleLog(program.getSourceFiles().map(f => f.fileName).filter(f => f.includes("packages")));
+    consoleLog(program.getSourceFileNames().filter(fileName => fileName.includes("packages")));
     console.error(`file exists in virtual env?: ${env.sys.fileExists(filePath)}`);
     throw new Error(`the program could not find source file ${filePath}`);
   }
   meter.stop("getSourceFile");
 
   meter.start("getTypeAlias");
-  let typeAlias: ts.TypeAliasDeclaration | undefined;
-  ts.forEachChild(inputSourceFile, (node) => {
-    if (
-      ts.isTypeAliasDeclaration(node) &&
-      node.name.escapedText === searchFor
-    ) {
-      typeAlias = node;
-      return;
-    }
-  });
+  const typeAlias = inputSourceFile.statements.find((node): node is TypeAliasDeclaration =>
+    isTypeAliasDeclaration(node) && node.name.text === searchFor
+  );
   if (!typeAlias) {
     fsWorker.writeFile(errorFilePath, inputSourceFile.text, 'ts');
     throw new Error(`could not find type alias ${searchFor} in ${filePath}`);
@@ -99,13 +167,19 @@ export const evaluateType = async (
   meter.stop("checker");
 
   meter.start("getTypeAtLocation");
-  const type = checker.getTypeAtLocation(typeAlias); // this is the line that matters
+  const type = checker.getTypeFromTypeNode(typeAlias.type);
+  if (!type) throw new Error(`could not resolve type alias ${searchFor}`);
   meter.stop("getTypeAtLocation");
 
   meter.start("typeToString");
-  const typeString = checker.typeToString(type);
+  const typeString = checker.typeToString(
+    type,
+    undefined,
+    NodeBuilderFlags.NoTruncation | NodeBuilderFlags.UseStructuralFallback,
+  );
   if (typeString === "" || typeString === "any") {
     fsWorker.writeFile(errorFilePath, typeString, 'ts');
+    reportErrors(program);
     throw new Error(
       `typeString is empty for ${filePath}. was searching for ${searchFor}`,
     );
@@ -161,13 +235,13 @@ export const createNewFile = async ({
   program,
   startProgramTime,
 }: {
-  env: VirtualTypeScriptEnvironment,
+  env: EvaluationEnvironment,
   meter: Meter,
   funcImportLine: string,
   typeString: string,
   current: number,
   timeSpentUnderwater: number,
-  program: ts.Program,
+  program: EvaluationProgram,
   startProgramTime: number,
 }) => {
   meter.start("newFilePrep");

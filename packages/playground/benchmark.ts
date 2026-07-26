@@ -1,53 +1,70 @@
 /**
- * Simple benchmark to measure TypeScript type evaluation performance.
- * Usage: pnpm run benchmark [instructions]
- * Default: 500 instructions
+ * Benchmark TypeScript's evaluation of the completed Doom snapshot.
+ * Usage: pnpm run benchmark [iterations]
+ * Default: 3 iterations
  */
-import { createEnv, evaluateType } from "./evaluate/ts";
-import { join, dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createEnv, evaluateType } from "./evaluate/ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const startFilePath = join(__dirname, "evaluate/start.ts");
+const snapshotPath = join(
+  __dirname,
+  "final-doom-pun-intended/data/result-15895321.ts",
+);
+const expectedInstructionCount = 15_895_321;
+const iterations = Number.parseInt(process.argv[2] ?? "3", 10);
 
-const INSTRUCTIONS = parseInt(process.argv[2] || "500", 10);
-
-console.log("=== TypeScript Types WASM Runtime Benchmark ===");
-console.log(`Target: ${INSTRUCTIONS} instructions`);
-console.log("");
-
-const env = createEnv(startFilePath);
-const program = env.languageService.getProgram();
-if (!program) {
-  throw new Error("Failed to create TypeScript program");
+if (!Number.isSafeInteger(iterations) || iterations < 1) {
+  throw new Error("iterations must be a positive integer");
 }
 
-const startTime = performance.now();
-let current = 0;
-let iterations = 0;
+console.log("=== TypeScript Types WASM Runtime Benchmark ===");
+console.log(`Snapshot: ${expectedInstructionCount.toLocaleString()} instructions`);
+console.log(`Cold evaluations: ${iterations}`);
+console.log("");
 
-// Warm up
-console.log("Warming up...");
-await evaluateType(env, startFilePath, program);
+const durations: number[] = [];
 
-console.log("Benchmarking...");
-const benchStart = performance.now();
+for (let iteration = 1; iteration <= iterations; iteration++) {
+  const env = createEnv(snapshotPath);
 
-// The evaluation runs instructions in batches, we measure total throughput
-const { typeString, current: instructionCount } = await evaluateType(
-  env,
-  startFilePath,
-  program
-);
+  try {
+    const program = env.languageService.getProgram();
+    if (!program) {
+      throw new Error("Failed to create TypeScript program");
+    }
 
-const elapsed = performance.now() - benchStart;
-const ips = Math.round(instructionCount / (elapsed / 1000));
+    const start = performance.now();
+    const { current } = await evaluateType(
+      env,
+      snapshotPath,
+      program,
+      undefined,
+      "NextResult",
+    );
+    const duration = performance.now() - start;
+
+    if (current !== expectedInstructionCount) {
+      throw new Error(
+        `Expected ${expectedInstructionCount} instructions, received ${current}`,
+      );
+    }
+
+    durations.push(duration);
+    console.log(`Run ${iteration}: ${(duration / 1000).toFixed(2)}s`);
+  } finally {
+    env.close();
+  }
+}
+
+const total = durations.reduce((sum, duration) => sum + duration, 0);
+const average = total / durations.length;
+const ips = Math.round(expectedInstructionCount / (average / 1000));
+const fps = 1000 / average;
 
 console.log("");
 console.log("=== Results ===");
-console.log(`Instructions executed: ${instructionCount}`);
-console.log(`Time: ${Math.round(elapsed)}ms`);
-console.log(`IPS (instructions/sec): ${ips}`);
-console.log(`Instantiations: ${program.getInstantiationCount()}`);
-console.log("");
-console.log("Save this baseline, then run again after changes to compare.");
+console.log(`Average: ${(average / 1000).toFixed(2)}s`);
+console.log(`FPS (completed snapshot evaluations/sec): ${fps.toFixed(2)}`);
+console.log(`IPS (instructions/sec): ${ips.toLocaleString()}`);

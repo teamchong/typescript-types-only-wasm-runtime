@@ -977,9 +977,15 @@ impl<'a> FunctionCfg<'a> {
     ///
     /// So a long basic block is not slow, it is fatal - and nothing stops a
     /// program from having one. Cutting the chain costs a hop, about 200µs,
-    /// which buys back an unbounded amount. 12 leaves room under the knee for
-    /// the terminator's own comparisons.
-    const DEPTH_CAP: usize = 12;
+    /// which buys back an unbounded amount.
+    ///
+    /// The cliff is not the only reason to cut early. Swept against the pixel
+    /// game, a steady frame takes 0.09s at a cap of 12, 0.06s at 8, and 0.06s
+    /// at 6 and 4 - the curve is still falling well below the knee, because a
+    /// shallower chain is cheaper to resolve even where it is not exponential.
+    /// It flattens at about 6, and hops start to outweigh the saving below
+    /// that.
+    const DEPTH_CAP: usize = 6;
 
     fn compile_block(&mut self, pending: Pending) -> Result<EmittedBlock, String> {
         let mut env = BlockEnv {
