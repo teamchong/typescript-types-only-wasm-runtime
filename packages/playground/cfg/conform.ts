@@ -33,7 +33,7 @@ let mismatched = 0;
 let unsupported = 0;
 
 // arguments to try for exported functions, chosen to exercise both signs
-const sampleArgs = [0, 1, 7, -3, 42];
+const sampleArgs = [0, 1, 7, -3, 42, 2, 5, 0];
 
 for (const wasmPath of modules) {
   const name = basename(wasmPath);

@@ -22,9 +22,9 @@ are drawn as characters. Roughly **4 frames per second**.
 - `pnpm arcade:conform` - compile and check every module in `conformance-tests` against the engine
 - `pnpm arcade:ceiling` - measure how much work one type evaluation can do
 
-Current state: **39/39 i32 conformance modules and every pong frame are identical
-to the wasm engine.** Unsupported so far: i64, floats, and `call` (so `conway.wasm`
-does not compile yet).
+Current state: **64/64 supported modules and every pong frame are identical to the
+wasm engine** (`pnpm arcade:conform`), conway included. Unsupported so far: i64,
+floats, `call_indirect`, and imported-function calls.
 
 ## How it works
 
@@ -72,6 +72,16 @@ address as the last two characters of its 32-character string, and `$SetByte`
 splices eight characters into a word. No shifting, no masking, no adders. That
 took pong's first frame from 26 evaluations and 5.5s down to one evaluation at
 0.27s.
+
+## Calls
+
+An exported function is compiled *metered*: its blocks charge fuel and can
+suspend. Anything it calls is compiled again in an *unmetered* flavour (`$u...`)
+that runs to completion inside the caller's evaluation and hands back
+`['r', memory, ...globals, value?]`, so a callee's writes to memory and to
+globals are not lost. Suspending in the middle of a call would need a call stack
+in the state, so for now a callee has to fit in one evaluation - fine for
+conway's helpers, not yet enough for something as deep as DOOM.
 
 ## Fuel
 

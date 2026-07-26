@@ -214,36 +214,133 @@ impl CfgCompiler {
         out.push_str(&self.emit_prelude());
         out.push_str(&self.emit_initial_memory());
 
-        // compile every exported function (pong-tiny exports frame/score1/score2)
+        // Exported functions are compiled *metered*: their blocks charge fuel
+        // and can suspend. Anything they call is compiled *unmetered* and runs
+        // to completion inside the caller's evaluation, because suspending
+        // mid-call would need a call stack in the state. Deep or recursive
+        // callees therefore have to fit in one evaluation.
         let mut entries = Vec::new();
+        let mut wanted: Vec<usize> = Vec::new();
         for (name, export_index) in self.exports.clone() {
             if export_index < self.num_imports {
                 continue;
             }
             let defined = (export_index - self.num_imports) as usize;
-            let body = bodies
-                .get(defined)
-                .ok_or_else(|| format!("export {name} points at a missing function body"))?;
-            let type_index = *self
-                .func_type_indices
-                .get(defined)
-                .ok_or_else(|| format!("no type for function {defined}"))?;
-            let func_type = self
-                .func_types
-                .get(type_index as usize)
-                .ok_or_else(|| format!("no type {type_index}"))?
-                .clone();
-            let (blocks, num_locals) = self.compile_function(defined, body, &func_type)?;
+            let (func_type, body) = self.function(defined, &bodies)?;
+            let (blocks, num_locals) = self.compile_function(defined, body, &func_type, true)?;
             for block in &blocks {
                 out.push_str(&block.body);
                 out.push('\n');
             }
             entries.push(self.emit_entry(&name, defined, &func_type, num_locals, &blocks));
+            for callee in self.callees(body)? {
+                if !wanted.contains(&callee) {
+                    wanted.push(callee);
+                }
+            }
         }
+
+        // transitively close over calls, then emit each callee once
+        let mut done: Vec<usize> = Vec::new();
+        while let Some(callee) = wanted.pop() {
+            if done.contains(&callee) {
+                continue;
+            }
+            done.push(callee);
+            let (func_type, body) = self.function(callee, &bodies)?;
+            let (blocks, num_locals) = self.compile_function(callee, body, &func_type, false)?;
+            for block in &blocks {
+                out.push_str(&block.body);
+                out.push('\n');
+            }
+            out.push_str(&self.emit_call_entry(callee, &func_type, num_locals, &blocks));
+            for next in self.callees(body)? {
+                if !done.contains(&next) {
+                    wanted.push(next);
+                }
+            }
+        }
+
         for entry in entries {
             out.push_str(&entry);
         }
         Ok(out)
+    }
+
+    /// The entry point for a called function: takes memory, the caller's
+    /// globals and the arguments, and zero-fills the rest of the locals.
+    fn emit_call_entry(
+        &self,
+        func_index: usize,
+        func_type: &FuncType,
+        num_locals: usize,
+        blocks: &[EmittedBlock],
+    ) -> String {
+        let (num_params, _) = self.func_signature(func_type);
+        let entry = blocks.first().map(|b| b.id).unwrap_or(0);
+        let mut params = vec!["$M extends $Node".to_string()];
+        for i in 0..self.globals.len() {
+            params.push(format!("$g{i} extends WasmValue"));
+        }
+        for i in 0..num_params {
+            params.push(format!("$p{i} extends WasmValue"));
+        }
+        let mut args = vec!["$M".to_string()];
+        for i in 0..self.globals.len() {
+            args.push(format!("$g{i}"));
+        }
+        for i in 0..num_locals {
+            args.push(if i < num_params {
+                format!("$p{i}")
+            } else {
+                format!("'{}'", zero())
+            });
+        }
+        format!(
+            "\nexport type $call{func_index}<{}> =\n  $u{func_index}_{entry}<{}>\n",
+            params.join(", "),
+            args.join(", ")
+        )
+    }
+
+    /// type and body of a defined function, by index into the defined functions
+    fn function<'b>(
+        &self,
+        defined: usize,
+        bodies: &'b [wasmparser::FunctionBody<'b>],
+    ) -> Result<(FuncType, &'b wasmparser::FunctionBody<'b>), String> {
+        let body = bodies
+            .get(defined)
+            .ok_or_else(|| format!("no body for function {defined}"))?;
+        let type_index = *self
+            .func_type_indices
+            .get(defined)
+            .ok_or_else(|| format!("no type for function {defined}"))?;
+        let func_type = self
+            .func_types
+            .get(type_index as usize)
+            .ok_or_else(|| format!("no type {type_index}"))?
+            .clone();
+        Ok((func_type, body))
+    }
+
+    /// which defined functions this body calls directly
+    fn callees(&self, body: &wasmparser::FunctionBody) -> Result<Vec<usize>, String> {
+        let mut found = Vec::new();
+        for op in body.get_operators_reader().map_err(|e| e.to_string())? {
+            if let Operator::Call { function_index } = op.map_err(|e| e.to_string())? {
+                if function_index < self.num_imports {
+                    return Err(format!(
+                        "calls to imported functions are not supported (function {function_index})"
+                    ));
+                }
+                let defined = (function_index - self.num_imports) as usize;
+                if !found.contains(&defined) {
+                    found.push(defined);
+                }
+            }
+        }
+        Ok(found)
     }
 
     fn emit_prelude(&self) -> String {
@@ -530,6 +627,7 @@ export type $ToNumber<V> = Convert.WasmValue.ToTSNumber<V & string, 'i32'>
         func_index: usize,
         body: &wasmparser::FunctionBody,
         func_type: &FuncType,
+        metered: bool,
     ) -> Result<(Vec<EmittedBlock>, usize), String> {
         let (num_params, num_results) = self.func_signature(func_type);
         if num_results > 1 {
@@ -560,6 +658,7 @@ export type $ToNumber<V> = Convert.WasmValue.ToTSNumber<V & string, 'i32'>
         let mut compiler = FunctionCfg {
             module: self,
             func_index,
+            metered,
             ops: &ops,
             num_locals,
             num_results,
@@ -642,6 +741,9 @@ fn end_map(ops: &[Operator]) -> Result<HashMap<usize, (usize, Option<usize>)>, S
 struct FunctionCfg<'a> {
     module: &'a CfgCompiler,
     func_index: usize,
+    /// metered blocks charge fuel and can suspend; unmetered ones are callees
+    /// that must run to completion inside the caller's evaluation
+    metered: bool,
     ops: &'a [Operator<'a>],
     num_locals: usize,
     num_results: usize,
@@ -659,7 +761,8 @@ impl<'a> FunctionCfg<'a> {
     }
 
     fn block_name(&self, id: usize) -> String {
-        format!("$b{}_{}", self.func_index, id)
+        let flavour = if self.metered { "b" } else { "u" };
+        format!("${flavour}{}_{}", self.func_index, id)
     }
 
     fn run(&mut self) -> Result<(), String> {
@@ -737,10 +840,11 @@ impl<'a> FunctionCfg<'a> {
 
     /// Wrap the block's terminator in its bindings, fuel check and parameters.
     fn render_block(&self, pending: &Pending, env: &BlockEnv, terminator: &str, cost: usize) -> String {
-        let mut params = vec![
-            "$F extends string".to_string(),
-            "$M extends $Node".to_string(),
-        ];
+        let mut params = if self.metered {
+            vec!["$F extends string".to_string(), "$M extends $Node".to_string()]
+        } else {
+            vec!["$M extends $Node".to_string()]
+        };
         for i in 0..self.module.globals.len() {
             params.push(format!("$g{i} extends WasmValue"));
         }
@@ -753,14 +857,21 @@ impl<'a> FunctionCfg<'a> {
 
         let mut inner = String::new();
         for (name, constraint, expr) in &env.bindings {
-            inner.push_str(&format!("{expr} extends infer {name} extends {constraint}\n  ? "));
+            // most bindings name one value; a call binds a whole result pattern
+            if constraint.is_empty() {
+                inner.push_str(&format!("{expr} extends {name}\n  ? "));
+            } else {
+                inner.push_str(&format!("{expr} extends infer {name} extends {constraint}\n  ? "));
+            }
         }
         inner.push_str(terminator);
         for _ in &env.bindings {
             inner.push_str("\n  : never");
         }
 
-        let body = {
+        let body = if !self.metered {
+            format!("  {}", indent(&inner, 2))
+        } else {
             // out of fuel: hand the block id and everything live back to the host
             let mut live = vec!["$M".to_string()];
             for i in 0..self.module.globals.len() {
@@ -788,22 +899,30 @@ impl<'a> FunctionCfg<'a> {
     }
 
     fn emit_return(&self, env: &mut BlockEnv) -> Result<String, String> {
-        if self.num_results == 0 {
-            Ok(format!("['r', {}]", env.memory))
-        } else {
-            let value = env
-                .stack
-                .last()
-                .cloned()
-                .unwrap_or_else(|| format!("'{}'", zero()));
-            Ok(format!("['r', {}, {}]", env.memory, value))
+        let mut parts = vec!["'r'".to_string(), env.memory.clone()];
+        // a callee also hands its globals back, so writes to them are not lost
+        if !self.metered {
+            parts.extend(env.globals.iter().cloned());
         }
+        if self.num_results > 0 {
+            parts.push(
+                env.stack
+                    .last()
+                    .cloned()
+                    .unwrap_or_else(|| format!("'{}'", zero())),
+            );
+        }
+        Ok(format!("[{}]", parts.join(", ")))
     }
 
     /// Tail-call a block, passing the stack it expects: everything below the
     /// label, then the operands it consumes off the top.
     fn call_block(&self, id: usize, env: &BlockEnv, floor: usize, arity: usize) -> String {
-        let mut args = vec!["$F".to_string(), env.memory.clone()];
+        let mut args = if self.metered {
+            vec!["$F".to_string(), env.memory.clone()]
+        } else {
+            vec![env.memory.clone()]
+        };
         args.extend(env.globals.iter().cloned());
         args.extend(env.locals.iter().cloned());
         let floor = floor.min(env.stack.len());
@@ -811,6 +930,18 @@ impl<'a> FunctionCfg<'a> {
         let take = arity.min(env.stack.len() - floor);
         args.extend(env.stack[env.stack.len() - take..].iter().cloned());
         format!("{}<{}>", self.block_name(id), args.join(", "))
+    }
+
+    /// leading arguments every block takes: fuel (when metered), memory, globals, locals
+    fn entry_args(&self, env: &BlockEnv) -> Vec<String> {
+        let mut args = if self.metered {
+            vec!["$F".to_string(), env.memory.clone()]
+        } else {
+            vec![env.memory.clone()]
+        };
+        args.extend(env.globals.iter().cloned());
+        args.extend(env.locals.iter().cloned());
+        args
     }
 
     /// `br depth`
@@ -1019,23 +1150,26 @@ impl<'a> FunctionCfg<'a> {
                     exit_arity: arity,
                     stack_floor: floor,
                 });
+                // the branch bodies take fresh parameters; the values on the
+                // stack right now travel as arguments. Naming them after the
+                // expressions themselves collides as soon as two stack slots
+                // hold the same value, which folded wat does constantly.
+                let carried = fresh_stack(env.stack.len());
                 let then_id = self.fresh_id();
                 self.pending.push(Pending {
                     id: then_id,
                     pos,
                     labels: inner_labels.clone(),
-                    stack: env.stack.clone(),
+                    stack: carried.clone(),
                 });
                 let else_id = self.fresh_id();
                 self.pending.push(Pending {
                     id: else_id,
                     pos: else_pos.map(|p| p + 1).unwrap_or(end_pos),
                     labels: inner_labels,
-                    stack: env.stack.clone(),
+                    stack: carried,
                 });
-                let mut args = vec!["$F".to_string(), env.memory.clone()];
-                args.extend(env.globals.iter().cloned());
-                args.extend(env.locals.iter().cloned());
+                let mut args = self.entry_args(env);
                 args.extend(env.stack.iter().cloned());
                 let arg_list = args.join(", ");
                 Ok(Step::Terminate(format!(
@@ -1067,11 +1201,9 @@ impl<'a> FunctionCfg<'a> {
                     id: fall_id,
                     pos,
                     labels: labels.clone(),
-                    stack: env.stack.clone(),
+                    stack: fresh_stack(env.stack.len()),
                 });
-                let mut args = vec!["$F".to_string(), env.memory.clone()];
-                args.extend(env.globals.iter().cloned());
-                args.extend(env.locals.iter().cloned());
+                let mut args = self.entry_args(env);
                 args.extend(env.stack.iter().cloned());
                 Ok(Step::Terminate(format!(
                     "{cond} extends '{z}'\n  ? {}<{}>\n  : {taken}",
@@ -1104,6 +1236,51 @@ impl<'a> FunctionCfg<'a> {
                 let text = self.emit_return(env)?;
                 Ok(Step::Terminate(text))
             }
+            Call { function_index } => {
+                if *function_index < self.module.num_imports {
+                    return Err(format!(
+                        "calls to imported functions are not supported (function {function_index})"
+                    ));
+                }
+                let defined = (function_index - self.module.num_imports) as usize;
+                let type_index = *self
+                    .module
+                    .func_type_indices
+                    .get(defined)
+                    .ok_or_else(|| format!("no type for function {defined}"))?;
+                let callee = self
+                    .module
+                    .func_types
+                    .get(type_index as usize)
+                    .ok_or_else(|| format!("no type {type_index}"))?;
+                let num_params = callee.params().len();
+                let num_results = callee.results().len();
+                if num_results > 1 {
+                    return Err("calls returning multiple values are not supported".to_string());
+                }
+                for param in callee.params() {
+                    if *param != ValType::I32 {
+                        return Err(format!("call takes a {param:?}, only i32 is supported"));
+                    }
+                }
+                // arguments come off the stack in order
+                let mut args = Vec::new();
+                for _ in 0..num_params {
+                    args.push(env.pop());
+                }
+                args.reverse();
+                // the callee is the unmetered flavour: it runs to completion and
+                // hands back ['r', memory, globals..., value?]
+                let mut call_args = vec![env.memory.clone()];
+                call_args.extend(env.globals.iter().cloned());
+                call_args.extend(args);
+                let call = format!("$call{defined}<{}>", call_args.join(", "));
+                if let Some(value) = env.bind_result(&call, num_results > 0) {
+                    env.push(value);
+                }
+                Ok(Step::Continue)
+            }
+
             Unreachable => Ok(Step::Terminate("never".to_string())),
 
             other => Err(format!("unsupported operator: {other:?}")),
@@ -1218,6 +1395,40 @@ impl BlockEnv {
         name
     }
 
+    /// Bind a callee's `['r', memory, value?]` result: the caller's memory
+    /// becomes the callee's, and the value (if any) lands on the stack.
+    fn bind_result(&mut self, call: &str, has_value: bool) -> Option<String> {
+        let memory_name = format!("$m{}", self.next_temp);
+        self.next_temp += 1;
+        let mut pattern = vec![
+            "'r'".to_string(),
+            format!("infer {memory_name} extends $Node"),
+        ];
+        let global_names: Vec<String> = (0..self.globals.len())
+            .map(|_| {
+                let name = format!("$g_{}", self.next_temp);
+                self.next_temp += 1;
+                name
+            })
+            .collect();
+        for name in &global_names {
+            pattern.push(format!("infer {name} extends WasmValue"));
+        }
+        let value_name = if has_value {
+            let name = format!("$t{}", self.next_temp);
+            self.next_temp += 1;
+            pattern.push(format!("infer {name} extends WasmValue"));
+            Some(name)
+        } else {
+            None
+        };
+        self.bindings
+            .push((format!("[{}]", pattern.join(", ")), String::new(), call.to_string()));
+        self.memory = memory_name;
+        self.globals = global_names;
+        value_name
+    }
+
     fn binary(&mut self, op: &str, ret: Result<Step, String>) -> Result<Step, String> {
         let b = self.pop();
         let a = self.pop();
@@ -1269,6 +1480,11 @@ impl BlockEnv {
         self.stores += 1;
         ret
     }
+}
+
+/// fresh names for a block's incoming stack slots
+fn fresh_stack(depth: usize) -> Vec<String> {
+    (0..depth).map(|i| format!("$k{i}")).collect()
 }
 
 fn block_arity(blockty: &BlockType) -> Result<usize, String> {
