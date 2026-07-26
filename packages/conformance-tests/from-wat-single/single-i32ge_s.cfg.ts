@@ -84,6 +84,16 @@ export type $Put<T, B extends string, V extends string> =
       : $Set<[T, T, T, T, T, T, T, T], `${d0}${d1}${d2}`, $Put<T, Rest, V>>
     : [V]
 
+/// Writing a byte is a read, a splice and a write, which is two walks down the
+/// trie for one pixel. This is the same descent as `$Put`, except that the leaf
+/// it lands on is spliced rather than replaced, so a byte store costs one walk.
+export type $PutByte<T, B extends string, O extends string, V extends string> =
+  B extends `${infer d0}${infer d1}${infer d2}${infer Rest}`
+    ? T extends [infer c0, infer c1, infer c2, infer c3, infer c4, infer c5, infer c6, infer c7]
+      ? $Set<[c0, c1, c2, c3, c4, c5, c6, c7], `${d0}${d1}${d2}`, $PutByte<$Sel<[c0, c1, c2, c3, c4, c5, c6, c7], `${d0}${d1}${d2}`>, Rest, O, V>>
+      : $Set<[T, T, T, T, T, T, T, T], `${d0}${d1}${d2}`, $PutByte<T, Rest, O, V>>
+    : [$SetByte<$Word<T>, O, V>]
+
 export type $AlignAddr<A extends WasmValue> = Wasm.I32And<A, '11111111111111111111111111111100'>
 
 /// The two low bits of an address, as characters. A byte offset is the last two
@@ -122,7 +132,7 @@ export type $Load8U<M extends $Node, A extends WasmValue> = $GetByte<$Read<M, A>
 export type $Load8S<M extends $Node, A extends WasmValue> =
   Wasm.I32ShrS<Wasm.I32Shl<$Load8U<M, A>, '00000000000000000000000000011000'>, '00000000000000000000000000011000'>
 export type $Store8<M extends $Node, A extends WasmValue, V extends WasmValue> =
-  $Write<M, A, $SetByte<$Read<M, A>, $Off<A>, V>>
+  $PutByte<M, $Slice<A>, $Off<A>, V>
 
 /// 32-bit access: aligned is a plain trie read or write; unaligned falls back to
 /// the bit arithmetic, which pong never needs

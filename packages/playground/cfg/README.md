@@ -204,6 +204,16 @@ So the honest summary: the exponential in block length is now gone, and what
 remains is a *memory* cost that the pipeline does nothing about. Fewer, cheaper
 memory operations per frame is the next thing worth doing, not a wider block.
 
+One attempt at that failed in a way worth keeping. A byte store is a read, a
+splice and a write - two walks down the trie for one pixel - and fusing them
+into a single descent that splices the leaf in place is obviously fewer
+operations. It took pong-tiny from 19.9 frames a second to 12.5, three times,
+consistently. The reason is that the spliced word is then stored *unevaluated*
+inside the node: what the trie holds is a pending `$SetByte<...>` rather than 32
+characters, and every later read of that word carries the expression along.
+Values written into memory have to be flat. Fewer operations is not the same
+thing as less work when the work can be deferred into the data.
+
 ## What is not true
 
 Type arguments are not individually expensive, which is worth stating because
