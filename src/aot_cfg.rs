@@ -1824,14 +1824,22 @@ impl BlockEnv {
     }
 
     /// And/Or/Xor against a constant is one character choice per bit.
+    ///
+    /// Except for the bits an xor has to flip. A character inferred from a
+    /// template pattern is typed `string`, which cannot index the flip table,
+    /// and inferring it as `'0' | '1'` instead makes every position a union -
+    /// 32 of those in one template literal is 2^32 combinations, which the
+    /// checker refuses outright. ts-type-math walks the string one character at
+    /// a time to stay clear of that, so xors with bits set go there.
     fn bitwise(&mut self, op: &str, fallback: &str, ret: Result<Step, String>) -> Result<Step, String> {
         let b = self.pop();
         let a = self.pop();
-        let value = if let Some(constant) = Self::literal(&b) {
+        let flips = |constant: u32| op == "Xor" && constant != 0;
+        let value = if let Some(constant) = Self::literal(&b).filter(|k| !flips(*k)) {
             let helper = self.mask_helper(op, constant);
             self.push(format!("{helper}<{a}>"));
             return ret;
-        } else if let Some(constant) = Self::literal(&a) {
+        } else if let Some(constant) = Self::literal(&a).filter(|k| !flips(*k)) {
             let helper = self.mask_helper(op, constant);
             self.push(format!("{helper}<{b}>"));
             return ret;

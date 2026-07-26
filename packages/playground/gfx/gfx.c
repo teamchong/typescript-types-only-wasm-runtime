@@ -9,10 +9,10 @@
 #define W 64
 #define H 48
 #define BALL 3
-#define PADDLE_W 2
+#define PADDLE_W 4
 #define PADDLE_H 10
-#define PADDLE_X0 2
-#define PADDLE_X1 (W - 2 - PADDLE_W)
+#define PADDLE_X0 4
+#define PADDLE_X1 (W - 4 - PADDLE_W)
 
 // palette indices; the host turns these into colours
 #define BG 0
@@ -30,6 +30,7 @@ typedef struct state {
   int prev_ball_x, prev_ball_y;
   int prev_p1_y, prev_p2_y;
   int score1, score2;
+  unsigned char court[H];
   unsigned char screen[W * H];
 } state;
 
@@ -49,6 +50,22 @@ static state s = {
   .score2 = 0,
 };
 
+// A whole word costs one store, the same as a single byte: the memory the type
+// checker keeps is a trie of 32-bit words, and writing one byte of a word means
+// reading it, splicing, and writing it back. So anything four pixels wide and
+// four-aligned is written as a word - the paddles are shaped for it.
+static void fill_words(int x0, int y0, int w, int h, unsigned char colour) {
+  unsigned int packed = (unsigned int) colour;
+  packed |= packed << 8;
+  packed |= packed << 16;
+  for (int y = y0; y < y0 + h; y++) {
+    if (y < 0 || y >= H) continue;
+    for (int x = x0; x < x0 + w; x += 4) {
+      *(unsigned int *) &s.screen[y * W + x] = packed;
+    }
+  }
+}
+
 static void fill(int x0, int y0, int w, int h, unsigned char colour) {
   for (int y = y0; y < y0 + h; y++) {
     if (y < 0 || y >= H) continue;
@@ -59,10 +76,21 @@ static void fill(int x0, int y0, int w, int h, unsigned char colour) {
   }
 }
 
-// a dashed centre line, drawn once
+// A dashed centre line. The division is done once, at startup, into a table;
+// after that a row of court costs one load instead of a divide, and only the
+// rows the ball just erased are repainted rather than all 48.
+static void build_court(void) {
+  for (int y = 0; y < H; y++) s.court[y] = ((y / 3) % 2 == 0) ? COURT : BG;
+}
+
 static void draw_court(void) {
-  for (int y = 0; y < H; y++) {
-    if ((y / 3) % 2 == 0) s.screen[y * W + W / 2] = COURT;
+  for (int y = 0; y < H; y++) s.screen[y * W + W / 2] = s.court[y];
+}
+
+static void repair_court(int y0, int height) {
+  for (int y = y0; y < y0 + height; y++) {
+    if (y < 0 || y >= H) continue;
+    s.screen[y * W + W / 2] = s.court[y];
   }
 }
 
@@ -119,11 +147,12 @@ __attribute__((export_name("frame")))
 unsigned char *frame(int button) {
   if (!s.initialised) {
     s.initialised = 1;
-    fill(0, 0, W, H, BG);
+    fill_words(0, 0, W, H, BG);
+    build_court();
     draw_court();
     draw_scores();
-    fill(PADDLE_X0, s.p1_y, PADDLE_W, PADDLE_H, P1_C);
-    fill(PADDLE_X1, s.p2_y, PADDLE_W, PADDLE_H, P2_C);
+    fill_words(PADDLE_X0, s.p1_y, PADDLE_W, PADDLE_H, P1_C);
+    fill_words(PADDLE_X1, s.p2_y, PADDLE_W, PADDLE_H, P2_C);
     fill(s.ball_x, s.ball_y, BALL, BALL, BALL_C);
     return s.screen;
   }
@@ -133,15 +162,15 @@ unsigned char *frame(int button) {
   update(button);
 
   fill(s.prev_ball_x, s.prev_ball_y, BALL, BALL, BG);
-  if (s.prev_p1_y != s.p1_y) fill(PADDLE_X0, s.prev_p1_y, PADDLE_W, PADDLE_H, BG);
-  if (s.prev_p2_y != s.p2_y) fill(PADDLE_X1, s.prev_p2_y, PADDLE_W, PADDLE_H, BG);
+  if (s.prev_p1_y != s.p1_y) fill_words(PADDLE_X0, s.prev_p1_y, PADDLE_W, PADDLE_H, BG);
+  if (s.prev_p2_y != s.p2_y) fill_words(PADDLE_X1, s.prev_p2_y, PADDLE_W, PADDLE_H, BG);
 
-  // the ball erases the court line as it crosses it, so repaint that column
-  draw_court();
+  // the ball wipes the centre line as it crosses, so put back just those rows
+  repair_court(s.prev_ball_y, BALL);
   if (s.score1 != before1 || s.score2 != before2) draw_scores();
 
-  fill(PADDLE_X0, s.p1_y, PADDLE_W, PADDLE_H, P1_C);
-  fill(PADDLE_X1, s.p2_y, PADDLE_W, PADDLE_H, P2_C);
+  fill_words(PADDLE_X0, s.p1_y, PADDLE_W, PADDLE_H, P1_C);
+  fill_words(PADDLE_X1, s.p2_y, PADDLE_W, PADDLE_H, P2_C);
   fill(s.ball_x, s.ball_y, BALL, BALL, BALL_C);
 
   return s.screen;
