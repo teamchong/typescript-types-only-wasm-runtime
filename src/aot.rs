@@ -173,6 +173,8 @@ pub struct CompiledFunc {
 
 /// Context for compiling a function with control flow
 struct CompileContext<'a> {
+    function_index: u32,
+    num_func_imports: u32,
     ops: &'a [wasmparser::Operator<'a>],
     pos: usize,
     params: &'a [(String, ExprType)],
@@ -477,8 +479,16 @@ impl<'a> CompileContext<'a> {
 
                 // Function calls
                 Call { function_index } => {
+                    if *function_index < self.num_func_imports {
+                        return Err(format!(
+                            "Unsupported imported function call {} in function {}",
+                            function_index, self.function_index
+                        ));
+                    }
+
+                    let local_func_idx = *function_index - self.num_func_imports;
                     // Look up function's type index, then get the type
-                    let type_idx = self.func_type_indices.get(*function_index as usize);
+                    let type_idx = self.func_type_indices.get(local_func_idx as usize);
                     let func_type = type_idx.and_then(|idx| self.func_types.get(*idx as usize));
 
                     if let Some(func_type) = func_type {
@@ -494,7 +504,7 @@ impl<'a> CompileContext<'a> {
                         // Push call expression if function returns a value
                         if !func_type.results().is_empty() {
                             stack.push(Expr::Call {
-                                func_name: format!("$func_{}", function_index),
+                                func_name: format!("$func_{}", local_func_idx),
                                 args,
                             });
                         }
@@ -668,33 +678,19 @@ impl<'a> CompileContext<'a> {
                 }
 
                 // CallIndirect - like Call but via table
-                CallIndirect { type_index, .. } => {
-                    // Pop the table index first
-                    stack.pop();
-
-                    // Get function type directly from type section (type_index is a type index, not function index)
-                    if let Some(func_type) = self.func_types.get(*type_index as usize) {
-                        let num_params = func_type.params().len();
-                        let mut args = Vec::new();
-                        for _ in 0..num_params {
-                            if let Some(arg) = stack.pop() {
-                                args.push(arg);
-                            }
-                        }
-                        args.reverse();
-
-                        // Push indirect call result if function returns a value
-                        if !func_type.results().is_empty() {
-                            stack.push(Expr::Call {
-                                func_name: "$indirect_call".to_string(),
-                                args,
-                            });
-                        }
-                    }
+                CallIndirect { .. } => {
+                    return Err(format!(
+                        "Unsupported operator CallIndirect in function {}",
+                        self.function_index
+                    ));
                 }
 
-                // Skip other operators for now
-                _ => {}
+                op => {
+                    return Err(format!(
+                        "Unsupported operator {:?} in function {}",
+                        op, self.function_index
+                    ));
+                }
             }
         }
 
@@ -866,7 +862,15 @@ impl<'a> CompileContext<'a> {
 
                 // Function calls
                 Call { function_index } => {
-                    let type_idx = self.func_type_indices.get(*function_index as usize);
+                    if *function_index < self.num_func_imports {
+                        return Err(format!(
+                            "Unsupported imported function call {} in function {}",
+                            function_index, self.function_index
+                        ));
+                    }
+
+                    let local_func_idx = *function_index - self.num_func_imports;
+                    let type_idx = self.func_type_indices.get(local_func_idx as usize);
                     let func_type = type_idx.and_then(|idx| self.func_types.get(*idx as usize));
                     if let Some(func_type) = func_type {
                         let num_params = func_type.params().len();
@@ -879,15 +883,25 @@ impl<'a> CompileContext<'a> {
                         args.reverse();
                         if !func_type.results().is_empty() {
                             stack.push(Expr::Call {
-                                func_name: format!("$func_{}", function_index),
+                                func_name: format!("$func_{}", local_func_idx),
                                 args,
                             });
                         }
                     }
                 }
 
-                // Skip other operators in loop body
-                _ => {}
+                CallIndirect { .. } => {
+                    return Err(format!(
+                        "Unsupported operator CallIndirect in function {}",
+                        self.function_index
+                    ));
+                }
+                op => {
+                    return Err(format!(
+                        "Unsupported operator {:?} in function {}",
+                        op, self.function_index
+                    ));
+                }
             }
         }
 
@@ -908,6 +922,7 @@ pub struct AotCompiler {
     func_types: Vec<FuncType>,
     /// Mapping from function index to type index
     func_type_indices: Vec<u32>,
+    num_func_imports: u32,
     /// Function names (from name section or generated)
     func_names: HashMap<u32, String>,
     /// Compiled functions
@@ -927,6 +942,7 @@ impl AotCompiler {
         Self {
             func_types: Vec::new(),
             func_type_indices: Vec::new(),
+            num_func_imports: 0,
             func_names: HashMap::new(),
             functions: Vec::new(),
             loop_counter: 0,
@@ -966,6 +982,14 @@ impl AotCompiler {
                     for memory in reader {
                         let memory = memory.map_err(|e| e.to_string())?;
                         self.memory_size = memory.initial as u32;
+                    }
+                }
+                Payload::ImportSection(reader) => {
+                    for import in reader {
+                        let import = import.map_err(|e| e.to_string())?;
+                        if let wasmparser::TypeRef::Func(_) = import.ty {
+                            self.num_func_imports += 1;
+                        }
                     }
                 }
                 Payload::GlobalSection(reader) => {
@@ -1039,25 +1063,9 @@ impl AotCompiler {
                     .ok_or_else(|| format!("No type for index {}", type_idx))?
                     .clone();
 
-                let compiled = self.compile_function_body(func_index, &func_type, &body);
-                match compiled {
-                    Ok(func) => self.functions.push(func),
-                    Err(e) => {
-                        eprintln!("Warning: Failed to compile function {}: {}", func_index, e);
-                        // Push a placeholder function with no body
-                        self.functions.push(CompiledFunc {
-                            name: format!("$func_{}", func_index),
-                            params: func_type.params()
-                                .iter()
-                                .enumerate()
-                                .map(|(i, vt)| (format!("$p{}", i), val_type_to_expr_type(vt)))
-                                .collect(),
-                            result_type: func_type.results().first().map(val_type_to_expr_type),
-                            body_expr: None,
-                            loop_definitions: Vec::new(),
-                        });
-                    }
-                }
+                let compiled = self.compile_function_body(func_index, &func_type, &body)
+                    .map_err(|e| format!("Failed to compile function {}: {}", func_index, e))?;
+                self.functions.push(compiled);
                 func_index += 1;
             }
         }
@@ -1133,6 +1141,8 @@ impl AotCompiler {
         let body_expr;
         {
             let mut ctx = CompileContext {
+                function_index: func_index,
+                num_func_imports: self.num_func_imports,
                 ops: &ops,
                 pos: 0,
                 params: &params,
@@ -1361,6 +1371,8 @@ fn unary_op_lenient(stack: &mut Vec<Expr>, op: &'static str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::aot_clean::CleanAotCompiler;
+    use crate::aot_stateful::StatefulAotCompiler;
     use std::fs;
 
     #[test]
@@ -1375,5 +1387,104 @@ mod tests {
 
         // Should contain the Add operation
         assert!(output.contains("Wasm.I32Add"));
+    }
+
+    #[test]
+    fn rejects_unsupported_operator_in_all_aot_compilers() {
+        let wasm_bytes = fs::read("./packages/conformance-tests/from-wat/negate.wasm")
+            .expect("Failed to read negate.wasm");
+
+        let legacy_error = AotCompiler::new().compile(&wasm_bytes).unwrap_err();
+        let clean_error = CleanAotCompiler::new().compile(&wasm_bytes).unwrap_err();
+        let stateful_error = StatefulAotCompiler::new().compile(&wasm_bytes).unwrap_err();
+
+        for error in [legacy_error, clean_error, stateful_error] {
+            assert!(error.contains("Unsupported operator F64Neg"), "{error}");
+            assert!(error.contains("function 0"), "{error}");
+        }
+    }
+
+    #[test]
+    fn legacy_aot_compiler_rejects_call_indirect() {
+        let wasm_bytes = fs::read("./packages/conformance-tests/from-wat/call-indirect.wasm")
+            .expect("Failed to read call-indirect.wasm");
+
+        let legacy_error = AotCompiler::new().compile(&wasm_bytes).unwrap_err();
+        assert!(
+            legacy_error.contains("Unsupported operator CallIndirect"),
+            "{legacy_error}"
+        );
+        assert!(legacy_error.contains("function 1"), "{legacy_error}");
+    }
+
+    #[test]
+    fn compiles_call_indirect_to_a_dispatch_type() {
+        let wasm_bytes = fs::read("./packages/conformance-tests/from-wat/call-indirect.wasm")
+            .expect("Failed to read call-indirect.wasm");
+
+        for output in [
+            CleanAotCompiler::new().compile(&wasm_bytes).unwrap(),
+            StatefulAotCompiler::new().compile(&wasm_bytes).unwrap(),
+        ] {
+            // The single table entry at index 0 is $add, so the dispatch has to
+            // route index 0 to it and trap (never) for anything else
+            assert!(
+                output.contains("type $indirect_0<$S extends $State, $callee extends WasmValue, $a0 extends WasmValue, $a1 extends WasmValue>"),
+                "{output}"
+            );
+            assert!(
+                output.contains("$callee extends '00000000000000000000000000000000' ? $func_0_impl<$S, $a0, $a1>"),
+                "{output}"
+            );
+            assert!(output.contains("never"), "{output}");
+        }
+    }
+
+    #[test]
+    fn call_indirect_dispatch_respects_the_element_offset() {
+        // The table is initialized at offset 1, so index 1 is $add and index 2
+        // is $multiply - index 0 stays empty and must trap
+        let wasm_bytes = fs::read("./packages/conformance-tests/from-wat/call-indirect-offset.wasm")
+            .expect("Failed to read call-indirect-offset.wasm");
+
+        for output in [
+            CleanAotCompiler::new().compile(&wasm_bytes).unwrap(),
+            StatefulAotCompiler::new().compile(&wasm_bytes).unwrap(),
+        ] {
+            assert!(
+                output.contains("$callee extends '00000000000000000000000000000001' ? $func_0_impl<$S, $a0, $a1>"),
+                "{output}"
+            );
+            assert!(
+                output.contains("$callee extends '00000000000000000000000000000010' ? $func_1_impl<$S, $a0, $a1>"),
+                "{output}"
+            );
+            assert!(
+                !output.contains("$callee extends '00000000000000000000000000000000'"),
+                "{output}"
+            );
+        }
+    }
+
+    #[test]
+    fn call_indirect_only_dispatches_to_matching_signatures() {
+        // doom's table holds one (param i32) function at slot 1 and six () ones
+        // at slots 2..7, so each dispatch type must only list its own signature
+        let wasm_bytes =
+            fs::read("./packages/playground/doom/doom.wasm").expect("Failed to read doom.wasm");
+
+        let mut compiler = CleanAotCompiler::new();
+        compiler.collect_metadata(&wasm_bytes).unwrap();
+
+        let mut with_params = String::new();
+        compiler.emit_indirect_dispatch(&mut with_params, 1, usize::MAX);
+        assert!(with_params.contains("(1 reachable target)"), "{with_params}");
+
+        let mut without_params = String::new();
+        compiler.emit_indirect_dispatch(&mut without_params, 0, usize::MAX);
+        assert!(
+            without_params.contains("(6 reachable targets)"),
+            "{without_params}"
+        );
     }
 }

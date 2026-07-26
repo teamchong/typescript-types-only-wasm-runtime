@@ -83,6 +83,14 @@ pub enum Expr {
         args: Vec<Expr>,
         returns_value: bool,
     },
+    /// Indirect call through the function table: $indirect_T<state, callee, args...>
+    CallIndirect {
+        type_index: u32,
+        state: Box<Expr>,
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+        returns_value: bool,
+    },
     /// Get state from [State, Value] tuple: $GetState<T>
     GetState(Box<Expr>),
     /// Get value from [State, Value] tuple: $GetValue<T>
@@ -180,6 +188,14 @@ impl Expr {
                 all_args.extend(args.iter().map(|a| a.to_typescript_depth(depth)));
                 format!("{}_impl<{}>", func_name, all_args.join(", "))
             }
+            Expr::CallIndirect { type_index, state, callee, args, returns_value: _ } => {
+                let mut all_args = vec![
+                    state.to_typescript_depth(depth),
+                    callee.to_typescript_depth(depth),
+                ];
+                all_args.extend(args.iter().map(|a| a.to_typescript_depth(depth)));
+                format!("$indirect_{}<{}>", type_index, all_args.join(", "))
+            }
             Expr::GetState(tuple) => {
                 format!("$GetState<{}>", tuple.to_typescript_depth(depth))
             }
@@ -211,6 +227,7 @@ pub struct CompiledFunc {
     pub body_state: Option<Expr>,  // Final state
     pub body_result: Option<Expr>, // Final result (None for void)
     pub loop_defs: Vec<LoopTypeDef>, // Loop type definitions for this function
+    pub indirect_types: Vec<u32>,    // call_indirect type indices used by this function
 }
 
 /// Block context for control flow
@@ -233,6 +250,7 @@ pub struct LoopTypeDef {
 
 /// Compilation context for a function
 struct FuncCompiler<'a> {
+    function_index: u32,
     ops: Vec<wasmparser::Operator<'a>>,
     pos: usize,
     stack: Vec<Expr>,
@@ -243,22 +261,22 @@ struct FuncCompiler<'a> {
     loop_defs: Vec<LoopTypeDef>, // Generated loop type definitions
     func_types: &'a [FuncType],
     func_type_indices: &'a [u32],
-    import_func_type_indices: &'a [u32],  // Type indices for imported functions
     num_func_imports: u32,
     state_depth: usize, // Track state nesting depth
     num_params: usize,  // Number of function parameters
+    indirect_types: Vec<u32>, // Type indices reached via call_indirect
 }
 
 const MAX_STATE_DEPTH: usize = 20; // Limit state nesting to prevent exponential blowup
 
 impl<'a> FuncCompiler<'a> {
     fn new(
+        function_index: u32,
         ops: Vec<wasmparser::Operator<'a>>,
         params: &[(String, ExprType)],
         num_locals: u32,
         func_types: &'a [FuncType],
         func_type_indices: &'a [u32],
-        import_func_type_indices: &'a [u32],
         num_func_imports: u32,
     ) -> Self {
         let mut locals = HashMap::new();
@@ -275,6 +293,7 @@ impl<'a> FuncCompiler<'a> {
         }
 
         Self {
+            function_index,
             ops,
             pos: 0,
             stack: Vec::new(),
@@ -285,10 +304,10 @@ impl<'a> FuncCompiler<'a> {
             loop_defs: Vec::new(),
             func_types,
             func_type_indices,
-            import_func_type_indices,
             num_func_imports,
             state_depth: 0,
             num_params,
+            indirect_types: Vec::new(),
         }
     }
 
@@ -1055,23 +1074,11 @@ impl<'a> FuncCompiler<'a> {
 
             // Function calls
             Call { function_index } => {
-                // Handle imported functions - pop args, update state, push placeholder result
                 if *function_index < self.num_func_imports {
-                    if let Some(&type_idx) = self.import_func_type_indices.get(*function_index as usize) {
-                        if let Some(func_type) = self.func_types.get(type_idx as usize) {
-                            // Pop arguments from stack
-                            for _ in 0..func_type.params().len() {
-                                self.stack.pop();
-                            }
-                            // Update state to reflect unknown side effects from import
-                            self.update_state(Expr::Param(format!("$import_{}_state", function_index)));
-                            // If import returns a value, push placeholder
-                            if !func_type.results().is_empty() {
-                                self.stack.push(Expr::Param(format!("$import_{}__result", function_index)));
-                            }
-                        }
-                    }
-                    return Ok(());  // Skip to next operator
+                    return Err(format!(
+                        "Unsupported imported function call {} in function {}",
+                        function_index, self.function_index
+                    ));
                 }
 
                 // Adjust index for imports: defined function 0 is at func_type_indices[0]
@@ -1123,6 +1130,7 @@ impl<'a> FuncCompiler<'a> {
 
             // Conversions
             I32WrapI64 => unary_op(&mut self.stack, "Wasm.I32WrapI64"),
+            I32Extend16S => unary_op(&mut self.stack, "Wasm.I32Extend16S"),
             I64ExtendI32S => unary_op(&mut self.stack, "Wasm.I64ExtendI32S"),
             I64ExtendI32U => unary_op(&mut self.stack, "Wasm.I64ExtendI32U"),
 
@@ -1167,17 +1175,79 @@ impl<'a> FuncCompiler<'a> {
                 self.stack.push(Expr::Param("$memgrow_result".to_string()));
             }
 
-            _ => {
-                // Unknown operator - skip
+            // Indirect calls dispatch on the runtime table index
+            CallIndirect { type_index, table_index, .. } => {
+                if *table_index != 0 {
+                    return Err(format!(
+                        "Unsupported call_indirect on table {} in function {} (only table 0 is supported)",
+                        table_index, self.function_index
+                    ));
+                }
+
+                let func_type = self
+                    .func_types
+                    .get(*type_index as usize)
+                    .ok_or_else(|| {
+                        format!(
+                            "No type at idx {} for call_indirect in function {}",
+                            type_index, self.function_index
+                        )
+                    })?
+                    .clone();
+
+                // Stack layout: [args..., callee_index]
+                let callee = self
+                    .stack
+                    .pop()
+                    .unwrap_or(Expr::Param("$callee".to_string()));
+
+                let mut args = Vec::new();
+                for _ in 0..func_type.params().len() {
+                    if let Some(arg) = self.stack.pop() {
+                        args.push(arg);
+                    }
+                }
+                args.reverse();
+
+                if !self.indirect_types.contains(type_index) {
+                    self.indirect_types.push(*type_index);
+                }
+
+                let returns_value = !func_type.results().is_empty();
+                let call_expr = Expr::CallIndirect {
+                    type_index: *type_index,
+                    state: Box::new(self.get_state_for_expr()),
+                    callee: Box::new(callee),
+                    args,
+                    returns_value,
+                };
+
+                if returns_value {
+                    self.update_state(Expr::GetState(Box::new(call_expr.clone())));
+                    self.stack.push(Expr::GetValue(Box::new(call_expr)));
+                } else {
+                    self.update_state(call_expr);
+                }
+            }
+            op => {
+                return Err(format!(
+                    "Unsupported operator {:?} in function {}",
+                    op, self.function_index
+                ));
             }
         }
         Ok(())
     }
 
-    fn compile(mut self) -> Result<(Expr, Option<Expr>, Vec<LoopTypeDef>), String> {
+    fn compile(mut self) -> Result<(Expr, Option<Expr>, Vec<LoopTypeDef>, Vec<u32>), String> {
         self.process_block(false)?;
         let result = self.stack.pop();
-        Ok((self.current_state, result, self.loop_defs))
+        Ok((
+            self.current_state,
+            result,
+            self.loop_defs,
+            self.indirect_types,
+        ))
     }
 }
 
@@ -1192,6 +1262,7 @@ pub struct StatefulAotCompiler {
     globals: Vec<(u32, i64)>,
     num_func_imports: u32,
     exported_func_idx: Option<u32>,  // Index of exported function (relative to defined functions)
+    table_funcs: HashMap<u32, u32>,  // Table slot -> function index (for call_indirect dispatch)
 }
 
 impl StatefulAotCompiler {
@@ -1206,6 +1277,7 @@ impl StatefulAotCompiler {
             globals: Vec::new(),
             num_func_imports: 0,
             exported_func_idx: None,
+            table_funcs: HashMap::new(),
         }
     }
 
@@ -1249,6 +1321,12 @@ impl StatefulAotCompiler {
                             }
                         }
                         idx += 1;
+                    }
+                }
+                Payload::ElementSection(reader) => {
+                    for element in reader {
+                        let element = element.map_err(|e| e.to_string())?;
+                        self.collect_table_entries(element)?;
                     }
                 }
                 Payload::DataSection(reader) => {
@@ -1296,6 +1374,129 @@ impl StatefulAotCompiler {
         Ok(())
     }
 
+    /// Record the (statically known) contents of table 0 so call_indirect can
+    /// be turned into a dispatch over the possible targets.
+    fn collect_table_entries(&mut self, element: wasmparser::Element) -> Result<(), String> {
+        let wasmparser::Element { kind, items, .. } = element;
+
+        // Only active segments initialize the table before the program runs
+        let base = match kind {
+            wasmparser::ElementKind::Active { table_index, offset_expr } => {
+                if table_index.unwrap_or(0) != 0 {
+                    return Ok(());
+                }
+                let mut base = 0u32;
+                for op in offset_expr.get_operators_reader() {
+                    if let Ok(wasmparser::Operator::I32Const { value }) = op {
+                        base = value as u32;
+                    }
+                }
+                base
+            }
+            _ => return Ok(()),
+        };
+
+        match items {
+            wasmparser::ElementItems::Functions(funcs) => {
+                for (slot, func_idx) in funcs.into_iter().enumerate() {
+                    let func_idx = func_idx.map_err(|e| e.to_string())?;
+                    self.table_funcs.insert(base + slot as u32, func_idx);
+                }
+            }
+            wasmparser::ElementItems::Expressions(_, exprs) => {
+                for (slot, expr) in exprs.into_iter().enumerate() {
+                    let expr = expr.map_err(|e| e.to_string())?;
+                    for op in expr.get_operators_reader() {
+                        if let Ok(wasmparser::Operator::RefFunc { function_index }) = op {
+                            self.table_funcs.insert(base + slot as u32, function_index);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Resolve the signature of a function index (imports included)
+    fn func_type_of(&self, func_idx: u32) -> Option<&FuncType> {
+        let type_idx = if func_idx < self.num_func_imports {
+            *self.import_func_type_indices.get(func_idx as usize)?
+        } else {
+            *self
+                .func_type_indices
+                .get((func_idx - self.num_func_imports) as usize)?
+        };
+        self.func_types.get(type_idx as usize)
+    }
+
+    /// Emit a `$indirect_T` dispatch type: a chain of conditionals mapping the
+    /// runtime table index to the matching function implementation.
+    fn emit_indirect_dispatch(&self, output: &mut String, type_index: u32, entry_func_idx: usize) {
+        let Some(func_type) = self.func_types.get(type_index as usize) else {
+            return;
+        };
+        let num_params = func_type.params().len();
+
+        let mut params = vec![
+            "$S extends $State".to_string(),
+            "$callee extends WasmValue".to_string(),
+        ];
+        for i in 0..num_params {
+            params.push(format!("$a{} extends WasmValue", i));
+        }
+
+        let mut call_args = vec!["$S".to_string()];
+        for i in 0..num_params {
+            call_args.push(format!("$a{}", i));
+        }
+
+        let mut slots: Vec<(u32, u32)> = self
+            .table_funcs
+            .iter()
+            .map(|(slot, func_idx)| (*slot, *func_idx))
+            .collect();
+        slots.sort_unstable();
+
+        let mut body = String::new();
+        let mut targets = 0;
+        for (slot, func_idx) in slots {
+            // Only functions whose signature matches the call_indirect type can
+            // be reached; everything else traps at runtime
+            if self.func_type_of(func_idx) != Some(func_type) {
+                continue;
+            }
+            // Indirectly calling an import is not modelled - leave it as a trap
+            if func_idx < self.num_func_imports {
+                continue;
+            }
+            let local_idx = func_idx - self.num_func_imports;
+            let name = if local_idx as usize == entry_func_idx {
+                "$entry_impl".to_string()
+            } else {
+                format!("$func_{}_impl", local_idx)
+            };
+            body.push_str(&format!(
+                "  $callee extends '{:032b}' ? {}<{}> :\n",
+                slot,
+                name,
+                call_args.join(", ")
+            ));
+            targets += 1;
+        }
+        // No matching table entry: call_indirect traps
+        body.push_str("  never");
+
+        output.push_str(&format!(
+            "// call_indirect dispatch for type {} ({} reachable target{})\ntype $indirect_{}<{}> =\n{}\n\n",
+            type_index,
+            targets,
+            if targets == 1 { "" } else { "s" },
+            type_index,
+            params.join(", "),
+            body
+        ));
+    }
+
     fn compile_functions(&mut self, bytes: &[u8]) -> Result<(), String> {
         // Collect function type indices
         for payload in Parser::new(0).parse_all(bytes) {
@@ -1321,25 +1522,9 @@ impl StatefulAotCompiler {
                     .ok_or_else(|| format!("No type for index {}", type_idx))?
                     .clone();
 
-                let compiled = self.compile_function_body(func_index, &func_type, &body);
-                match compiled {
-                    Ok(func) => self.functions.push(func),
-                    Err(e) => {
-                        eprintln!("Warning: Failed to compile function {}: {}", func_index, e);
-                        self.functions.push(CompiledFunc {
-                            name: format!("$func_{}", func_index),
-                            params: func_type.params()
-                                .iter()
-                                .enumerate()
-                                .map(|(i, vt)| (format!("$p{}", i), val_type_to_expr_type(vt)))
-                                .collect(),
-                            result_type: func_type.results().first().map(val_type_to_expr_type),
-                            body_state: Some(Expr::State),
-                            body_result: None,
-                            loop_defs: Vec::new(),
-                        });
-                    }
-                }
+                let compiled = self.compile_function_body(func_index, &func_type, &body)
+                    .map_err(|e| format!("Failed to compile function {}: {}", func_index, e))?;
+                self.functions.push(compiled);
                 func_index += 1;
             }
         }
@@ -1378,16 +1563,16 @@ impl StatefulAotCompiler {
 
         // Compile using FuncCompiler
         let compiler = FuncCompiler::new(
+            func_index,
             ops,
             &params,
             num_locals,
             &self.func_types,
             &self.func_type_indices,
-            &self.import_func_type_indices,
             self.num_func_imports,
         );
 
-        let (final_state, body_result, loop_defs) = compiler.compile()?;
+        let (final_state, body_result, loop_defs, indirect_types) = compiler.compile()?;
 
         Ok(CompiledFunc {
             name,
@@ -1396,6 +1581,7 @@ impl StatefulAotCompiler {
             body_state: Some(final_state),
             body_result,
             loop_defs,
+            indirect_types,
         })
     }
 
@@ -1609,6 +1795,18 @@ impl StatefulAotCompiler {
         let entry_func_idx = self.exported_func_idx
             .map(|idx| idx as usize)
             .unwrap_or_else(|| self.functions.len().saturating_sub(1));
+
+        // call_indirect dispatch types (one per signature used by a call_indirect)
+        let mut indirect_types: Vec<u32> = self
+            .functions
+            .iter()
+            .flat_map(|func| func.indirect_types.iter().copied())
+            .collect();
+        indirect_types.sort_unstable();
+        indirect_types.dedup();
+        for type_index in indirect_types {
+            self.emit_indirect_dispatch(&mut output, type_index, entry_func_idx);
+        }
 
         for (idx, func) in self.functions.iter().enumerate() {
             let state_param = "$S extends $State";

@@ -12,14 +12,14 @@ const N = Number(process.env.N ?? 200);
 const session = createSession();
 
 // hop.wat is the empty loop: everything else is measured against it
-const cases = ["hop", "and1", "and5", "add", "add5", "store", "load"];
+const cases = ["arity2", "arity20"];
 const timings: Record<string, number> = {};
 for (const name of cases) {
   const wasm = join(__dirname, `bench/${name}.wasm`);
-  execFileSync(join(root, "target/debug/doom_but_typescript_types"), ["--aot-cfg", wasm], { stdio: "pipe" });
+  if (!process.env.SKIP_COMPILE) execFileSync(join(root, "target/debug/doom_but_typescript_types"), ["--aot-cfg", wasm], { stdio: "pipe" });
   const module = wasm.replace(/\.wasm$/, ".cfg.ts");
   const result = await run(module, "run", [`'${bin(N)}'`], {
-    fuel: N * 6 + 40,
+    fuel: N * 6 + 40 + Number(process.env.FUEL_PAD ?? 0),
     quiet: true,
     session,
     max: 8,

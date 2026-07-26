@@ -21,7 +21,7 @@
 //! through a shared continuation. Nothing is "skipped forward N ends".
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
 use wasmparser::{BlockType, FuncType, Operator, Parser, Payload, ValType};
 
@@ -92,6 +92,14 @@ struct EmittedBlock {
     body: String,
     /// fuel this block charges on entry: one hop plus its own stores
     cost: usize,
+    /// locals read before being written here
+    reads: BTreeSet<u32>,
+    /// locals written here
+    writes: BTreeSet<u32>,
+    /// blocks this one can jump to
+    successors: Vec<usize>,
+    /// locals live on entry, filled in once the whole function is compiled
+    live: BTreeSet<u32>,
 }
 
 pub struct CfgCompiler {
@@ -329,13 +337,19 @@ impl CfgCompiler {
         for i in 0..self.globals.len() {
             args.push(format!("$g{i}"));
         }
-        for i in 0..num_locals {
+        let live: Vec<u32> = blocks
+            .first()
+            .map(|block| block.live.iter().copied().collect())
+            .unwrap_or_default();
+        for index in live {
+            let i = index as usize;
             args.push(if i < num_params {
                 format!("$p{i}")
             } else {
                 format!("'{}'", zero())
             });
         }
+        let _ = num_locals;
         format!(
             "\nexport type $call{func_index}<{}> =\n  $u{func_index}_{entry}<{}>\n",
             params.join(", "),
@@ -706,6 +720,8 @@ export type $ToNumber<V> = Convert.WasmValue.ToTSNumber<V & string, 'i32'>
             num_locals,
             num_results,
             blocks: Vec::new(),
+            sites: Vec::new(),
+            successors: Vec::new(),
             pending: Vec::new(),
             next_id: 0,
             ends: end_map(&ops)?,
@@ -733,13 +749,19 @@ export type $ToNumber<V> = Convert.WasmValue.ToTSNumber<V & string, 'i32'>
         for i in 0..self.globals.len() {
             args.push(format!("'{}'", bits32(self.globals[i] as i32)));
         }
-        for i in 0..num_locals {
+        let live: Vec<u32> = blocks
+            .first()
+            .map(|block| block.live.iter().copied().collect())
+            .unwrap_or_default();
+        for index in live {
+            let i = index as usize;
             args.push(if i < num_params {
                 params[i].clone()
             } else {
                 format!("'{}'", zero())
             });
         }
+        let _ = num_locals;
         let decl_list = if decls.is_empty() {
             String::new()
         } else {
@@ -791,6 +813,10 @@ struct FunctionCfg<'a> {
     num_locals: usize,
     num_results: usize,
     blocks: Vec<EmittedBlock>,
+    /// (target block, the caller's local values) for every jump, in order
+    sites: Vec<(usize, Vec<String>)>,
+    /// successors of the block currently being compiled
+    successors: Vec<usize>,
     pending: Vec<Pending>,
     next_id: usize,
     ends: HashMap<usize, (usize, Option<usize>)>,
@@ -831,7 +857,115 @@ impl<'a> FunctionCfg<'a> {
             }
         }
         self.blocks.sort_by_key(|b| b.id);
+        self.compute_liveness();
+        self.substitute_locals();
         Ok(())
+    }
+
+    /// Backward dataflow: a local is live entering a block if the block reads it
+    /// before writing it, or if any successor needs it and this block does not
+    /// overwrite it first.
+    ///
+    /// Worth about 25% on a real frame, measured: pong-tiny goes from 3.8 to
+    /// 4.6 frames per second and the pixel game from 0.33s to 0.245s a frame,
+    /// with every pixel still identical to the wasm engine. Mean parameters per
+    /// block drops from 17 to 8.5.
+    ///
+    /// A caution about why, since it is easy to get wrong: type arguments are
+    /// not individually expensive. A hand-written loop carrying 20 string
+    /// parameters costs the same per iteration as one carrying 2. What this
+    /// saves is the size of the state threaded through every hop and rebuilt in
+    /// every suspend payload, not a per-argument fee.
+    fn compute_liveness(&mut self) {
+        let index_of: HashMap<usize, usize> = self
+            .blocks
+            .iter()
+            .enumerate()
+            .map(|(index, block)| (block.id, index))
+            .collect();
+        for block in &mut self.blocks {
+            block.live = block.reads.clone();
+        }
+        loop {
+            let mut changed = false;
+            for position in (0..self.blocks.len()).rev() {
+                let mut live = self.blocks[position].reads.clone();
+                for successor in self.blocks[position].successors.clone() {
+                    let Some(&target) = index_of.get(&successor) else {
+                        continue;
+                    };
+                    for local in self.blocks[target].live.clone() {
+                        if !self.blocks[position].writes.contains(&local) {
+                            live.insert(local);
+                        }
+                    }
+                }
+                if live != self.blocks[position].live {
+                    self.blocks[position].live = live;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+    }
+
+    /// Replace the placeholders left during compilation with the locals each
+    /// block turned out to need.
+    fn substitute_locals(&mut self) {
+        let live: HashMap<usize, Vec<u32>> = self
+            .blocks
+            .iter()
+            .map(|block| (block.id, block.live.iter().copied().collect()))
+            .collect();
+        let empty = Vec::new();
+        let sites = std::mem::take(&mut self.sites);
+        for block in &mut self.blocks {
+            let mut body = std::mem::take(&mut block.body);
+            // parameters, and the payload handed back when this block suspends
+            let wanted = live.get(&block.id).unwrap_or(&empty);
+            let params: Vec<String> = wanted
+                .iter()
+                .map(|index| format!("$l{index} extends WasmValue"))
+                .collect();
+            let payload: Vec<String> = wanted.iter().map(|index| format!("$l{index}")).collect();
+            body = fill_marker(body, &format!("\u{1}P{}\u{1}", block.id), &params);
+            body = fill_marker(body, &format!("\u{1}S{}\u{1}", block.id), &payload);
+            // call sites: pass only what the target reads
+            while let Some(start) = body.find("\u{1}L") {
+                let end = body[start + 2..].find('\u{1}').map(|at| start + 2 + at).unwrap_or(body.len());
+                let site: usize = body[start + 2..end].parse().unwrap_or(0);
+                let (target, values) = &sites[site];
+                let selected: Vec<String> = live
+                    .get(target)
+                    .unwrap_or(&empty)
+                    .iter()
+                    .filter_map(|index| values.get(*index as usize).cloned())
+                    .collect();
+                if selected.is_empty() {
+                    // drop a separator too, so no empty argument is left behind
+                    body.replace_range(start..end + 1, "");
+                    if body[start..].starts_with(", ") {
+                        body.replace_range(start..start + 2, "");
+                    } else if body[..start].ends_with(", ") {
+                        body.replace_range(start - 2..start, "");
+                    }
+                } else {
+                    body.replace_range(start..end + 1, &selected.join(", "));
+                }
+            }
+            block.body = body;
+        }
+        self.sites = sites;
+    }
+
+    /// locals live entering the function's first block
+    fn entry_live(&self) -> Vec<u32> {
+        self.blocks
+            .first()
+            .map(|block| block.live.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     fn compile_block(&mut self, pending: Pending) -> Result<EmittedBlock, String> {
@@ -844,6 +978,8 @@ impl<'a> FunctionCfg<'a> {
             locals: (0..self.num_locals).map(|i| format!("$l{i}")).collect(),
             stack: pending.stack.clone(),
             bindings: Vec::new(),
+            reads: BTreeSet::new(),
+            writes: BTreeSet::new(),
             computed: HashMap::new(),
             next_temp: 0,
             stores: 0,
@@ -880,6 +1016,10 @@ impl<'a> FunctionCfg<'a> {
             stack_arity: pending.stack.len(),
             body,
             cost,
+            reads: env.reads.clone(),
+            writes: env.writes.clone(),
+            successors: std::mem::take(&mut self.successors),
+            live: BTreeSet::new(),
         })
     }
 
@@ -893,9 +1033,7 @@ impl<'a> FunctionCfg<'a> {
         for i in 0..self.module.globals.len() {
             params.push(format!("$g{i} extends WasmValue"));
         }
-        for i in 0..self.num_locals {
-            params.push(format!("$l{i} extends WasmValue"));
-        }
+        params.push(format!("\u{1}P{}\u{1}", pending.id));
         for name in &pending.stack {
             params.push(format!("{name} extends WasmValue"));
         }
@@ -922,9 +1060,7 @@ impl<'a> FunctionCfg<'a> {
             for i in 0..self.module.globals.len() {
                 live.push(format!("$g{i}"));
             }
-            for i in 0..self.num_locals {
-                live.push(format!("$l{i}"));
-            }
+            live.push(format!("\u{1}S{}\u{1}", pending.id));
             live.extend(pending.stack.iter().cloned());
             let burn: String = std::iter::repeat('1').take(cost).collect();
             format!(
@@ -962,14 +1098,16 @@ impl<'a> FunctionCfg<'a> {
 
     /// Tail-call a block, passing the stack it expects: everything below the
     /// label, then the operands it consumes off the top.
-    fn call_block(&self, id: usize, env: &BlockEnv, floor: usize, arity: usize) -> String {
+    fn call_block(&mut self, id: usize, env: &BlockEnv, floor: usize, arity: usize) -> String {
         let mut args = if self.metered {
             vec!["$F".to_string(), env.memory.clone()]
         } else {
             vec![env.memory.clone()]
         };
         args.extend(env.globals.iter().cloned());
-        args.extend(env.locals.iter().cloned());
+        // which locals this target actually needs is only known once the whole
+        // function is compiled, so leave a marker and fill it in later
+        args.push(self.local_site(id, env));
         let floor = floor.min(env.stack.len());
         args.extend(env.stack[..floor].iter().cloned());
         let take = arity.min(env.stack.len() - floor);
@@ -978,15 +1116,23 @@ impl<'a> FunctionCfg<'a> {
     }
 
     /// leading arguments every block takes: fuel (when metered), memory, globals, locals
-    fn entry_args(&self, env: &BlockEnv) -> Vec<String> {
+    fn entry_args(&mut self, id: usize, env: &BlockEnv) -> Vec<String> {
         let mut args = if self.metered {
             vec!["$F".to_string(), env.memory.clone()]
         } else {
             vec![env.memory.clone()]
         };
         args.extend(env.globals.iter().cloned());
-        args.extend(env.locals.iter().cloned());
+        args.push(self.local_site(id, env));
         args
+    }
+
+    /// Record a call site's local values and return the placeholder that will
+    /// become the subset the target actually reads.
+    fn local_site(&mut self, target: usize, env: &BlockEnv) -> String {
+        self.sites.push((target, env.locals.clone()));
+        self.successors.push(target);
+        format!("\u{1}L{}\u{1}", self.sites.len() - 1)
     }
 
     /// `br depth`
@@ -1214,13 +1360,16 @@ impl<'a> FunctionCfg<'a> {
                     labels: inner_labels,
                     stack: carried,
                 });
-                let mut args = self.entry_args(env);
-                args.extend(env.stack.iter().cloned());
-                let arg_list = args.join(", ");
+                let mut then_args = self.entry_args(then_id, env);
+                then_args.extend(env.stack.iter().cloned());
+                let mut else_args = self.entry_args(else_id, env);
+                else_args.extend(env.stack.iter().cloned());
                 Ok(Step::Terminate(format!(
-                    "{cond} extends '{z}'\n  ? {}<{arg_list}>\n  : {}<{arg_list}>",
+                    "{cond} extends '{z}'\n  ? {}<{}>\n  : {}<{}>",
                     self.block_name(else_id),
+                    else_args.join(", "),
                     self.block_name(then_id),
+                    then_args.join(", "),
                     z = zero()
                 )))
             }
@@ -1248,7 +1397,7 @@ impl<'a> FunctionCfg<'a> {
                     labels: labels.clone(),
                     stack: fresh_stack(env.stack.len()),
                 });
-                let mut args = self.entry_args(env);
+                let mut args = self.entry_args(fall_id, env);
                 args.extend(env.stack.iter().cloned());
                 Ok(Step::Terminate(format!(
                     "{cond} extends '{z}'\n  ? {}<{}>\n  : {taken}",
@@ -1387,6 +1536,10 @@ struct BlockEnv {
     stack: Vec<String>,
     /// (name, constraint, expression) bindings, in order
     bindings: Vec<(String, String, String)>,
+    /// locals read before this block writes them: what it needs passed in
+    reads: BTreeSet<u32>,
+    /// locals this block assigns
+    writes: BTreeSet<u32>,
     /// expression text -> the name already bound to it, so a value computed
     /// twice in one block is computed once. Pong recomputes screen addresses
     /// constantly: erase and draw hit the same cells.
@@ -1411,7 +1564,10 @@ impl BlockEnv {
             .unwrap_or_else(|| format!("'{}'", zero()))
     }
 
-    fn local(&self, index: u32) -> Result<String, String> {
+    fn local(&mut self, index: u32) -> Result<String, String> {
+        if !self.writes.contains(&index) {
+            self.reads.insert(index);
+        }
         self.locals
             .get(index as usize)
             .cloned()
@@ -1424,6 +1580,7 @@ impl BlockEnv {
             return Err(format!("local {index} out of range"));
         }
         let bound = self.bind(&value, "WasmValue");
+        self.writes.insert(index as u32);
         self.locals[index] = bound;
         Ok(())
     }
@@ -1775,6 +1932,17 @@ enum ShiftKind {
     Left,
     RightUnsigned,
     RightSigned,
+}
+
+/// Replace every occurrence of a marker with a list, taking one of the
+/// surrounding separators with it when the list is empty.
+fn fill_marker(body: String, marker: &str, parts: &[String]) -> String {
+    if !parts.is_empty() {
+        return body.replace(marker, &parts.join(", "));
+    }
+    body.replace(&format!("{marker}, "), "")
+        .replace(&format!(", {marker}"), "")
+        .replace(marker, "")
 }
 
 /// fresh names for a block's incoming stack slots
