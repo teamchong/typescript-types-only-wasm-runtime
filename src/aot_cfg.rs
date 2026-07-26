@@ -968,6 +968,19 @@ impl<'a> FunctionCfg<'a> {
             .unwrap_or_default()
     }
 
+    /// How many instructions a block may chain before it is cut in two.
+    ///
+    /// A block is a chain of nested `infer`s, one per instruction, and tsgo
+    /// resolves that shape in time exponential in its depth. Measured, on a
+    /// chain of i32 adds: 16 deep takes 19ms, 18 takes 57ms, 20 takes 213ms, 22
+    /// takes 798ms, 24 takes 3.2s, and 32 had not finished after 17 minutes.
+    ///
+    /// So a long basic block is not slow, it is fatal - and nothing stops a
+    /// program from having one. Cutting the chain costs a hop, about 200µs,
+    /// which buys back an unbounded amount. 12 leaves room under the knee for
+    /// the terminator's own comparisons.
+    const DEPTH_CAP: usize = 12;
+
     fn compile_block(&mut self, pending: Pending) -> Result<EmittedBlock, String> {
         let mut env = BlockEnv {
             helpers: Rc::clone(&self.module.helpers),
@@ -991,6 +1004,22 @@ impl<'a> FunctionCfg<'a> {
         loop {
             if pos >= self.ops.len() {
                 terminator = self.emit_return(&mut env)?;
+                break;
+            }
+            // cut the chain before it reaches the depth where the checker
+            // falls off a cliff, handing the rest to a fresh block
+            if env.bindings.len() >= Self::DEPTH_CAP {
+                let continuation = self.fresh_id();
+                let stack_params: Vec<String> =
+                    (0..env.stack.len()).map(|i| format!("$k{i}")).collect();
+                let arity = env.stack.len();
+                self.pending.push(Pending {
+                    id: continuation,
+                    pos,
+                    labels: labels.clone(),
+                    stack: stack_params,
+                });
+                terminator = self.call_block(continuation, &env, 0, arity);
                 break;
             }
             let op = &self.ops[pos];
