@@ -14,6 +14,7 @@ use std::{
 use indexmap::{IndexMap, IndexSet};
 
 mod aot;
+mod aot_cfg;
 mod aot_clean;
 mod aot_stateful;
 
@@ -1335,7 +1336,7 @@ pub fn generate_wasm2wat(dir_entry: &DirEntry) {
     let wasm_input = dir_entry.path().with_extension("wasm");
 
     let cmd = "wasm2wat";
-    ensure_version(cmd, "--version", "1.0.34");
+    ensure_version(cmd, "--version", "1.0.39");
 
     // convert the .wat file to a .wasm file (also validates the .wat)
     let output = Command::new(cmd)
@@ -1415,7 +1416,7 @@ pub fn get_c_files() -> Vec<DirEntry> {
 
 pub fn generate_wat2wasm(wat_input: &DirEntry) {
     let cmd = "wat2wasm";
-    ensure_version(cmd, "--version", "1.0.34");
+    ensure_version(cmd, "--version", "1.0.39");
 
     // convert the .wat file to a .wasm file (also validates the .wat)
     let output = Command::new(cmd)
@@ -1477,6 +1478,28 @@ pub fn generate_c2wasm(c_input: &DirEntry) {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+
+    // CFG AOT mode: cargo run -- --aot-cfg path/to/file.wasm
+    if args.len() >= 3 && args[1] == "--aot-cfg" {
+        let wasm_path = &args[2];
+        let bytes = std::fs::read(wasm_path).expect("could not read the wasm file");
+        let mut compiler = aot_cfg::CfgCompiler::new();
+        if let Some(index) = args.iter().position(|a| a == "--bits") {
+            compiler.bits_override = args.get(index + 1).and_then(|b| b.parse().ok());
+        }
+        match compiler.compile(&bytes) {
+            Ok(output) => {
+                let out_path = std::path::Path::new(wasm_path).with_extension("cfg.ts");
+                std::fs::write(&out_path, output).expect("could not write the output");
+                println!("wrote {}", out_path.display());
+            }
+            Err(error) => {
+                eprintln!("aot-cfg failed: {error}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
 
     // Clean AOT mode: cargo run -- --aot-clean path/to/file.wasm
     if args.len() >= 3 && args[1] == "--aot-clean" {

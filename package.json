@@ -7,6 +7,10 @@
     "pnpm": ">=8"
   },
   "scripts": {
+    "arcade": "cargo run --quiet -- --aot-cfg packages/playground/pong-tiny/pong-tiny.wasm && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/arcade.ts",
+    "arcade:verify": "cargo run --quiet -- --aot-cfg packages/playground/pong-tiny/pong-tiny.wasm && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/verify.ts",
+    "arcade:conform": "cargo build --quiet && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/conform.ts",
+    "arcade:ceiling": "cargo run --quiet -- --aot-cfg packages/playground/cfg/store64.wasm && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/measure-ceiling.ts",
     "browser": "pnpm --filter playground run browser",
     "clean": "rm -f .tsbuildinfo && rm -rf packages/playground/evaluate/results && rm -rf target && rm -rf trace",
     "preinstall": "npx only-allow pnpm",
@@ -18,9 +22,9 @@
     "test:create-new": "pnpm --filter conformance-tests run test:create-new",
     "test:rust": "cargo test",
     "test": "pnpm run test:rust && CI=true pnpm run test:math && CI=true pnpm run test:conformance && pnpm run build",
-    "build": "node --stack-size=8100 --max-old-space-size=8192 --max-semi-space-size=8192  ./node_modules/typescript/lib/tsc",
+    "build": "tsc",
     "build:trace": "pnpm run build --generateTrace trace",
-    "build:force": "MICHIGAN_TYPESCRIPT=true time tsc --incremental false --tsBuildInfoFile null --generateCpuProfile tsc-output.cpuprofile"
+    "build:force": "time tsc --incremental false --tsBuildInfoFile null --pprofDir tsc-profile"
   },
   "dependencies": {
     "@biomejs/biome": "^1.9.3",
@@ -33,13 +37,13 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.19.1",
     "type-testing": "^0.2.0",
-    "typescript": "5.6.3",
+    "typescript": "7.0.2",
+    "typescript-legacy": "npm:typescript@5.6.3",
     "vitest": "^2.1.3"
   },
   "pnpm": {
     "patchedDependencies": {
-      "type-testing@0.2.0": "patches/type-testing@0.2.0.patch",
-      "typescript@5.6.3": "patches/typescript@5.6.3.patch"
+      "type-testing@0.2.0": "patches/type-testing@0.2.0.patch"
     }
   },
   "packageManager": "pnpm@9.6.0+sha512.38dc6fba8dba35b39340b9700112c2fe1e12f10b17134715a4aa98ccf7bb035e76fd981cf0bb384dfa98f8d6af5481c2bef2f4266a24bfa20c34eb7147ce0b5e"
