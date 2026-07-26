@@ -3,7 +3,7 @@
  *
  * Run: npx tsx compare-instantiations.ts
  */
-import * as ts from 'typescript';
+import * as ts from 'typescript-legacy';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';

@@ -1,5 +1,5 @@
 // Measure TypeScript instantiations for AOT vs Interpreter
-import ts from 'typescript';
+import ts from 'typescript-legacy';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';

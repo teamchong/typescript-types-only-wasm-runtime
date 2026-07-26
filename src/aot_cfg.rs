@@ -100,6 +100,14 @@ struct EmittedBlock {
     successors: Vec<usize>,
     /// locals live on entry, filled in once the whole function is compiled
     live: BTreeSet<u32>,
+    /// (name, constraint, expression) per instruction, in order
+    bindings: Vec<(String, String, String)>,
+    /// what the block does once its instructions have run
+    terminator: String,
+    /// incoming stack slots, as parameter names
+    stack: Vec<String>,
+    /// a binding destructures a pattern, so this block cannot be a pipeline
+    has_pattern: bool,
 }
 
 pub struct CfgCompiler {
@@ -473,6 +481,15 @@ export type $Zero = ['{z}']
 /// distribute, and a write against a distributed memory silently returns two
 /// copies of the trie unioned together.
 export type $Node = unknown[]
+
+/// The state a block's instruction pipeline threads through: memory in slot 0,
+/// then one slot per value. Typing it this way means a step can read `$S[3]` and
+/// get a `WasmValue` back with no narrowing at the read.
+export type $State = [$Node, ...WasmValue[]]
+
+/// everything but the memory slot, so a store can put a new memory in its place
+export type $Rest<$S extends $State> =
+  $S extends [unknown, ...infer $R extends WasmValue[]] ? $R : never
 /// Fuel is a string of '1's, one per unit of work. Decrementing takes a prefix
 /// off a string, which costs nothing; the obvious `[any, ...infer Rest]` tuple
 /// copies every remaining element on every hop instead, and at a few thousand
@@ -864,7 +881,7 @@ impl<'a> FunctionCfg<'a> {
         }
         self.blocks.sort_by_key(|b| b.id);
         self.compute_liveness();
-        self.substitute_locals();
+        self.render_blocks();
         Ok(())
     }
 
@@ -917,53 +934,100 @@ impl<'a> FunctionCfg<'a> {
         }
     }
 
-    /// Replace the placeholders left during compilation with the locals each
-    /// block turned out to need.
-    fn substitute_locals(&mut self) {
+    /// Render every block now that liveness is settled: the markers left during
+    /// compilation can be filled in, and a pipeline's slot indices are known.
+    fn render_blocks(&mut self) {
         let live: HashMap<usize, Vec<u32>> = self
             .blocks
             .iter()
             .map(|block| (block.id, block.live.iter().copied().collect()))
             .collect();
-        let empty = Vec::new();
         let sites = std::mem::take(&mut self.sites);
-        for block in &mut self.blocks {
-            let mut body = std::mem::take(&mut block.body);
-            // parameters, and the payload handed back when this block suspends
-            let wanted = live.get(&block.id).unwrap_or(&empty);
-            let params: Vec<String> = wanted
+        let blocks = std::mem::take(&mut self.blocks);
+        let mut rendered = Vec::with_capacity(blocks.len());
+        for mut block in blocks {
+            // the locals passed at each jump have to be filled in before the
+            // block is rendered: a pipeline rewrites value names to slot reads,
+            // and names that arrive later would be left dangling
+            block.terminator = self.resolve_jumps(std::mem::take(&mut block.terminator), &live, &sites);
+            // a pipeline needs at least a couple of instructions to be worth the
+            // aliases, and cannot express a destructuring binding
+            let destructures = block
+                .bindings
                 .iter()
-                .map(|index| format!("$l{index} extends WasmValue"))
-                .collect();
-            let payload: Vec<String> = wanted.iter().map(|index| format!("$l{index}")).collect();
-            body = fill_marker(body, &format!("\u{1}P{}\u{1}", block.id), &params);
-            body = fill_marker(body, &format!("\u{1}S{}\u{1}", block.id), &payload);
-            // call sites: pass only what the target reads
-            while let Some(start) = body.find("\u{1}L") {
-                let end = body[start + 2..].find('\u{1}').map(|at| start + 2 + at).unwrap_or(body.len());
-                let site: usize = body[start + 2..end].parse().unwrap_or(0);
-                let (target, values) = &sites[site];
-                let selected: Vec<String> = live
-                    .get(target)
-                    .unwrap_or(&empty)
-                    .iter()
-                    .filter_map(|index| values.get(*index as usize).cloned())
-                    .collect();
-                if selected.is_empty() {
-                    // drop a separator too, so no empty argument is left behind
-                    body.replace_range(start..end + 1, "");
-                    if body[start..].starts_with(", ") {
-                        body.replace_range(start..start + 2, "");
-                    } else if body[..start].ends_with(", ") {
-                        body.replace_range(start - 2..start, "");
-                    }
-                } else {
-                    body.replace_range(start..end + 1, &selected.join(", "));
-                }
-            }
-            block.body = body;
+                .any(|(name, _, _)| name.contains("infer") || name.starts_with('['));
+            // Nested `infer`s are the cheaper rendering while a block is short:
+            // measured on gfx, 16.8 frames a second nested against 10.4 as a
+            // pipeline, because appending to the state tuple costs more per
+            // instruction than one more `infer`. Past the crossover the nesting
+            // is what costs - 16 deep is 10.4s in the worst shape, 20 is 13.7
+            // minutes - so long blocks get the pipeline, whose cost is linear.
+            let body = if block.has_pattern || destructures || block.bindings.len() <= Self::NEST_LIMIT {
+                self.render_nested(&block)
+            } else {
+                self.render_pipeline(&block, &live)
+            };
+            block.body = self.resolve_markers(body, &block, &live);
+            rendered.push(block);
         }
+        self.blocks = rendered;
         self.sites = sites;
+    }
+
+    /// Fill in the locals passed at each jump: which of the values in scope the
+    /// target block turned out to want.
+    fn resolve_jumps(
+        &self,
+        mut body: String,
+        live: &HashMap<usize, Vec<u32>>,
+        sites: &[(usize, Vec<String>)],
+    ) -> String {
+        let empty = Vec::new();
+        while let Some(start) = body.find("\u{1}L") {
+            let end = body[start + 2..]
+                .find('\u{1}')
+                .map(|at| start + 2 + at)
+                .unwrap_or(body.len());
+            let site: usize = body[start + 2..end].parse().unwrap_or(0);
+            let (target, values) = &sites[site];
+            let selected: Vec<String> = live
+                .get(target)
+                .unwrap_or(&empty)
+                .iter()
+                .filter_map(|index| values.get(*index as usize).cloned())
+                .collect();
+            if selected.is_empty() {
+                // drop a separator too, so no empty argument is left behind
+                body.replace_range(start..end + 1, "");
+                if body[start..].starts_with(", ") {
+                    body.replace_range(start..start + 2, "");
+                } else if body[..start].ends_with(", ") {
+                    body.replace_range(start - 2..start, "");
+                }
+            } else {
+                body.replace_range(start..end + 1, &selected.join(", "));
+            }
+        }
+        body
+    }
+
+    /// Fill in this block's parameter list and its suspend payload.
+    fn resolve_markers(
+        &self,
+        body: String,
+        block: &EmittedBlock,
+        live: &HashMap<usize, Vec<u32>>,
+    ) -> String {
+        let empty = Vec::new();
+        let wanted = live.get(&block.id).unwrap_or(&empty);
+        let params: Vec<String> = wanted
+            .iter()
+            .map(|index| format!("$l{index} extends WasmValue"))
+            .collect();
+        let payload: Vec<String> = wanted.iter().map(|index| format!("$l{index}")).collect();
+        let mut body = fill_marker(body, &format!("\u{1}P{}\u{1}", block.id), &params);
+        body = fill_marker(body, &format!("\u{1}S{}\u{1}", block.id), &payload);
+        body
     }
 
     /// locals live entering the function's first block
@@ -993,6 +1057,20 @@ impl<'a> FunctionCfg<'a> {
     /// that.
     const DEPTH_CAP: usize = 6;
 
+    /// Blocks up to this many instructions are rendered as nested `infer`s,
+    /// longer ones as a pipeline.
+    const NEST_LIMIT: usize = 10;
+
+    /// The same limit for a block rendered as a pipeline, where instructions are
+    /// applications of one-step aliases rather than nested `infer`s and the
+    /// checker's cost is linear instead of exponential. This is only here to
+    /// keep the state tuple and the generated text a sane size.
+
+    /// Memory operations inside a block chain: each store leaves the memory as
+    /// an unevaluated `$Store32<...>` wrapped around the last one, and every
+    /// later load has to walk through them. Long arithmetic runs stay cheap,
+    /// long runs of loads and stores do not, so they get their own limit.
+
     fn compile_block(&mut self, pending: Pending) -> Result<EmittedBlock, String> {
         let mut env = BlockEnv {
             helpers: Rc::clone(&self.module.helpers),
@@ -1003,6 +1081,8 @@ impl<'a> FunctionCfg<'a> {
             locals: (0..self.num_locals).map(|i| format!("$l{i}")).collect(),
             stack: pending.stack.clone(),
             bindings: Vec::new(),
+            has_pattern: false,
+            mem_ops: 0,
             reads: BTreeSet::new(),
             writes: BTreeSet::new(),
             computed: HashMap::new(),
@@ -1020,7 +1100,17 @@ impl<'a> FunctionCfg<'a> {
             }
             // cut the chain before it reaches the depth where the checker
             // falls off a cliff, handing the rest to a fresh block
-            if env.bindings.len() >= Self::DEPTH_CAP {
+            // A block that touches memory stays short: inside a block the
+            // memory is an unevaluated `$Store32<$Store32<...>>` chain that
+            // every later load walks, and that cost is not linear. A run of
+            // pure arithmetic has no such chain, so it is allowed to grow and
+            // is rendered as a pipeline instead of nested `infer`s.
+            let cap = if env.has_pattern || env.mem_ops > 0 {
+                Self::DEPTH_CAP
+            } else {
+                pipeline_cap()
+            };
+            if env.bindings.len() >= cap {
                 let continuation = self.fresh_id();
                 let stack_params: Vec<String> =
                     (0..env.stack.len()).map(|i| format!("$k{i}")).collect();
@@ -1051,21 +1141,27 @@ impl<'a> FunctionCfg<'a> {
         // a hop plus this block's own stores: both consume the checker's depth
         // budget, so both have to be paid for out of the same fuel
         let cost = 1 + env.stores;
-        let body = self.render_block(&pending, &env, &terminator, cost);
         Ok(EmittedBlock {
             id: pending.id,
             stack_arity: pending.stack.len(),
-            body,
+            // rendered after liveness: the state layout depends on which locals
+            // survive, and the step aliases index into it by position
+            body: String::new(),
             cost,
             reads: env.reads.clone(),
             writes: env.writes.clone(),
             successors: std::mem::take(&mut self.successors),
             live: BTreeSet::new(),
+            bindings: env.bindings.clone(),
+            terminator,
+            stack: pending.stack.clone(),
+            has_pattern: env.has_pattern,
         })
     }
 
     /// Wrap the block's terminator in its bindings, fuel check and parameters.
-    fn render_block(&self, pending: &Pending, env: &BlockEnv, terminator: &str, cost: usize) -> String {
+    /// The parameters every block declares, before its own stack slots.
+    fn block_params(&self, block: &EmittedBlock) -> Vec<String> {
         let mut params = if self.metered {
             vec!["$F extends string".to_string(), "$M extends $Node".to_string()]
         } else {
@@ -1074,13 +1170,49 @@ impl<'a> FunctionCfg<'a> {
         for i in 0..self.module.globals.len() {
             params.push(format!("$g{i} extends WasmValue"));
         }
-        params.push(format!("\u{1}P{}\u{1}", pending.id));
-        for name in &pending.stack {
+        params.push(format!("\u{1}P{}\u{1}", block.id));
+        for name in &block.stack {
             params.push(format!("{name} extends WasmValue"));
         }
+        params
+    }
 
+    /// Wrap a block's work in its fuel check, or emit it bare when the function
+    /// is only ever called from another one and runs to completion.
+    fn wrap_block(&self, block: &EmittedBlock, inner: &str) -> String {
+        let params = self.block_params(block);
+        let body = if !self.metered {
+            format!("  {}", indent(inner, 2))
+        } else {
+            // out of fuel: hand the block id and everything live back to the host
+            let mut alive = vec!["$M".to_string()];
+            for i in 0..self.module.globals.len() {
+                alive.push(format!("$g{i}"));
+            }
+            alive.push(format!("\u{1}S{}\u{1}", block.id));
+            alive.extend(block.stack.iter().cloned());
+            let burn: String = std::iter::repeat('1').take(block.cost).collect();
+            format!(
+                "  $F extends `{burn}${{infer $F1}}`\n  ? {}\n  : ['s', '{}_{}', {}]",
+                indent(&inner.replace("$F", "$F1"), 2),
+                self.func_index,
+                block.id,
+                alive.join(", ")
+            )
+        };
+        format!(
+            "\nexport type {}<{}> =\n{}\n",
+            self.block_name(block.id),
+            params.join(", "),
+            body
+        )
+    }
+
+    /// One `infer` per instruction, nested. Kept for blocks that destructure a
+    /// call result, and for blocks too short to be worth a pipeline.
+    fn render_nested(&self, block: &EmittedBlock) -> String {
         let mut inner = String::new();
-        for (name, constraint, expr) in &env.bindings {
+        for (name, constraint, expr) in &block.bindings {
             // most bindings name one value; a call binds a whole result pattern
             if constraint.is_empty() {
                 inner.push_str(&format!("{expr} extends {name}\n  ? "));
@@ -1088,38 +1220,75 @@ impl<'a> FunctionCfg<'a> {
                 inner.push_str(&format!("{expr} extends infer {name} extends {constraint}\n  ? "));
             }
         }
-        inner.push_str(terminator);
-        for _ in &env.bindings {
+        inner.push_str(&block.terminator);
+        for _ in &block.bindings {
             inner.push_str("\n  : never");
         }
-
-        let body = if !self.metered {
-            format!("  {}", indent(&inner, 2))
-        } else {
-            // out of fuel: hand the block id and everything live back to the host
-            let mut live = vec!["$M".to_string()];
-            for i in 0..self.module.globals.len() {
-                live.push(format!("$g{i}"));
-            }
-            live.push(format!("\u{1}S{}\u{1}", pending.id));
-            live.extend(pending.stack.iter().cloned());
-            let burn: String = std::iter::repeat('1').take(cost).collect();
-            format!(
-                "  $F extends `{burn}${{infer $F1}}`\n  ? {}\n  : ['s', '{}', {}]",
-                indent(&inner.replace("$F", "$F1"), 2),
-                format!("{}_{}", self.func_index, pending.id),
-                live.join(", ")
-            )
-        };
-
-        format!(
-            "\nexport type {}<{}> =\n{}\n",
-            self.block_name(pending.id),
-            params.join(", "),
-            body
-        )
+        self.wrap_block(block, &inner)
     }
 
+    /// Instructions as a pipeline: each one is an alias that appends its result
+    /// to a state tuple, and the block applies them in turn.
+    ///
+    ///   type $p0_3_0<$S extends unknown[]> = [...$S, Wasm.I32Add<$S[3] & WasmValue, '..'>]
+    ///   $p0_3_1<$p0_3_0<[$M, $l0, $s0]>> extends infer $S extends unknown[] ? ...
+    ///
+    /// Nesting `infer`s costs the checker time exponential in the depth of the
+    /// chain - 16 deep is 19ms, 24 is 3.2s, 32 does not finish. Applying aliases
+    /// instead is linear: 128 in a row is 17ms. That is the whole reason this
+    /// exists, and it is why a block no longer has to be short.
+    fn render_pipeline(&self, block: &EmittedBlock, live: &HashMap<usize, Vec<u32>>) -> String {
+        // memory lives in slot 0 for the whole block and a store replaces it in
+        // place; every other value is appended as it is computed. Because the
+        // state is typed `[$Node, ...WasmValue[]]`, a read is just `$S[3]`.
+        let mut slots: HashMap<String, usize> = HashMap::new();
+        let mut initial: Vec<String> = vec!["$M".to_string()];
+        slots.insert("$M".to_string(), 0);
+        for i in 0..self.module.globals.len() {
+            slots.insert(format!("$g{i}"), initial.len());
+            initial.push(format!("$g{i}"));
+        }
+        let empty = Vec::new();
+        for index in live.get(&block.id).unwrap_or(&empty) {
+            slots.insert(format!("$l{index}"), initial.len());
+            initial.push(format!("$l{index}"));
+        }
+        for name in &block.stack {
+            slots.insert(name.clone(), initial.len());
+            initial.push(name.clone());
+        }
+
+        let mut steps = String::new();
+        let mut applied = format!("[{}]", initial.join(", "));
+        let mut width = initial.len();
+        for (position, (name, constraint, expr)) in block.bindings.iter().enumerate() {
+            let step = format!("$p{}_{}_{}", self.func_index, block.id, position);
+            let rewritten = state_reads(expr, &slots);
+            let body = if constraint == "$Node" {
+                // a store: the new memory takes slot 0, the values are untouched
+                slots.insert(name.clone(), 0);
+                format!("[{rewritten}, ...$Rest<$S>]")
+            } else {
+                slots.insert(name.clone(), width);
+                width += 1;
+                format!("[...$S, {rewritten}]")
+            };
+            steps.push_str(&format!(
+                "\nexport type {step}<$S extends $State> =\n  {body}\n"
+            ));
+            applied = format!("{step}<{applied}>");
+        }
+
+        let terminator = state_reads(&block.terminator, &slots);
+        let inner = format!(
+            "{applied} extends infer $S extends $State\n  ? {}\n  : never",
+            indent(&terminator, 2)
+        );
+        format!("{steps}{}", self.wrap_block(block, &inner))
+    }
+
+    /// Return from the function: memory, then globals if a callee has to hand
+    /// them back, then the result.
     fn emit_return(&self, env: &mut BlockEnv) -> Result<String, String> {
         let mut parts = vec!["'r'".to_string(), env.memory.clone()];
         // a callee also hands its globals back, so writes to them are not lost
@@ -1577,6 +1746,12 @@ struct BlockEnv {
     stack: Vec<String>,
     /// (name, constraint, expression) bindings, in order
     bindings: Vec<(String, String, String)>,
+    /// loads and stores so far: memory operations chain, so a block that does
+    /// too many of them is split even when it is short
+    mem_ops: usize,
+    /// set when a binding destructures a pattern rather than naming one value;
+    /// those blocks keep the older nested rendering
+    has_pattern: bool,
     /// locals read before this block writes them: what it needs passed in
     reads: BTreeSet<u32>,
     /// locals this block assigns
@@ -1641,6 +1816,9 @@ impl BlockEnv {
         }
         let name = format!("$t{}", self.next_temp);
         self.next_temp += 1;
+        if constraint.is_empty() {
+            self.has_pattern = true;
+        }
         self.bindings
             .push((name.clone(), constraint.to_string(), expr.to_string()));
         self.computed.insert(expr.to_string(), name.clone());
@@ -1918,6 +2096,7 @@ impl BlockEnv {
     }
 
     fn load(&mut self, helper: &str, offset: u64, ret: Result<Step, String>) -> Result<Step, String> {
+        self.mem_ops += 1;
         let addr = self.address(offset);
         let addr = self.bind(&addr, "WasmValue");
         let value = format!("{helper}<{}, {addr}>", self.memory);
@@ -1940,6 +2119,7 @@ impl BlockEnv {
             .push((name.clone(), "$Node".to_string(), next));
         self.memory = name;
         self.stores += 1;
+        self.mem_ops += 1;
         // loads read `self.memory`, so their text changes after a store anyway;
         // drop the cache entries that mention memory to be safe
         self.computed.retain(|expr, _| !expr.contains("$m"));
@@ -1992,6 +2172,45 @@ fn fill_marker(body: String, marker: &str, parts: &[String]) -> String {
     body.replace(&format!("{marker}, "), "")
         .replace(&format!(", {marker}"), "")
         .replace(marker, "")
+}
+
+/// Rewrite value names to reads of the state tuple: `$t7` becomes `$S[5]`.
+///
+/// Names not in the map - the fuel `$F`, helper aliases like `$Store32`, the
+/// block's own `$S` - are left exactly as they are.
+fn state_reads(text: &str, slots: &HashMap<String, usize>) -> String {
+    let mut out = String::with_capacity(text.len());
+    let bytes: Vec<char> = text.chars().collect();
+    let mut at = 0;
+    while at < bytes.len() {
+        if bytes[at] != '$' {
+            out.push(bytes[at]);
+            at += 1;
+            continue;
+        }
+        let mut end = at + 1;
+        while end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == '_') {
+            end += 1;
+        }
+        let name: String = bytes[at..end].iter().collect();
+        match slots.get(&name) {
+            Some(slot) => out.push_str(&format!("$S[{slot}]")),
+            None => out.push_str(&name),
+        }
+        at = end;
+    }
+    out
+}
+
+/// tunable while the two limits are being measured
+/// How many instructions a pipelined block may hold. Only a sanity bound on the
+/// size of the generated text: the checker's cost in the length of a pipeline is
+/// linear, measured flat out to 128 steps.
+fn pipeline_cap() -> usize {
+    std::env::var("PIPELINE_CAP")
+        .ok()
+        .and_then(|text| text.parse().ok())
+        .unwrap_or(64)
 }
 
 /// fresh names for a block's incoming stack slots

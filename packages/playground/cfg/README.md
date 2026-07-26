@@ -152,12 +152,57 @@ applications* instead of nested infers is linear - 128 sequenced adds in 17ms,
 against 3214ms for 24 of them nested (`probes/probe-pipeline-run.ts`):
 
 ```ts
-type $step<$S extends WasmValue[]> = [Wasm.I32Add<$S[0], '...'>, ...$S]
-$step<$step<$step<...>>>
+type $p0<$S extends $State> = [...$S, Wasm.I32Add<$S[3], $S[4]>]
+$p2<$p1<$p0<[$M, $l0, $k0]>>> extends infer $S extends $State ? ... : never
 ```
 
-That would remove the ceiling rather than dodge it, and let a block be as long
-as it likes. It is not implemented.
+That is now what a long block compiles to. Memory sits in slot 0 and a store
+replaces it in place (`[$Store32<$S[0], ...>, ...$Rest<$S>]`); every other
+instruction appends its result, and later instructions read it back as `$S[7]`.
+The state is typed `[$Node, ...WasmValue[]]`, so a read needs no narrowing.
+
+Branches come out of the same idea, and it is the sharper half of it. A
+conditional is the shape that explodes, but indexing an object type picks an arm
+without one, and only the arm you index is resolved:
+
+```ts
+cond extends '1' ? Then : Else        // nests
+{ '1': Then, '0': Else }[cond]        // does not
+```
+
+Measured over a chain of branches each feeding the next
+(`probes/probe-object-run.ts`):
+
+| branches in a row | nested conditional | object index |
+| --- | --- | --- |
+| 8 | 7ms | 5ms |
+| 16 | 10,359ms | 6ms |
+| 20 | 821,726ms | 6ms |
+| 24 | did not attempt | 7ms |
+
+137,000x at twenty branches, and flat as far as it was measured. Worth knowing
+that a conditional *inside* one of these steps is free - what compounds is
+lexical nesting within a single type expression, not conditionals as such.
+
+### Where it actually helps, which is not where I expected
+
+Rendered as a pipeline at the *same* block boundaries, the games got slower, not
+faster: gfx ran 16.8 frames a second nested against 10.4 as a pipeline. Below
+about sixteen instructions, appending to the state tuple costs more per
+instruction than one more `infer` does. The pipeline is only worth its overhead
+once a block is long.
+
+And these blocks are never long, because of a second limit that turns out to
+bind first. Inside a block the memory is an unevaluated
+`$Store32<$Store32<...>>` chain, and every later load walks it. Letting a block
+hold eight memory operations instead of two took a gfx frame from 0.17s to
+3.44s. Memory-touching blocks therefore still cut every 6 instructions, exactly
+as before; a run of pure arithmetic, which builds no such chain, is allowed to
+reach 64 and is rendered as a pipeline. gfx 17.7 fps, pong-tiny 20.4.
+
+So the honest summary: the exponential in block length is now gone, and what
+remains is a *memory* cost that the pipeline does nothing about. Fewer, cheaper
+memory operations per frame is the next thing worth doing, not a wider block.
 
 ## What is not true
 
