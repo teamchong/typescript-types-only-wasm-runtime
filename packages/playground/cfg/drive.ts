@@ -130,7 +130,6 @@ const printFrame = (f: Frame) =>
 export const enter = (
   frame: Frame,
   below: Frame[],
-  memory: string,
   globals: string[],
   value?: string,
 ): string => {
@@ -138,7 +137,7 @@ export const enter = (
   // stack as it was, and the blocks after it were compiled for that stack
   const returned = frame.wantsValue && value !== undefined ? [value] : [];
   const rest = `[${below.map(printFrame).join(", ")}]`;
-  const args = [`$FUEL`, rest, `$Buf<${memory}>`, ...globals, ...frame.saved, ...returned];
+  const args = [`$FUEL`, rest, `$Buf<$IN>`, ...globals, ...frame.saved, ...returned];
   return `$Exit<$b${frame.block}<${args.join(", ")}>>`;
 };
 
@@ -230,6 +229,8 @@ export const run = async (
     /// where to write the checkpoint, and how often
     save?: string;
     every?: number;
+    /// make a fresh compiler every this many chunks
+    recycleEvery?: number;
   } = {},
 ): Promise<RunResult> => {
   let fuel = options.fuel ?? 64;
@@ -257,7 +258,7 @@ export const run = async (
   // re-slicing a tuple on every hop
   const fuelType = (n: number) => `'${"1".repeat(n)}'`;
 
-  let call = `$${entry}<$FUEL, ${options.memory ?? "$InitialMemory"}${args.length ? ", " + args.join(", ") : ""}>`;
+  let call = `$${entry}<$FUEL, $IN${args.length ? ", " + args.join(", ") : ""}>`;
   let memory = options.memory ?? "$InitialMemory";
   let chunks = 0;
   let carried = 0;
@@ -283,7 +284,22 @@ export const run = async (
   let failed: string | undefined;
   const t0 = performance.now();
   const session = options.session ?? createSession();
-  const { env, path } = session;
+  // The compiler instance is reused across chunks because creating one costs
+  // more than a chunk does - but it does not stay fresh forever. After a few
+  // thousand chunks it starts handing back `never` for work it did correctly
+  // earlier: the same chunk, re-evaluated in a new instance, comes out right.
+  // So a failure that survives all the way down to the minimum fuel is treated
+  // as the instance being worn out rather than the work being too big.
+  let { env, path } = session;
+  const recycle = () => {
+    env.close();
+    const fresh = createSession();
+    session.env = fresh.env;
+    session.path = fresh.path;
+    env = fresh.env;
+    path = fresh.path;
+  };
+  let recycled = 0;
 
   while (chunks < max) {
     // The state is printed as its own top-level type, never nested inside the
@@ -293,6 +309,7 @@ export const run = async (
     // *type* is correct either way - only the printout was lossy.
     const file = `${moduleText}
 type $FUEL = ${fuelType(fuel)}
+type $IN = ${memory}
 type $Result = ${call}
 export type $Out_Tag = $Tag<$Result>
 export type $Out_Frames = $Frames<$Result>
@@ -340,11 +357,22 @@ ${splitReaders}
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: too deep; fuel -> ${fuel}    \n`);
         continue;
       }
+      if (recycled < chunks) {
+        recycled = chunks + 1;
+        fuel = options.fuel ?? 64;
+        recycle();
+        if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: worn out; new compiler, fuel -> ${fuel}    \n`);
+        continue;
+      }
       failed = `chunk ${chunks}: ${message}`;
       break;
     }
     evalMs += performance.now() - e0;
     chunks++;
+    if (options.recycleEvery && chunks % options.recycleEvery === 0) {
+      recycle();
+      if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: fresh compiler    \n`);
+    }
     const ceiling = options.fuel ?? 64;
     if (fuel < ceiling && ++settled >= 20) {
       settled = 0;
@@ -361,6 +389,13 @@ ${splitReaders}
         settled = 0;
         fuel = Math.max(minFuel, Math.floor(fuel / 2));
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: ${bad}; fuel -> ${fuel}    \n`);
+        continue;
+      }
+      if (recycled < chunks) {
+        recycled = chunks + 1;
+        fuel = options.fuel ?? 64;
+        recycle();
+        if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: worn out; new compiler, fuel -> ${fuel}    \n`);
         continue;
       }
       failed = `chunk ${chunks} at fuel ${fuel}: ${bad}`;
@@ -401,7 +436,7 @@ ${splitReaders}
       }
       const [resume, ...rest] = frames;
       frames = rest;
-      call = enter(resume, rest, memory, globalValues, toSource(value));
+      call = enter(resume, rest, globalValues, toSource(value));
       checkpoint(call);
       if (!options.quiet) {
         process.stdout.write(`\r  chunk ${chunks}: returned into ${resume.block}, ${rest.length} frames left   `);
@@ -418,7 +453,7 @@ ${splitReaders}
     }
     const [innermost, ...outer] = parsed;
     frames = outer;
-    call = enter(innermost, outer, memory, globalValues);
+    call = enter(innermost, outer, globalValues);
     checkpoint(call);
     if (!options.quiet) {
       process.stdout.write(`\r  chunk ${chunks}: suspended in ${innermost.block}, ${outer.length} frames, state ${memory.length} chars   `);
@@ -436,6 +471,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     max?: number;
     save?: string;
     every?: number;
+    recycleEvery?: number;
     resume?: Checkpoint;
   } = {};
   for (let i = 2; i < process.argv.length; i++) {
@@ -444,6 +480,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     else if (arg === "--max") options.max = Number(process.argv[++i]);
     else if (arg === "--save") options.save = process.argv[++i];
     else if (arg === "--every") options.every = Number(process.argv[++i]);
+    else if (arg === "--recycle") options.recycleEvery = Number(process.argv[++i]);
     else if (arg === "--resume") {
       const from = process.argv[++i];
       options.resume = JSON.parse(readFileSync(from, "utf8")) as Checkpoint;
