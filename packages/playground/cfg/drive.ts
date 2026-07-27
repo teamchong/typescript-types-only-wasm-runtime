@@ -68,8 +68,11 @@ export const degraded = (
 ): string | undefined => {
   if (tag !== '"s"' && tag !== '"r"') return `result tag is ${tag.slice(0, 40)}`;
   if (!STATE.test(state)) {
-    const junk = state.match(/any|unknown|\bstring\b|""|\||\$(?!Zero\b|InitialMemory\b)\w+|\.\.\./);
-    return `state contains ${junk ? junk[0] : "something unexpected"}`;
+    const junk = state.match(
+      /\bnever\b|any|unknown|\bstring\b|""|\||\$(?!Zero\b|InitialMemory\b)\w+|\.\.\.|"[01]*"/,
+    );
+    if (!junk) return "state contains something unexpected";
+    return `state contains ${junk[0]} at ${junk.index} of ${state.length}`;
   }
   if (tag === '"s"') {
     // the frames are pasted back verbatim, so every part of every one of them
@@ -305,6 +308,10 @@ export const run = async (
   // instance has worn out we replace the next one just before the same point.
   let since = 0;
   let lifetime = Infinity;
+  // Counted separately from `since`, which any replacement resets: the interval
+  // to learn is how long an instance lasts under this phase's work, and a
+  // replacement made early on purpose says nothing about that.
+  let worked = 0;
 
   while (chunks < max) {
     // The state is printed as its own top-level type, never nested inside the
@@ -362,11 +369,12 @@ ${splitReaders}
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: too deep; fuel -> ${fuel}    \n`);
         continue;
       }
-      if (recycled < chunks) {
-        recycled = chunks + 1;
+      if (recycled !== chunks) {
+        recycled = chunks;
         fuel = options.fuel ?? 64;
-        lifetime = Math.max(1, since - 1);
+        lifetime = Math.max(1, worked - 1);
         since = 0;
+        worked = 0;
         recycle();
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: worn out; new compiler every ${lifetime}    \n`);
         continue;
@@ -376,10 +384,13 @@ ${splitReaders}
     }
     evalMs += performance.now() - e0;
     chunks++;
+    // A fresh compiler does not make the work smaller, so the fuel that was
+    // fitting before still fits. Raising it back to the ceiling here costs a
+    // full run of halvings, once per replacement.
+    worked++;
     if (++since >= lifetime) {
       recycle();
       since = 0;
-      fuel = options.fuel ?? 64;
     }
     const ceiling = options.fuel ?? 64;
     if (fuel < ceiling && ++settled >= 20) {
@@ -390,22 +401,24 @@ ${splitReaders}
 
     const bad = degraded(tag, state, live, value, globals);
     if (bad) {
-      // too much work for one evaluation: give the same block less fuel so it
-      // suspends earlier. This is the checker's real limit, measured.
+      // An approximation handed back quietly is not a fuel problem: the same
+      // chunk that came back never at fuel 1024 still came back never at fuel
+      // 4, then evaluated correctly in a new compiler. So replace the compiler
+      // first and only start halving if a fresh one says the same thing.
+      if (recycled !== chunks) {
+        recycled = chunks;
+        lifetime = Math.max(1, worked - 1);
+        since = 0;
+        worked = 0;
+        recycle();
+        if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: ${bad}; new compiler every ${lifetime}    \n`);
+        continue;
+      }
       if (fuel > minFuel) {
         backoffs++;
         settled = 0;
         fuel = Math.max(minFuel, Math.floor(fuel / 2));
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: ${bad}; fuel -> ${fuel}    \n`);
-        continue;
-      }
-      if (recycled < chunks) {
-        recycled = chunks + 1;
-        fuel = options.fuel ?? 64;
-        lifetime = Math.max(1, since - 1);
-        since = 0;
-        recycle();
-        if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: worn out; new compiler every ${lifetime}    \n`);
         continue;
       }
       failed = `chunk ${chunks} at fuel ${fuel}: ${bad}`;
