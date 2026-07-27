@@ -157,6 +157,24 @@ export const enter = (
 };
 
 /// Did the printer give up part way through?
+/// Fuel per chunk. Evaluation is ~600us per unit and near-linear, so the cost
+/// that a chunk cannot amortize is the per-chunk constant: ~100ms to load the
+/// module plus ~190ms to print the state, paid whether the chunk ran 64 steps
+/// or 4096. Measured on doom chunk-0001, in fuel per wall-clock second:
+///
+///     512 -> 835    1024 -> 1138    2048 -> 1390    4096 -> 1458
+///
+/// 8192 is not a choice: it dies with "type instantiation is excessively deep".
+/// 4096 is a hair faster than 2048 but per-unit cost has already turned back up
+/// there (615us vs 582us) and it sits one doubling from the cliff, where a
+/// too-deep chunk throws away a 2.5s evaluation before the backoff halves.
+///
+/// End to end on doom, running the same 32768 fuel both ways, 2048 wins even
+/// though the first chunk is too deep for it and has to back off once:
+///
+///     1024 x 32 chunks -> 6.78s      2048 x 16 chunks -> 5.01s
+const DEFAULT_FUEL = 2048;
+
 const TRUNCATED = /\bany\b/;
 
 /// Read the memory, splitting it into branches only if the printer truncated.
@@ -246,7 +264,7 @@ export const run = async (
     every?: number;
   } = {},
 ): Promise<RunResult> => {
-  let fuel = options.fuel ?? 64;
+  let fuel = options.fuel ?? DEFAULT_FUEL;
   const minFuel = 4;
   const max = options.max ?? 10000;
   const moduleText = readFileSync(modulePath, "utf8")
@@ -383,7 +401,7 @@ ${splitReaders}
       }
       if (recycled !== chunks) {
         recycled = chunks;
-        fuel = options.fuel ?? 64;
+        fuel = options.fuel ?? DEFAULT_FUEL;
         lifetime = Math.max(1, worked - 1);
         since = 0;
         worked = 0;
@@ -404,7 +422,7 @@ ${splitReaders}
       recycle();
       since = 0;
     }
-    const ceiling = options.fuel ?? 64;
+    const ceiling = options.fuel ?? DEFAULT_FUEL;
     if (fuel < ceiling && ++settled >= 20) {
       settled = 0;
       fuel = Math.min(ceiling, fuel * 2);
