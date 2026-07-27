@@ -10,11 +10,16 @@ export const decodeTrie = (
   source: string,
   bits: number,
   digitBits = 3,
-  /// the module's `$InitialMemory` literal, for states that never got written to
+  /// the module's `$InitialMemory` literal. A compacted state keeps whole
+  /// subtrees nothing wrote to as one `$InitialMemory` or `u` token, and a load
+  /// reading one of those falls back to the initial data - so decoding one has
+  /// to fall back the same way, or the data segments go missing from the dump.
   initial?: string,
 ): Map<number, number> => {
   if (source.trim() === "$InitialMemory") source = initial ?? "$Zero";
   if (source.trim() === "$Zero") return new Map();
+  const initialWords =
+    initial === undefined ? undefined : decodeTrie(initial, bits, digitBits);
   const fanout = 1 << digitBits;
   const levels = Math.ceil(bits / digitBits);
   const words = new Map<number, number>();
@@ -28,6 +33,16 @@ export const decodeTrie = (
     const base = path * span;
     for (let i = 0; i < span; i++) words.set(base + i, word);
   };
+  /// an unwritten subtree still reads as whatever the data segments put there
+  const fallback = (depth: number, path: number) => {
+    if (!initialWords) return;
+    const span = fanout ** (levels - depth);
+    const base = path * span;
+    for (let i = 0; i < span; i++) {
+      const word = initialWords.get(base + i);
+      if (word) words.set(base + i, word);
+    }
+  };
   const walk = (depth: number, path: number) => {
     skipSpace();
     if (source[pos] === "$") {
@@ -35,8 +50,9 @@ export const decodeTrie = (
       const end = /[^\w$]/.exec(rest)?.index ?? rest.length;
       const name = rest.slice(0, end);
       pos += end;
-      if (name !== "$Zero") throw new Error(`unexpected alias ${name} in the state`);
-      return;
+      if (name === "$Zero") return;
+      if (name === "$Absent" || name === "$InitialMemory") return fallback(depth, path);
+      throw new Error(`unexpected alias ${name} in the state`);
     }
     if (source[pos] !== "[") throw new Error(`bad trie at ${pos}: ${source.slice(pos, pos + 60)}`);
     pos++;
@@ -44,7 +60,9 @@ export const decodeTrie = (
     if (source[pos] === "'" || source[pos] === '"') {
       const quote = source[pos];
       const end = source.indexOf(quote, pos + 1);
-      fill(depth, path, parseInt(source.slice(pos + 1, end), 2) >>> 0);
+      const text = source.slice(pos + 1, end);
+      if (text === "u") fallback(depth, path);
+      else fill(depth, path, parseInt(text, 2) >>> 0);
       pos = end + 1;
       skipSpace();
       if (source[pos] === "]") pos++;
