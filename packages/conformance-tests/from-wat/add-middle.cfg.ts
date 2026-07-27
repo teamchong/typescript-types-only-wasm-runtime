@@ -245,11 +245,11 @@ export type $MemOf<$R> =
   : $R extends ['r', unknown, infer $M1 extends $Node, ...unknown[]] ? $M1
   : never
 export type $GlobalsOf<$R> =
-  $R extends ['s', unknown, unknown, infer $h0, infer $h1, infer $h2] ? [$h0, $h1, $h2]
-  : $R extends ['r', unknown, unknown, infer $h0, infer $h1, infer $h2, unknown] ? [$h0, $h1, $h2]
+  $R extends ['s', unknown, unknown, infer $h0, infer $h1, infer $h2, infer $h3] ? [$h0, $h1, $h2, $h3]
+  : $R extends ['r', unknown, unknown, infer $h0, infer $h1, infer $h2, infer $h3, unknown] ? [$h0, $h1, $h2, $h3]
   : []
 export type $ValueOf<$R> =
-  $R extends ['r', unknown, unknown, unknown, unknown, unknown, infer $V] ? $V : 'void'
+  $R extends ['r', unknown, unknown, unknown, unknown, unknown, unknown, infer $V] ? $V : 'void'
 
 /// one trie branch at a time, for a memory too big for the printer
 export type $Kid0<$M> = $M extends [infer $c0, unknown, unknown, unknown, unknown, unknown, unknown, unknown] ? $c0 : never
@@ -261,7 +261,7 @@ export type $Kid5<$M> = $M extends [unknown, unknown, unknown, unknown, unknown,
 export type $Kid6<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, infer $c6, unknown] ? $c6 : never
 export type $Kid7<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $c7] ? $c7 : never
 
-export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
+export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `111${infer $F1}`
   ? $Dec2<$Dec4<$g0>> extends infer $t0 extends WasmValue
     ? $Store32<$M, $Inc4<$t0>, $l0> extends infer $m1 extends $Node
@@ -269,33 +269,33 @@ export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0
     ? $Load32<$m2, $Inc4<$t0>> extends infer $t3 extends WasmValue
     ? $Load32<$m2, $Inc3<$Dec4<$g0>>> extends infer $t4 extends WasmValue
     ? Wasm.I32Add<$t3, $t4> extends infer $t5 extends WasmValue
-    ? $b1_1<$F1, $K, $m2, $g0, $g1, $g2, $t5>
+    ? $b1_1<$F1, $K, $m2, $g0, $g1, $g2, $g3, $t5>
     : never
     : never
     : never
     : never
     : never
     : never
-  : ['s', [['1_0', '0', $l0, $l1], ...$K], $Flush<$M>, $g0, $g1, $g2]
+  : ['s', [['1_0', '0', $l0, $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3]
 
 
-export type $b1_1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $k0 extends WasmValue> =
+export type $b1_1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $k0 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? ['r', $F1, $M, $g0, $g1, $g2, $k0]
-  : ['s', [['1_1', '0', $k0], ...$K], $Flush<$M>, $g0, $g1, $g2]
+  ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $k0]
+  : ['s', [['1_1', '0', $k0], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3]
 
 
-export type $b2_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue> =
+export type $b2_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? ['r', $F1, $M, $g0, $AndFFFFFFF0<'00000000000000000000010000010011'>, '00000000010100000000010000010000', '00000000000000000000000000000000']
-  : ['s', [['2_0', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2]
+  ? ['r', $F1, $M, $g0, $AndFFFFFFF0<'00000000000000000000010000010011'>, '00000000010100000000010000010000', $g3, '00000000000000000000000000000000']
+  : ['s', [['2_0', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3]
 
 
 export type $entry<$F extends string, $M extends $Node, $p0 extends WasmValue, $p1 extends WasmValue> =
-  $Exit<$b1_0<$F, [], $Buf<$M>, '00000000010100000000010000010000', '00000000000000000000000000000000', '00000000000000000000000000000000', $p0, $p1>>
+  $Exit<$b1_0<$F, [], $Buf<$M>, '00000000010100000000010000010000', '00000000000000000000000000000000', '00000000000000000000000000000000', '00000000000000000000000100000000', $p0, $p1>>
 
 export type $emscripten_stack_init<$F extends string, $M extends $Node> =
-  $Exit<$b2_0<$F, [], $Buf<$M>, '00000000010100000000010000010000', '00000000000000000000000000000000', '00000000000000000000000000000000'>>
+  $Exit<$b2_0<$F, [], $Buf<$M>, '00000000010100000000010000010000', '00000000000000000000000000000000', '00000000000000000000000000000000', '00000000000000000000000100000000'>>
 
 // Specialised for the constants this module uses: a shift by a known
 // amount is a character move, and a mask by a known constant is a

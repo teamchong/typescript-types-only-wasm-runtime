@@ -263,30 +263,65 @@ export type $Kid7<$M> = $M extends [unknown, unknown, unknown, unknown, unknown,
 
 export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? ($l0 extends '00000000000000000000000000000000' ? '00000000000000000000000000010100' : '00000000000000000000000000001010') extends infer $t0 extends WasmValue
+  ? $Zx64<$l0> extends infer $t0 extends WasmValue
     ? ['r', $F1, $M, $g0, $t0]
     : never
   : ['s', [['0_0', '0', $l0], ...$K], $Flush<$M>, $g0]
 
 
-export type $call0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $p0 extends WasmValue> =
-  $b0_0<$F, $K, $M, $g0, $p0>
-
-export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue> =
-  $F extends `1${infer $F1}`
-  ? $call0<$F1, [['1_1', '1'], ...$K], $M, $g0, $l0> extends infer $c0
-    ? $c0 extends ['r', infer $Fr1 extends string, infer $m2 extends $Node, infer $g_3 extends WasmValue, infer $t4 extends WasmValue]
-      ? $b1_1<$Fr1, $K, $m2, $g_3, $t4>
-      : $c0
-    : never
-  : ['s', [['1_0', '0', $l0], ...$K], $Flush<$M>, $g0]
-
-
-export type $b1_1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $k0 extends WasmValue> =
-  $F extends `1${infer $F1}`
-  ? ['r', $F1, $M, $g0, $k0]
-  : ['s', [['1_1', '0', $k0], ...$K], $Flush<$M>, $g0]
-
-
 export type $entry<$F extends string, $M extends $Node, $p0 extends WasmValue> =
-  $Exit<$b1_0<$F, [], $Buf<$M>, '00000000000000000000000000000001', $p0>>
+  $Exit<$b0_0<$F, [], $Buf<$M>, '00000000000000000000000000000001', $p0>>
+
+// Specialised for the constants this module uses: a shift by a known
+// amount is a character move, and a mask by a known constant is a
+// character-by-character choice. Neither needs an adder.
+export type $Add64<A extends string, B extends string> =
+  Wasm.I32Add<$Lo64<A>, $Lo64<B>> extends infer $lo extends WasmValue
+  ? Wasm.I32Add<Wasm.I32Add<$Hi64<A>, $Hi64<B>>, Wasm.I32LtU<$lo, $Lo64<A>>> extends infer $hi extends WasmValue
+  ? `${$hi}${$lo}`
+  : never
+  : never
+
+export type $Hi16<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer c31}` ? `0000000000000000${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}` : never
+
+export type $Hi64<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer c31}${infer c32}${infer c33}${infer c34}${infer c35}${infer c36}${infer c37}${infer c38}${infer c39}${infer c40}${infer c41}${infer c42}${infer c43}${infer c44}${infer c45}${infer c46}${infer c47}${infer c48}${infer c49}${infer c50}${infer c51}${infer c52}${infer c53}${infer c54}${infer c55}${infer c56}${infer c57}${infer c58}${infer c59}${infer c60}${infer c61}${infer c62}${infer c63}` ? `${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}${c27}${c28}${c29}${c30}${c31}` : never
+
+export type $Lo16<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer c31}` ? `0000000000000000${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}${c27}${c28}${c29}${c30}${c31}` : never
+
+export type $Lo64<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer c31}${infer c32}${infer c33}${infer c34}${infer c35}${infer c36}${infer c37}${infer c38}${infer c39}${infer c40}${infer c41}${infer c42}${infer c43}${infer c44}${infer c45}${infer c46}${infer c47}${infer c48}${infer c49}${infer c50}${infer c51}${infer c52}${infer c53}${infer c54}${infer c55}${infer c56}${infer c57}${infer c58}${infer c59}${infer c60}${infer c61}${infer c62}${infer c63}` ? `${c32}${c33}${c34}${c35}${c36}${c37}${c38}${c39}${c40}${c41}${c42}${c43}${c44}${c45}${c46}${c47}${c48}${c49}${c50}${c51}${c52}${c53}${c54}${c55}${c56}${c57}${c58}${c59}${c60}${c61}${c62}${c63}` : never
+
+export type $Mul3264<A extends string, B extends string> =
+  $Add64<
+    $Add64<$Zx64<Wasm.I32Mul<$Lo16<A>, $Lo16<B>>>, $Shl64_32<$Zx64<Wasm.I32Mul<$Hi16<A>, $Hi16<B>>>>>,
+    $Shl64_16<$Add64<$Zx64<Wasm.I32Mul<$Lo16<A>, $Hi16<B>>>, $Zx64<Wasm.I32Mul<$Hi16<A>, $Lo16<B>>>>>
+  >
+
+export type $Mul64<A extends string, B extends string> =
+  $Mul3264<$Lo64<A>, $Lo64<B>> extends infer $m extends string
+  ? Wasm.I32Add<
+      $Hi64<$m>,
+      Wasm.I32Add<Wasm.I32Mul<$Hi64<A>, $Lo64<B>>, Wasm.I32Mul<$Lo64<A>, $Hi64<B>>>
+    > extends infer $hi extends WasmValue
+  ? `${$hi}${$Lo64<$m>}`
+  : never
+  : never
+
+export type $Shl64_16<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer c31}${infer c32}${infer c33}${infer c34}${infer c35}${infer c36}${infer c37}${infer c38}${infer c39}${infer c40}${infer c41}${infer c42}${infer c43}${infer c44}${infer c45}${infer c46}${infer c47}${infer c48}${infer c49}${infer c50}${infer c51}${infer c52}${infer c53}${infer c54}${infer c55}${infer c56}${infer c57}${infer c58}${infer c59}${infer c60}${infer c61}${infer c62}${infer c63}` ? `${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}${c27}${c28}${c29}${c30}${c31}${c32}${c33}${c34}${c35}${c36}${c37}${c38}${c39}${c40}${c41}${c42}${c43}${c44}${c45}${c46}${c47}0000000000000000` : never
+
+export type $Shl64_32<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer c31}${infer c32}${infer c33}${infer c34}${infer c35}${infer c36}${infer c37}${infer c38}${infer c39}${infer c40}${infer c41}${infer c42}${infer c43}${infer c44}${infer c45}${infer c46}${infer c47}${infer c48}${infer c49}${infer c50}${infer c51}${infer c52}${infer c53}${infer c54}${infer c55}${infer c56}${infer c57}${infer c58}${infer c59}${infer c60}${infer c61}${infer c62}${infer c63}` ? `${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}${c27}${c28}${c29}${c30}${c31}00000000000000000000000000000000` : never
+
+export type $Sub64<A extends string, B extends string> =
+  Wasm.I32Sub<$Lo64<A>, $Lo64<B>> extends infer $lo extends WasmValue
+  ? Wasm.I32Sub<Wasm.I32Sub<$Hi64<A>, $Hi64<B>>, Wasm.I32LtU<$Lo64<A>, $Lo64<B>>> extends infer $hi extends WasmValue
+  ? `${$hi}${$lo}`
+  : never
+  : never
+
+export type $Zx64<A extends string> = `00000000000000000000000000000000${A}`
+

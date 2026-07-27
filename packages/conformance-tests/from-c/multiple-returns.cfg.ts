@@ -245,11 +245,11 @@ export type $MemOf<$R> =
   : $R extends ['r', unknown, infer $M1 extends $Node, ...unknown[]] ? $M1
   : never
 export type $GlobalsOf<$R> =
-  $R extends ['s', unknown, unknown, infer $h0, infer $h1, infer $h2, infer $h3, infer $h4, infer $h5, infer $h6, infer $h7, infer $h8] ? [$h0, $h1, $h2, $h3, $h4, $h5, $h6, $h7, $h8]
-  : $R extends ['r', unknown, unknown, infer $h0, infer $h1, infer $h2, infer $h3, infer $h4, infer $h5, infer $h6, infer $h7, infer $h8, unknown] ? [$h0, $h1, $h2, $h3, $h4, $h5, $h6, $h7, $h8]
+  $R extends ['s', unknown, unknown, infer $h0, infer $h1, infer $h2, infer $h3, infer $h4, infer $h5, infer $h6, infer $h7, infer $h8, infer $h9] ? [$h0, $h1, $h2, $h3, $h4, $h5, $h6, $h7, $h8, $h9]
+  : $R extends ['r', unknown, unknown, infer $h0, infer $h1, infer $h2, infer $h3, infer $h4, infer $h5, infer $h6, infer $h7, infer $h8, infer $h9, unknown] ? [$h0, $h1, $h2, $h3, $h4, $h5, $h6, $h7, $h8, $h9]
   : []
 export type $ValueOf<$R> =
-  $R extends ['r', unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $V] ? $V : 'void'
+  $R extends ['r', unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $V] ? $V : 'void'
 
 /// one trie branch at a time, for a memory too big for the printer
 export type $Kid0<$M> = $M extends [infer $c0, unknown, unknown, unknown, unknown, unknown, unknown, unknown] ? $c0 : never
@@ -261,29 +261,29 @@ export type $Kid5<$M> = $M extends [unknown, unknown, unknown, unknown, unknown,
 export type $Kid6<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, infer $c6, unknown] ? $c6 : never
 export type $Kid7<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $c7] ? $c7 : never
 
-export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue> =
+export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, '00000000000000000000000000000000']
-  : ['s', [['0_0', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
+  ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, '00000000000000000000000000000000']
+  : ['s', [['0_0', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
-export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue> =
+export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, '00000000000000000000010000000000']
-  : ['s', [['1_0', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
+  ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, '00000000000000000000010000000000']
+  : ['s', [['1_0', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
-export type $b2_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue> =
+export type $b2_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, '00000000000000000000000000000100']
-  : ['s', [['2_0', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
+  ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, '00000000000000000000000000000100']
+  : ['s', [['2_0', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $__wasm_call_ctors<$F extends string, $M extends $Node> =
-  $Exit<$b0_0<$F, [], $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010000010000', '00000000000000000000010000010000', '00000000000000010000010000010000', '00000000000000000000010000000000', '00000000000000010000010000010000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001'>>
+  $Exit<$b0_0<$F, [], $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010000010000', '00000000000000000000010000010000', '00000000000000010000010000010000', '00000000000000000000010000000000', '00000000000000010000010000010000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001', '00000000000000000000000000000010'>>
 
 export type $entry<$F extends string, $M extends $Node> =
-  $Exit<$b1_0<$F, [], $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010000010000', '00000000000000000000010000010000', '00000000000000010000010000010000', '00000000000000000000010000000000', '00000000000000010000010000010000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001'>>
+  $Exit<$b1_0<$F, [], $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010000010000', '00000000000000000000010000010000', '00000000000000010000010000010000', '00000000000000000000010000000000', '00000000000000010000010000010000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001', '00000000000000000000000000000010'>>
 
 export type $entrySize<$F extends string, $M extends $Node> =
-  $Exit<$b2_0<$F, [], $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010000010000', '00000000000000000000010000010000', '00000000000000010000010000010000', '00000000000000000000010000000000', '00000000000000010000010000010000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001'>>
+  $Exit<$b2_0<$F, [], $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010000010000', '00000000000000000000010000010000', '00000000000000010000010000010000', '00000000000000000000010000000000', '00000000000000010000010000010000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001', '00000000000000000000000000000010'>>

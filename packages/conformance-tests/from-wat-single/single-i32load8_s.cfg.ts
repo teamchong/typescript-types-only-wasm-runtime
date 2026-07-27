@@ -245,9 +245,11 @@ export type $MemOf<$R> =
   : $R extends ['r', unknown, infer $M1 extends $Node, ...unknown[]] ? $M1
   : never
 export type $GlobalsOf<$R> =
-  $R extends never ? [] : []
+  $R extends ['s', unknown, unknown, infer $h0] ? [$h0]
+  : $R extends ['r', unknown, unknown, infer $h0, unknown] ? [$h0]
+  : []
 export type $ValueOf<$R> =
-  $R extends ['r', unknown, unknown, infer $V] ? $V : 'void'
+  $R extends ['r', unknown, unknown, unknown, infer $V] ? $V : 'void'
 
 /// one trie branch at a time, for a memory too big for the printer
 export type $Kid0<$M> = $M extends [infer $c0, unknown, unknown, unknown, unknown, unknown, unknown, unknown] ? $c0 : never
@@ -259,15 +261,15 @@ export type $Kid5<$M> = $M extends [unknown, unknown, unknown, unknown, unknown,
 export type $Kid6<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, infer $c6, unknown] ? $c6 : never
 export type $Kid7<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $c7] ? $c7 : never
 
-export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $l0 extends WasmValue> =
+export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue> =
   $F extends `11${infer $F1}`
   ? $Store32<$M, '00000000000000000000000000000000', $l0> extends infer $m0 extends $Node
     ? $Load8S<$m0, '00000000000000000000000000000000'> extends infer $t1 extends WasmValue
-    ? ['r', $F1, $m0, $t1]
+    ? ['r', $F1, $m0, $g0, $t1]
     : never
     : never
-  : ['s', [['0_0', '0', $l0], ...$K], $Flush<$M>]
+  : ['s', [['0_0', '0', $l0], ...$K], $Flush<$M>, $g0]
 
 
 export type $entry<$F extends string, $M extends $Node, $p0 extends WasmValue> =
-  $Exit<$b0_0<$F, [], $Buf<$M>, $p0>>
+  $Exit<$b0_0<$F, [], $Buf<$M>, '00000000000000000000000000000001', $p0>>

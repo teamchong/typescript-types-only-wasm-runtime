@@ -134,6 +134,11 @@ pub struct CfgCompiler {
     data: Vec<(u32, Vec<u8>)>,
     globals: Vec<i64>,
     memory_pages: u64,
+    /// How many pages the trie can actually address, which is a whole number of
+    /// digits and so usually more than the module asked for.
+    capacity_pages: u64,
+    /// Index of the synthetic global holding the current page count.
+    pages_global: usize,
     /// export name -> function index (into defined functions)
     exports: Vec<(String, u32)>,
     num_imports: u32,
@@ -187,6 +192,8 @@ impl CfgCompiler {
             data: Vec::new(),
             globals: Vec::new(),
             memory_pages: 1,
+            capacity_pages: 1,
+            pages_global: 0,
             exports: Vec::new(),
             num_imports: 0,
             trie_bits: 14,
@@ -308,6 +315,18 @@ impl CfgCompiler {
         // round up so the address splits into whole digits
         let levels = (needed + self.digit_bits - 1) / self.digit_bits;
         self.trie_bits = levels * self.digit_bits;
+        // rounding the address up to whole digits usually buys extra pages; a
+        // grow can use them, and one past them has to fail rather than wrap
+        self.capacity_pages = ((1u64 << self.trie_bits) * 4) / 65536;
+
+        // The page count has to be part of the state, because `memory.grow`
+        // reports the size *before* it grew and a caller works out where its new
+        // region starts from that. Reporting the initial count every time hands
+        // out the same region twice, which is a corrupted heap and, in doom's
+        // allocator, a loop that never ends. It rides along as one more global,
+        // so it is already threaded through blocks, frames and suspends.
+        self.pages_global = self.globals.len();
+        self.globals.push(self.memory_pages as i64);
 
         let mut out = String::new();
         out.push_str(&self.emit_prelude());
@@ -1385,6 +1404,7 @@ impl<'a> FunctionCfg<'a> {
     /// that.
     const DEPTH_CAP: usize = 6;
 
+
     /// Blocks up to this many instructions are rendered as nested `infer`s,
     /// longer ones as a pipeline.
     const NEST_LIMIT: usize = 10;
@@ -1436,7 +1456,7 @@ impl<'a> FunctionCfg<'a> {
             // pure arithmetic has no such chain, so it is allowed to grow and
             // is rendered as a pipeline instead of nested `infer`s.
             let cap = if env.has_pattern || env.mem_ops > 0 {
-                Self::DEPTH_CAP
+                depth_cap()
             } else {
                 pipeline_cap()
             };
@@ -1923,16 +1943,35 @@ impl<'a> FunctionCfg<'a> {
             I32Store8 { memarg } => env.store("$Store8", memarg.offset, Ok(Step::Continue)),
             I32Store16 { memarg } => env.store("$Store16", memarg.offset, Ok(Step::Continue)),
             MemorySize { .. } => {
-                env.push(format!("'{}'", bits32(self.module.memory_pages as i32)));
+                let pages = env.globals[self.module.pages_global].clone();
+                env.push(pages);
                 Ok(Step::Continue)
             }
 
-            // The trie is sparse and unbounded, so there is nothing to allocate:
-            // growing always succeeds and reports the page count from before the
-            // call, which is what the engine returns.
+            // The trie is sparse, but its *depth* is fixed when the module is
+            // compiled, so it is not unbounded: an address past the last digit
+            // wraps onto a low one. Growing past what the trie can address has to
+            // report failure the way an engine out of memory does, or the two
+            // regions alias and every write to one corrupts the other.
             MemoryGrow { .. } => {
-                let _pages = env.pop();
-                env.push(format!("'{}'", bits32(self.module.memory_pages as i32)));
+                let delta = env.pop();
+                let index = self.module.pages_global;
+                let old = env.globals[index].clone();
+                let capacity = bits32(self.module.capacity_pages as i32);
+                let grown = env.bind(&format!("Wasm.I32Add<{old}, {delta}>"), "WasmValue");
+                let fits = env.bind(
+                    &format!("Wasm.I32LeU<{grown}, '{capacity}'>"),
+                    "WasmValue",
+                );
+                let z = zero();
+                let kept = format!("({fits} extends '{z}' ? {old} : {grown})");
+                env.globals[index] = env.bind(&kept, "WasmValue");
+                let answer = format!(
+                    "({fits} extends '{z}' ? '{}' : {old})",
+                    bits32(-1)
+                );
+                let named = env.bind(&answer, "WasmValue");
+                env.push(named);
                 Ok(Step::Continue)
             }
 
@@ -1946,8 +1985,14 @@ impl<'a> FunctionCfg<'a> {
                 Ok(Step::Continue)
             }
             I64ExtendI32S => env.unary("Wasm.I64ExtendI32S", Ok(Step::Continue)),
+            I64ExtendI32U => {
+                env.i64_helpers();
+                env.unary("$Zx64", Ok(Step::Continue))
+            }
             I32WrapI64 => env.unary("Wasm.I32WrapI64", Ok(Step::Continue)),
-            I64Mul => env.binary("Wasm.I64Mul", Ok(Step::Continue)),
+            I64Mul => env.binary64("$Mul64", Ok(Step::Continue)),
+            I64Add => env.binary64("$Add64", Ok(Step::Continue)),
+            I64Sub => env.binary64("$Sub64", Ok(Step::Continue)),
             I64DivS => env.binary("Wasm.I64DivS", Ok(Step::Continue)),
             I64Shl => env.binary("Wasm.I64Shl", Ok(Step::Continue)),
             I64ShrU => env.binary("Wasm.I64ShrU", Ok(Step::Continue)),
@@ -2410,6 +2455,159 @@ impl BlockEnv {
         self.memory = memory_name;
         self.globals = global_names;
         value_name
+    }
+
+
+    /// 64-bit add, subtract and multiply, built out of the 32-bit ones.
+    ///
+    /// ts-type-math's own 64-bit add, subtract and multiply all come back as a
+    /// template with `any` in it - the checker gives up part way along the
+    /// string and hands back the leading segments as an error type, which turns
+    /// into `never` the moment anything downstream tries to use it. Only the
+    /// shifts, the extends and the wrap survive 64 characters. Nothing noticed
+    /// because every i64 conformance module is skipped for taking i64
+    /// *parameters*, so the whole 64-bit path was unverified.
+    ///
+    /// doom needs it: a fixed-point multiply is `(i64)a * (i64)b >> 16`, and
+    /// that is on the path of every scaled column its renderer draws.
+    ///
+    /// So a 64-bit value is treated as two 32-bit halves and the arithmetic is
+    /// done with the 32-bit operations that *are* verified against the engine.
+    /// Splitting and joining are character moves, which cost nothing.
+    fn i64_helpers(&mut self) {
+        let z32 = "0".repeat(32);
+        let c: Vec<String> = (0..64).map(|i| format!("${{infer c{i}}}")).collect();
+        let join = |range: std::ops::Range<usize>| -> String {
+            range.map(|i| format!("${{c{i}}}")).collect::<String>()
+        };
+        let pattern64: String = c.concat();
+
+        // the two halves of a 64-bit value, and the way back
+        self.register(
+            "$Hi64",
+            format!(
+                "export type $Hi64<A extends string> =\n  A extends `{pattern64}` ? `{}` : never\n",
+                join(0..32)
+            ),
+        );
+        self.register(
+            "$Lo64",
+            format!(
+                "export type $Lo64<A extends string> =\n  A extends `{pattern64}` ? `{}` : never\n",
+                join(32..64)
+            ),
+        );
+        // a 32-bit value as a 64-bit one, unsigned
+        self.register(
+            "$Zx64",
+            format!("export type $Zx64<A extends string> = `{z32}${{A}}`\n"),
+        );
+        // the halves of a 32-bit value, each widened back to 32 bits, so a
+        // 16x16 product is exact in 32 bits and needs no carry
+        let c32: Vec<String> = (0..32).map(|i| format!("${{infer c{i}}}")).collect();
+        let pattern32: String = c32.concat();
+        let z16 = "0".repeat(16);
+        self.register(
+            "$Hi16",
+            format!(
+                "export type $Hi16<A extends string> =\n  A extends `{pattern32}` ? `{z16}{}` : never\n",
+                join(0..16)
+            ),
+        );
+        self.register(
+            "$Lo16",
+            format!(
+                "export type $Lo16<A extends string> =\n  A extends `{pattern32}` ? `{z16}{}` : never\n",
+                join(16..32)
+            ),
+        );
+
+        // add: the low halves carry into the high ones. The carry is exactly
+        // "the sum came out below what we started with", which is one unsigned
+        // compare - no bit walking.
+        self.register(
+            "$Add64",
+            concat!(
+                "export type $Add64<A extends string, B extends string> =\n",
+                "  Wasm.I32Add<$Lo64<A>, $Lo64<B>> extends infer $lo extends WasmValue\n",
+                "  ? Wasm.I32Add<Wasm.I32Add<$Hi64<A>, $Hi64<B>>, Wasm.I32LtU<$lo, $Lo64<A>>> extends infer $hi extends WasmValue\n",
+                "  ? `${$hi}${$lo}`\n",
+                "  : never\n",
+                "  : never\n"
+            )
+            .to_string(),
+        );
+        self.register(
+            "$Sub64",
+            concat!(
+                "export type $Sub64<A extends string, B extends string> =\n",
+                "  Wasm.I32Sub<$Lo64<A>, $Lo64<B>> extends infer $lo extends WasmValue\n",
+                "  ? Wasm.I32Sub<Wasm.I32Sub<$Hi64<A>, $Hi64<B>>, Wasm.I32LtU<$Lo64<A>, $Lo64<B>>> extends infer $hi extends WasmValue\n",
+                "  ? `${$hi}${$lo}`\n",
+                "  : never\n",
+                "  : never\n"
+            )
+            .to_string(),
+        );
+
+        // A full 32x32 product needs 64 bits, so it is built from four 16x16
+        // ones, each of which is exact in 32 bits: a*b = p11<<32 + (p01+p10)<<16
+        // + p00. The middle sum can carry out of 32 bits, so it is added as a
+        // 64-bit value rather than a 32-bit one.
+        self.register(
+            "$Mul3264",
+            concat!(
+                "export type $Mul3264<A extends string, B extends string> =\n",
+                "  $Add64<\n",
+                "    $Add64<$Zx64<Wasm.I32Mul<$Lo16<A>, $Lo16<B>>>, $Shl64_32<$Zx64<Wasm.I32Mul<$Hi16<A>, $Hi16<B>>>>>,\n",
+                "    $Shl64_16<$Add64<$Zx64<Wasm.I32Mul<$Lo16<A>, $Hi16<B>>>, $Zx64<Wasm.I32Mul<$Hi16<A>, $Lo16<B>>>>>\n",
+                "  >\n"
+            )
+            .to_string(),
+        );
+
+        // only the low 64 bits survive, so the high halves only ever reach the
+        // top: a*b = lo*lo + ((ah*bl + al*bh) << 32)
+        self.register(
+            "$Mul64",
+            concat!(
+                "export type $Mul64<A extends string, B extends string> =\n",
+                "  $Mul3264<$Lo64<A>, $Lo64<B>> extends infer $m extends string\n",
+                "  ? Wasm.I32Add<\n",
+                "      $Hi64<$m>,\n",
+                "      Wasm.I32Add<Wasm.I32Mul<$Hi64<A>, $Lo64<B>>, Wasm.I32Mul<$Lo64<A>, $Hi64<B>>>\n",
+                "    > extends infer $hi extends WasmValue\n",
+                "  ? `${$hi}${$Lo64<$m>}`\n",
+                "  : never\n",
+                "  : never\n"
+            )
+            .to_string(),
+        );
+
+        // shifts by a constant are character moves on the 64-character string
+        for amount in [16usize, 32] {
+            let kept: String = join(0..64 - amount);
+            let zeros = "0".repeat(amount);
+            self.register(
+                &format!("$Shl64_{amount}"),
+                format!(
+                    "export type $Shl64_{amount}<A extends string> =\n  A extends `{pattern64}` ? `{kept}{zeros}` : never\n"
+                ),
+            );
+        }
+    }
+
+    /// A 64-bit operation that goes through the helpers above instead of
+    /// ts-type-math, whose own 64-bit add, subtract and multiply are broken.
+    fn binary64(&mut self, helper: &str, ret: Result<Step, String>) -> Result<Step, String> {
+        self.i64_helpers();
+        let b = self.pop();
+        let a = self.pop();
+        let (a, b) = (self.operand(&a), self.operand(&b));
+        let value = format!("{helper}<{a}, {b}>");
+        let named = self.bind(&value, "WasmValue");
+        self.push(named);
+        ret
     }
 
     fn binary(&mut self, op: &str, ret: Result<Step, String>) -> Result<Step, String> {
@@ -3014,6 +3212,17 @@ fn state_reads(text: &str, slots: &HashMap<String, usize>) -> String {
 /// How many instructions a pipelined block may hold. Only a sanity bound on the
 /// size of the generated text: the checker's cost in the length of a pipeline is
 /// linear, measured flat out to 128 steps.
+/// How many bindings a block that touches memory may hold. Sweepable, because
+/// the right answer is a measurement: a longer block is fewer hops for the same
+/// work, but inside a block the memory is an unevaluated store chain that every
+/// later load walks.
+fn depth_cap() -> usize {
+    std::env::var("DEPTH_CAP")
+        .ok()
+        .and_then(|text| text.parse().ok())
+        .unwrap_or(6)
+}
+
 fn pipeline_cap() -> usize {
     std::env::var("PIPELINE_CAP")
         .ok()
