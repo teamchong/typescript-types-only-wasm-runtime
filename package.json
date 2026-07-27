@@ -7,12 +7,6 @@
     "pnpm": ">=8"
   },
   "scripts": {
-    "gfx": "cargo run --quiet -- --aot-cfg packages/playground/gfx/gfx.wasm && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/gfx/play.ts",
-    "gfx:verify": "cargo run --quiet -- --aot-cfg packages/playground/gfx/gfx.wasm && WASM=packages/playground/gfx/gfx.wasm MODULE=packages/playground/gfx/gfx.cfg.ts WIDTH=64 HEIGHT=48 FUEL=4000 node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/verify.ts",
-    "arcade": "cargo run --quiet -- --aot-cfg packages/playground/pong-tiny/pong-tiny.wasm && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/arcade.ts",
-    "arcade:verify": "cargo run --quiet -- --aot-cfg packages/playground/pong-tiny/pong-tiny.wasm && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/verify.ts",
-    "arcade:conform": "cargo build --quiet && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/conform.ts",
-    "arcade:ceiling": "cargo run --quiet -- --aot-cfg packages/playground/cfg/store64.wasm && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/measure-ceiling.ts",
     "browser": "pnpm --filter playground run browser",
     "clean": "rm -f .tsbuildinfo && rm -rf packages/playground/evaluate/results && rm -rf target && rm -rf trace",
     "preinstall": "npx only-allow pnpm",
@@ -26,7 +20,10 @@
     "test": "pnpm run test:rust && CI=true pnpm run test:math && CI=true pnpm run test:conformance && pnpm run build",
     "build": "tsc",
     "build:trace": "pnpm run build --generateTrace trace",
-    "build:force": "time tsc --incremental false --tsBuildInfoFile null --pprofDir tsc-profile"
+    "build:force": "time tsc --incremental false --tsBuildInfoFile null --pprofDir tsc-profile",
+    "doom": "cargo run --quiet --release -- --aot-cfg packages/playground/doom/doom.wasm",
+    "doom:verify": "cargo run --quiet --release -- --aot-cfg packages/playground/doom/doom.wasm && WASM=packages/playground/doom/doom.wasm MODULE=packages/playground/doom/doom.cfg.ts node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/verify.ts",
+    "conform": "cargo build --quiet && node --stack-size=16384 --max-old-space-size=8192 --import tsx/esm packages/playground/cfg/conform.ts"
   },
   "dependencies": {
     "@biomejs/biome": "^1.9.3",

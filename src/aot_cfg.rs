@@ -2631,7 +2631,7 @@ mod tests {
     /// TS2589 instead of suspending.
     #[test]
     fn every_block_can_suspend() {
-        let output = compile("packages/playground/pong-tiny/pong-tiny.wasm");
+        let output = compile("packages/fixtures/pong-tiny.wasm");
         let mut blocks = 0;
         for declaration in output.split("\nexport type $b").skip(1) {
             blocks += 1;
@@ -2682,7 +2682,7 @@ mod tests {
     /// Exported functions become entry types that take fuel and memory.
     #[test]
     fn exports_become_entry_types() {
-        let output = compile("packages/playground/pong-tiny/pong-tiny.wasm");
+        let output = compile("packages/fixtures/pong-tiny.wasm");
         for export in ["frame", "score1", "score2"] {
             assert!(
                 output.contains(&format!("export type ${export}<$F extends string, $M extends $Node")),
@@ -2695,7 +2695,7 @@ mod tests {
     /// everything untouched, so the first chunk starts from real memory.
     #[test]
     fn data_segments_become_a_trie_literal() {
-        let output = compile("packages/playground/pong-tiny/pong-tiny.wasm");
+        let output = compile("packages/fixtures/pong-tiny.wasm");
         let literal = output
             .split("export type $InitialMemory = ")
             .nth(1)
