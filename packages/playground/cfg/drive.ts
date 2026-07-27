@@ -55,15 +55,21 @@ const toSource = (printed: string) => printed.replace(/"/g, "'");
 const WORD = /^"[01]{32}"$/;
 // a block name as the compiler spells it: function index, then block index
 const BLOCK = /^"?\d+_\d+"?$/;
-// `$Zero` and `$InitialMemory` are aliases the compiler emits; the checker
-// prints them back and the host can paste them straight into the next chunk
-const STATE = /^(?:[[\],\s]|\$Zero|\$InitialMemory|"[01]{32}")+$/;
+// `$Zero`, `$Absent` and `$InitialMemory` are aliases the compiler emits; the
+// checker prints them back and the host can paste them straight into the next
+// chunk. `"u"` is a subtree the program has never written: it reads through to
+// the module's initial memory, so the state only carries what was stored.
+// Words that came out of $InitialMemory print with the quotes that file uses,
+// so both styles are words. Either one pastes back into the next chunk as is.
+const TOKEN = `(?:[[\\],\\s]|\\$Zero|\\$Absent|\\$InitialMemory|["']u["']|"[01]{32}"|'[01]{32}')`;
+const STATE = new RegExp(`^${TOKEN}+$`);
 
-/// The first offset the state stops being a state at. Guessing from a list of
-/// things that tend to go wrong reports whichever one appears earliest in 2.6MB,
-/// which is usually not the one that broke it.
+/// The first offset the state stops being a state at. This has to walk the same
+/// token list the check itself uses: a list that is missing a token the compiler
+/// legitimately emits reports the first one of those instead of the thing that
+/// actually broke it.
 const offence = (state: string): number => {
-  const token = /(?:[[\],\s]|\$Zero|\$InitialMemory|"[01]{32}")/g;
+  const token = new RegExp(TOKEN, "g");
   let at = 0;
   while (at < state.length) {
     token.lastIndex = at;
@@ -290,7 +296,7 @@ export const run = async (
   const fuelType = (n: number) => `'${"1".repeat(n)}'`;
 
   let call = `$${entry}<$FUEL, $IN${args.length ? ", " + args.join(", ") : ""}>`;
-  let memory = options.memory ?? "$InitialMemory";
+  let memory = options.memory ?? "$Absent";
   let chunks = 0;
   let carried = 0;
   // the frames below the block currently running, innermost first: what the
@@ -383,6 +389,9 @@ ${splitReaders}
     try {
       tag = await read("$Out_Tag");
       state = await readState(read, fanout, split);
+      // A chunk that stored nothing hands the memory straight back, and the
+      // printer prints it as the alias it came in as rather than expanding it.
+      if (state.trim() === "$IN") state = memory;
       // the frames double as the live-value list for the checks below: every
       // value inside them has to be a word, whichever frame it belongs to
       live = tag === '"s"' ? await read("$Out_Frames") : "[]";

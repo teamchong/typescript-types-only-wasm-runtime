@@ -147,14 +147,29 @@ export type $Buf<T> = [T, 'eeeeeeeeeeee', [], $Empty]
 /// Measured on a real frame: consecutive words - which is what pixel loops and
 /// memsets write - then share a single walk down the trie instead of paying
 /// 5 rebuild levels each, and a scattered store costs what it did before.
+/// A subtree nobody has written to. Splitting it hands every child the same
+/// marker, exactly like a $Zero leaf standing for a whole subtree of zeros.
+export type $Absent = ['u']
+
+/// Reading a word the overlay has never been written to falls through to the
+/// module's own initial memory, so the state travelling between chunks carries
+/// only what the program has actually stored. Measured on doom at chunk 780:
+/// 20048 words instead of 46975, 0.74MB of state text instead of 2.48MB. The
+/// state is re-parsed and re-checked on every chunk, so its size is what
+/// decides whether a chunk fits inside TypeScript's instantiation budget.
+export type $Fetch<T, P extends string> =
+  $Get<T, P> extends infer W extends string
+    ? W extends 'u' ? $Get<$InitialMemory, P> : W
+    : never
+
 export type $Read<M extends $Node, A extends WasmValue> =
   M extends [infer T, infer MK extends string, unknown[], infer S extends unknown[]]
     ? $Slice<A> extends infer P extends string
       ? P extends `${MK}${infer D}`
         ? $Sel<S, D> extends infer H
-          ? H extends 'x' ? $Get<T, P> : $Word<H>
+          ? H extends 'x' ? $Fetch<T, P> : $Word<H>
           : never
-        : $Get<T, P>
+        : $Fetch<T, P>
       : never
     : never
 export type $Write<M extends $Node, A extends WasmValue, V extends WasmValue> =
