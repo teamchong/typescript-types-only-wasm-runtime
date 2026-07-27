@@ -84,16 +84,6 @@ export type $Put<T, B extends string, V extends string> =
       : $Set<[T, T, T, T, T, T, T, T], `${d0}${d1}${d2}`, $Put<T, Rest, V>>
     : [V]
 
-/// Writing a byte is a read, a splice and a write, which is two walks down the
-/// trie for one pixel. This is the same descent as `$Put`, except that the leaf
-/// it lands on is spliced rather than replaced, so a byte store costs one walk.
-export type $PutByte<T, B extends string, O extends string, V extends string> =
-  B extends `${infer d0}${infer d1}${infer d2}${infer Rest}`
-    ? T extends [infer c0, infer c1, infer c2, infer c3, infer c4, infer c5, infer c6, infer c7]
-      ? $Set<[c0, c1, c2, c3, c4, c5, c6, c7], `${d0}${d1}${d2}`, $PutByte<$Sel<[c0, c1, c2, c3, c4, c5, c6, c7], `${d0}${d1}${d2}`>, Rest, O, V>>
-      : $Set<[T, T, T, T, T, T, T, T], `${d0}${d1}${d2}`, $PutByte<T, Rest, O, V>>
-    : [$SetByte<$Word<T>, O, V>]
-
 export type $AlignAddr<A extends WasmValue> = Wasm.I32And<A, '11111111111111111111111111111100'>
 
 /// The two low bits of an address, as characters. A byte offset is the last two
@@ -124,15 +114,64 @@ export type $SetByte<W extends string, O extends string, V extends string> =
 
 export type $ByteOffset<A extends WasmValue> = Wasm.I32And<A, '00000000000000000000000000000011'>
 
-export type $Read<M extends $Node, A extends WasmValue> = $Get<M, $Slice<A>>
-export type $Write<M extends $Node, A extends WasmValue, V extends WasmValue> = $Put<M, $Slice<A>, V>
+/// A branch node, expanding a shared leaf into 8 copies of itself.
+export type $Node8<T> = T extends [infer c0, infer c1, infer c2, infer c3, infer c4, infer c5, infer c6, infer c7]
+  ? [c0, c1, c2, c3, c4, c5, c6, c7] : [T, T, T, T, T, T, T, T]
+
+/// The address split the way the write buffer wants it: the key of the bottom
+/// branch (everything but the last digit), that key as digits, and the digit.
+export type $Split<A extends string> =
+  A extends `${infer _h0}${infer _h1}${infer _h2}${infer _h3}${infer _h4}${infer _h5}${infer _h6}${infer _h7}${infer _h8}${infer _h9}${infer _h10}${infer _h11}${infer _h12}${infer _h13}${infer _h14}${infer b0}${infer b1}${infer b2}${infer b3}${infer b4}${infer b5}${infer b6}${infer b7}${infer b8}${infer b9}${infer b10}${infer b11}${infer b12}${infer b13}${infer b14}${infer _l0}${infer _l1}`
+    ? [`${b0}${b1}${b2}${b3}${b4}${b5}${b6}${b7}${b8}${b9}${b10}${b11}`, [`${b0}${b1}${b2}`, `${b3}${b4}${b5}`, `${b6}${b7}${b8}`, `${b9}${b10}${b11}`], `${b12}${b13}${b14}`]
+    : never
+
+/// One slot per word of the bottom branch; 'x' means "not written yet", which
+/// is what lets a flush leave untouched words alone without reading them first.
+export type $Empty = ['x', 'x', 'x', 'x', 'x', 'x', 'x', 'x']
+
+/// Push the buffered slots into the trie: one walk down, one merge at the leaf.
+export type $MergeAt<T, B extends unknown[], S extends unknown[]> =
+  B extends [infer D extends string, ...infer Rest]
+    ? $Set<$Node8<T>, D, $MergeAt<$Sel<$Node8<T>, D>, Rest, S>>
+    : $Node8<T> extends infer N extends unknown[]
+      ? [S[0] extends 'x' ? N[0] : S[0], S[1] extends 'x' ? N[1] : S[1], S[2] extends 'x' ? N[2] : S[2], S[3] extends 'x' ? N[3] : S[3], S[4] extends 'x' ? N[4] : S[4], S[5] extends 'x' ? N[5] : S[5], S[6] extends 'x' ? N[6] : S[6], S[7] extends 'x' ? N[7] : S[7]]
+      : never
+
+/// Memory as the host sees it: a plain trie, with nothing pending.
+export type $Flush<M> = M extends [infer T, infer K, infer B extends unknown[], infer S extends unknown[]]
+  ? K extends 'eeeeeeeeeeee' ? T : $MergeAt<T, B, S>
+  : M
+export type $Buf<T> = [T, 'eeeeeeeeeeee', [], $Empty]
+
+/// Stores go into a one-branch write buffer instead of straight into the trie.
+/// Measured on a real frame: consecutive words - which is what pixel loops and
+/// memsets write - then share a single walk down the trie instead of paying
+/// 5 rebuild levels each, and a scattered store costs what it did before.
+export type $Read<M extends $Node, A extends WasmValue> =
+  M extends [infer T, infer MK extends string, unknown[], infer S extends unknown[]]
+    ? $Slice<A> extends infer P extends string
+      ? P extends `${MK}${infer D}`
+        ? $Sel<S, D> extends infer H
+          ? H extends 'x' ? $Get<T, P> : $Word<H>
+          : never
+        : $Get<T, P>
+      : never
+    : never
+export type $Write<M extends $Node, A extends WasmValue, V extends WasmValue> =
+  $Split<A> extends [infer K extends string, infer B extends unknown[], infer D extends string]
+    ? M extends [infer T, infer MK, infer MB extends unknown[], infer S extends unknown[]]
+      ? K extends MK
+        ? [T, MK, MB, $Set<S, D, [V]>]
+        : [(MK extends 'eeeeeeeeeeee' ? T : $MergeAt<T, MB, S>), K, B, $Set<$Empty, D, [V]>]
+      : never
+    : never
 
 /// 8-bit access: one trie walk plus one character splice, no arithmetic at all
 export type $Load8U<M extends $Node, A extends WasmValue> = $GetByte<$Read<M, A>, $Off<A>>
 export type $Load8S<M extends $Node, A extends WasmValue> =
   Wasm.I32ShrS<Wasm.I32Shl<$Load8U<M, A>, '00000000000000000000000000011000'>, '00000000000000000000000000011000'>
 export type $Store8<M extends $Node, A extends WasmValue, V extends WasmValue> =
-  $PutByte<M, $Slice<A>, $Off<A>, V>
+  $Write<M, A, $SetByte<$Read<M, A>, $Off<A>, V>>
 
 /// 32-bit access: aligned is a plain trie read or write; unaligned falls back to
 /// the bit arithmetic, which pong never needs
@@ -184,10 +223,10 @@ export type $InitialMemory = $Zero
 export type $b0_0<$F extends string, $M extends $Node, $l0 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $Eq<$l0, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
-    ? ['r', $M, $t0]
+    ? ['r', $Flush<$M>, $t0]
     : never
-  : ['s', '0_0', $M, $l0]
+  : ['s', '0_0', $Flush<$M>, $l0]
 
 
 export type $entry<$F extends string, $M extends $Node, $p0 extends WasmValue> =
-  $b0_0<$F, $M, $p0>
+  $b0_0<$F, $Buf<$M>, $p0>

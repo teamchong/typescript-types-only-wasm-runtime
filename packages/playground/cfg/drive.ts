@@ -150,6 +150,11 @@ export type $Mem =
   : never
 `;
     env.createFile(path, file);
+    // A chunk dumped to disk can be re-checked by tsc standalone, which reports
+    // Instantiations - a deterministic cost number, unlike wall time.
+    if (process.env.DUMP_CHUNKS) {
+      writeFileSync(`${process.env.DUMP_CHUNKS}/chunk-${String(chunks).padStart(4, "0")}.ts`, file);
+    }
     const e0 = performance.now();
     const read = async (name: string) => {
       const t = performance.now();
@@ -207,7 +212,10 @@ export type $Mem =
     }
     const block = (await read("$Block")).replace(/"/g, "");
     const liveValues = splitTop(live.slice(1, live.lastIndexOf("]"))).filter((v) => v.length > 0).map(toSource);
-    call = `$b${block}<$FUEL, ${memory}${liveValues.length ? ", " + liveValues.join(", ") : ""}>`;
+    // a snapshot is a plain trie; blocks run on buffered memory, so resuming
+    // one puts the empty write buffer back around it
+    const wrapped = moduleText.includes("type $Buf<") ? `$Buf<${memory}>` : memory;
+    call = `$b${block}<$FUEL, ${wrapped}${liveValues.length ? ", " + liveValues.join(", ") : ""}>`;
     if (!options.quiet) {
       process.stdout.write(`\r  chunk ${chunks}: suspended in b${block}, state ${memory.length} chars   `);
     }

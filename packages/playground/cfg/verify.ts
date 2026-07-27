@@ -78,7 +78,8 @@ for (let frame = 0; frame < frames; frame++) {
   console.log(
     `frame ${String(frame + 1).padStart(2)}: screen@${typeScreen} ${bad === 0 ? "matches" : `${bad} bytes differ (first at ${firstBad})`}` +
       `, state ${badState.length === 0 ? "matches" : `differs: ${badState.map((w) => `+${w.offset} want ${w.expected} got ${w.got}`).join(", ")}`}` +
-      `, ${result.chunks} chunk${result.chunks === 1 ? "" : "s"} in ${(result.totalMs / 1000).toFixed(2)}s`,
+      `, ${result.chunks} chunk${result.chunks === 1 ? "" : "s"} in ${(result.totalMs / 1000).toFixed(2)}s` +
+        ` (type evaluation ${(result.evalMs / 1000).toFixed(2)}s, host ${((result.totalMs - result.evalMs) / 1000).toFixed(2)}s)`,
   );
 }
 
