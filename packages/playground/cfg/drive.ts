@@ -53,6 +53,8 @@ const toSource = (printed: string) => printed.replace(/"/g, "'");
 /// compiler is supposed to emit: nested tuples, the `$Zero` alias for untouched
 /// subtrees, and 32-character binary literals.
 const WORD = /^"[01]{32}"$/;
+// a block name as the compiler spells it: function index, then block index
+const BLOCK = /^"?\d+_\d+"?$/;
 // `$Zero` and `$InitialMemory` are aliases the compiler emits; the checker
 // prints them back and the host can paste them straight into the next chunk
 const STATE = /^(?:[[\],\s]|\$Zero|\$InitialMemory|"[01]{32}")+$/;
@@ -62,6 +64,7 @@ export const degraded = (
   state: string,
   live: string,
   value: string,
+  globals = "[]",
 ): string | undefined => {
   if (tag !== '"s"' && tag !== '"r"') return `result tag is ${tag.slice(0, 40)}`;
   if (!STATE.test(state)) {
@@ -69,13 +72,94 @@ export const degraded = (
     return `state contains ${junk ? junk[0] : "something unexpected"}`;
   }
   if (tag === '"s"') {
-    for (const part of splitTop(live.slice(1, live.lastIndexOf("]")))) {
-      if (part.length && !WORD.test(part)) return `live value is not a word: ${part.slice(0, 40)}`;
+    // the frames are pasted back verbatim, so every part of every one of them
+    // has to be exactly what the compiler emits: a block name, then words
+    const body = live.slice(live.indexOf("[") + 1, live.lastIndexOf("]"));
+    for (const part of splitTop(body)) {
+      if (!part.length) continue;
+      if (!part.startsWith("[")) return `frame is not a tuple: ${part.slice(0, 40)}`;
+      const inner = splitTop(part.slice(part.indexOf("[") + 1, part.lastIndexOf("]")));
+      const [name, ...values] = inner.filter((piece) => piece.length > 0);
+      if (!BLOCK.test(name ?? "")) return `frame block is not a name: ${String(name).slice(0, 40)}`;
+      for (const one of values) {
+        if (!WORD.test(one)) return `live value is not a word: ${one.slice(0, 40)}`;
+      }
     }
   } else if (value !== '"void"' && !WORD.test(value)) {
     return `return value is not a word: ${value.slice(0, 40)}`;
   }
+  // globals travel with every chunk in both directions
+  for (const one of splitTop(globals.slice(1, globals.lastIndexOf("]")))) {
+    if (one.length && !WORD.test(one)) return `global is not a word: ${one.slice(0, 40)}`;
+  }
   return undefined;
+};
+
+/// A saved call: the block to come back to, then the values it takes -
+/// the locals it reads and the stack it left behind, already in parameter order.
+export type Frame = [string, ...string[]];
+
+/// The printed frame list, turned back into source we can paste. The compiler
+/// emits `[['50_105', '000...1'], ['51_2']]`, innermost first.
+export const parseFrames = (printed: string): Frame[] => {
+  const body = printed.slice(printed.indexOf("[") + 1, printed.lastIndexOf("]"));
+  return splitTop(body)
+    .filter((part) => part.length > 0)
+    .map((part) => {
+      const inner = part.slice(part.indexOf("[") + 1, part.lastIndexOf("]"));
+      const pieces = splitTop(inner).filter((piece) => piece.length > 0);
+      return [pieces[0].replace(/"/g, ""), ...pieces.slice(1).map(toSource)] as Frame;
+    });
+};
+
+/// The call that re-enters a frame: its block, the frames still below it, the
+/// memory and globals it inherits, and - when a call is returning into it - the
+/// value that call produced, which belongs on the top of its stack.
+///
+/// `$Exit` wraps it because this is a result the host reads: a return keeps its
+/// write buffer inside the types, and only what gets printed has to be flushed.
+export const enter = (
+  frame: Frame,
+  below: Frame[],
+  memory: string,
+  globals: string[],
+  returned: string[],
+): string => {
+  const [block, ...saved] = frame;
+  const rest = `[${below.map((f) => `['${f[0]}'${f.slice(1).length ? ", " + f.slice(1).join(", ") : ""}]`).join(", ")}]`;
+  const args = [`$FUEL`, rest, `$Buf<${memory}>`, ...globals, ...saved, ...returned];
+  return `$Exit<$b${block}<${args.join(", ")}>>`;
+};
+
+/// Did the printer give up part way through?
+const TRUNCATED = /\bany\b/;
+
+/// Read the memory, splitting it into branches only if the printer truncated.
+///
+/// One read is the normal case and costs one evaluation. When the state grows
+/// past what the printer will emit, the same subtree is asked for a branch at a
+/// time and stitched back together here - the pieces are the checker's own
+/// output, so the result is the same text it would have printed if it could.
+export const readState = async (
+  read: (name: string) => Promise<string>,
+  fanout: number,
+): Promise<string> => {
+  const whole = await read("$Out_Mem");
+  if (!TRUNCATED.test(whole) || fanout === 0) return whole;
+  const branches: string[] = [];
+  for (let i = 0; i < fanout; i++) {
+    const branch = await read(`$Out_Mem_${i}`);
+    if (!TRUNCATED.test(branch)) {
+      branches.push(branch);
+      continue;
+    }
+    const inner: string[] = [];
+    for (let j = 0; j < fanout; j++) {
+      inner.push(await read(`$Out_Mem_${i}_${j}`));
+    }
+    branches.push(`[${inner.join(", ")}]`);
+  }
+  return `[${branches.join(", ")}]`;
 };
 
 export interface RunResult {
@@ -116,6 +200,21 @@ export const run = async (
   const moduleText = readFileSync(modulePath, "utf8")
     // the chunk file inlines the module, so its imports must resolve from here
     .replace(/^export type/gm, "type");
+  const fanout = (moduleText.match(/^type \$Kid\d+</gm) ?? []).length;
+  // Readers for the memory a branch at a time, two levels down. They cost
+  // nothing until one is asked for: a type alias is only instantiated when
+  // something reads it, and the whole point is that almost always only the
+  // root is read.
+  const splitReaders = (() => {
+    const lines: string[] = [];
+    for (let i = 0; i < fanout; i++) {
+      lines.push(`export type $Out_Mem_${i} = $Kid${i}<$Out_Mem>`);
+      for (let j = 0; j < fanout; j++) {
+        lines.push(`export type $Out_Mem_${i}_${j} = $Kid${j}<$Out_Mem_${i}>`);
+      }
+    }
+    return lines.join("\n");
+  })();
   // one '1' per unit of work; taking a prefix off a string is free, unlike
   // re-slicing a tuple on every hop
   const fuelType = (n: number) => `'${"1".repeat(n)}'`;
@@ -123,6 +222,9 @@ export const run = async (
   let call = `$${entry}<$FUEL, ${options.memory ?? "$InitialMemory"}${args.length ? ", " + args.join(", ") : ""}>`;
   let memory = options.memory ?? "$InitialMemory";
   let chunks = 0;
+  // the frames below the block currently running, innermost first: what the
+  // host has to hand back to when a call returns after a suspension
+  let frames: Frame[] = [];
   let backoffs = 0;
   let evalMs = 0;
   let value_: string | undefined;
@@ -140,14 +242,12 @@ export const run = async (
     const file = `${moduleText}
 type $FUEL = ${fuelType(fuel)}
 type $Result = ${call}
-export type $Tag = $Result extends [infer T, ...unknown[]] ? T : 'bad'
-export type $Block = $Result extends ['s', infer B, ...unknown[]] ? B : 'bad'
-export type $Live = $Result extends ['s', unknown, unknown, ...infer L] ? L : []
-export type $Value = $Result extends ['r', unknown, infer V] ? V : 'void'
-export type $Mem =
-  $Result extends ['s', unknown, infer M, ...unknown[]] ? M
-  : $Result extends ['r', infer M, ...unknown[]] ? M
-  : never
+export type $Out_Tag = $Tag<$Result>
+export type $Out_Frames = $Frames<$Result>
+export type $Out_Globals = $GlobalsOf<$Result>
+export type $Out_Value = $ValueOf<$Result>
+export type $Out_Mem = $MemOf<$Result>
+${splitReaders}
 `;
     env.createFile(path, file);
     // A chunk dumped to disk can be re-checked by tsc standalone, which reports
@@ -168,11 +268,15 @@ export type $Mem =
     let state: string;
     let live: string;
     let value: string;
+    let globals: string;
     try {
-      tag = await read("$Tag");
-      state = await read("$Mem");
-      live = tag === '"s"' ? await read("$Live") : "[]";
-      value = tag === '"r"' ? await read("$Value") : '"void"';
+      tag = await read("$Out_Tag");
+      state = await readState(read, fanout);
+      // the frames double as the live-value list for the checks below: every
+      // value inside them has to be a word, whichever frame it belongs to
+      live = tag === '"s"' ? await read("$Out_Frames") : "[]";
+      globals = await read("$Out_Globals");
+      value = tag === '"r"' ? await read("$Out_Value") : '"void"';
     } catch (error) {
       const message = (error as Error).message.split("\n")[0];
       // TS2589 is the checker refusing outright, rather than quietly handing
@@ -189,7 +293,7 @@ export type $Mem =
     evalMs += performance.now() - e0;
     chunks++;
 
-    const bad = degraded(tag, state, live, value);
+    const bad = degraded(tag, state, live, value, globals);
     if (bad) {
       // too much work for one evaluation: give the same block less fuel so it
       // suspends earlier. This is the checker's real limit, measured.
@@ -206,18 +310,42 @@ export type $Mem =
     }
 
     memory = toSource(state);
+    const globalValues = splitTop(globals.slice(1, globals.lastIndexOf("]")))
+      .filter((v) => v.length > 0)
+      .map(toSource);
+
     if (tag === '"r"') {
-      value_ = value === '"void"' ? undefined : value.replace(/"/g, "");
+      // A return with frames still pending is a call coming back after
+      // something inside it suspended: the caller's inline match is long gone,
+      // so the host is what pops the frame and carries on. This is the only
+      // reason a return costs a round trip, and it only happens on the way out
+      // of a suspension.
+      if (frames.length === 0) {
+        value_ = value === '"void"' ? undefined : value.replace(/"/g, "");
+        break;
+      }
+      const [resume, ...rest] = frames;
+      frames = rest;
+      const returned = value === '"void"' ? [] : [value.replace(/"/g, "")].map((v) => `'${v}'`);
+      call = enter(resume, rest, memory, globalValues, returned);
+      if (!options.quiet) {
+        process.stdout.write(`\r  chunk ${chunks}: returned into ${resume[0]}, ${rest.length} frames left   `);
+      }
+      continue;
+    }
+
+    // suspended: the innermost frame is where to pick up, the rest is the
+    // stack it has to return through
+    const parsed = parseFrames(live);
+    if (parsed.length === 0) {
+      failed = `chunk ${chunks}: suspended with no frame to resume`;
       break;
     }
-    const block = (await read("$Block")).replace(/"/g, "");
-    const liveValues = splitTop(live.slice(1, live.lastIndexOf("]"))).filter((v) => v.length > 0).map(toSource);
-    // a snapshot is a plain trie; blocks run on buffered memory, so resuming
-    // one puts the empty write buffer back around it
-    const wrapped = moduleText.includes("type $Buf<") ? `$Buf<${memory}>` : memory;
-    call = `$b${block}<$FUEL, ${wrapped}${liveValues.length ? ", " + liveValues.join(", ") : ""}>`;
+    const [innermost, ...outer] = parsed;
+    frames = outer;
+    call = enter(innermost, outer, memory, globalValues, []);
     if (!options.quiet) {
-      process.stdout.write(`\r  chunk ${chunks}: suspended in b${block}, state ${memory.length} chars   `);
+      process.stdout.write(`\r  chunk ${chunks}: suspended in ${innermost[0]}, ${outer.length} frames, state ${memory.length} chars   `);
     }
   }
   if (!options.session) env.close();

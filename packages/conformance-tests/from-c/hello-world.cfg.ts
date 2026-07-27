@@ -205,6 +205,17 @@ export type $Store16<M extends $Node, A extends WasmValue, V extends WasmValue> 
 
 export type $ToNumber<V> = Convert.WasmValue.ToTSNumber<V & string, 'i32'>
 
+/// 64-bit access. A value is a binary string, so a 64-bit value is just its two
+/// 32-bit words written end to end: joining them is a template literal and
+/// splitting them is a single inference. Neither costs arithmetic. Memory is
+/// little-endian, so the low word lives at A and the high word at A+4.
+export type $Hi32<V extends string> = V extends `${infer H0}${infer H1}${infer H2}${infer H3}${infer H4}${infer H5}${infer H6}${infer H7}${infer H8}${infer H9}${infer H10}${infer H11}${infer H12}${infer H13}${infer H14}${infer H15}${infer H16}${infer H17}${infer H18}${infer H19}${infer H20}${infer H21}${infer H22}${infer H23}${infer H24}${infer H25}${infer H26}${infer H27}${infer H28}${infer H29}${infer H30}${infer H31}${infer _Lo}` ? `${H0}${H1}${H2}${H3}${H4}${H5}${H6}${H7}${H8}${H9}${H10}${H11}${H12}${H13}${H14}${H15}${H16}${H17}${H18}${H19}${H20}${H21}${H22}${H23}${H24}${H25}${H26}${H27}${H28}${H29}${H30}${H31}` : never
+export type $Lo32<V extends string> = V extends `${infer H0}${infer H1}${infer H2}${infer H3}${infer H4}${infer H5}${infer H6}${infer H7}${infer H8}${infer H9}${infer H10}${infer H11}${infer H12}${infer H13}${infer H14}${infer H15}${infer H16}${infer H17}${infer H18}${infer H19}${infer H20}${infer H21}${infer H22}${infer H23}${infer H24}${infer H25}${infer H26}${infer H27}${infer H28}${infer H29}${infer H30}${infer H31}${infer Lo}` ? Lo : never
+export type $Load64<M extends $Node, A extends WasmValue> =
+  `${$Load32<M, Wasm.I32Add<A, '00000000000000000000000000000100'>>}${$Load32<M, A>}`
+export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> =
+  $Store32<$Store32<M, A, $Lo32<V>>, Wasm.I32Add<A, '00000000000000000000000000000100'>, $Hi32<V>>
+
 export type $Flip = { '0': '1', '1': '0' }
 
 /// logical not of a wasm boolean (0 or 1)
@@ -220,20 +231,40 @@ export type $Ne<A extends string, B extends string> =
 
 export type $InitialMemory = [[[$Zero, $Zero, $Zero, $Zero, [[['01100101011001010111001001000111'], ['01100111011011100110100101110100'], ['01110101011010000010000001110011'], ['01110011011011100110000101101101'], ['00100000010010010010000000101100'], ['01011010001000000110110101100001'], ['01101111011101000110110001101001'], ['00101110001011100110010001101001']], [['01101000011101000010000000101110'], ['01101101011011110010000001100101'], ['01100011011100110110100101101110'], ['01110100011011100110010101101001'], ['00100000010010010000101000101110'], ['01100101011101100110000101101000'], ['01101101011011110110001100100000'], ['01100001011001100010000001100101']], [['01110010011001100010000001110010'], ['01100001001000000110110101101111'], ['01110011011011110111001001100011'], ['01101000011101000010000001110011'], ['01101101010011110010000001100101'], ['01100101011101100110100101101110'], ['00101110011001010111001101110010'], ['01110101011011110101100100001010']], [['01100001011010000111001100100000'], ['01100110001000000110110001101100'], ['01101000011000110111010001100101'], ['00100000011001010110110100100000'], ['01110010011101010110111101111001'], ['01101001011011100111010100100000'], ['01110011011100100110010101110110'], ['00100000011100110010011101100101']], [['01101001011101000110110001110101'], ['01100101011101000110000101101101'], ['01110000011101010110001100100000'], ['00100000011001100110111100100000'], ['01100110011001100110111101100011'], ['00101110001011100110010101100101'], ['01101100010000100010000000101110'], ['00100001011010110110001101100001']], [['01110101011011110101100100001010'], ['01110110011000010110100000100000'], ['01101001011001100010000001100101'], ['01000101001000000110010101110110'], ['01101000011101000111001001100001'], ['01101110011010010110110100100000'], ['01110011011001010111010001110101'], ['01100001010011010000101000101110']], [['01101001001000000110010101101011'], ['01100101011100000010000001110100'], ['01100011011001010110011001110010'], ['00000000000000000010000101110100'], $Zero, $Zero, $Zero, $Zero], $Zero], $Zero, $Zero, $Zero], $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero], $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero]
 
-export type $b0_0<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue> =
+/// what the host reads: a returned memory, flushed back to a plain trie
+export type $Exit<$R> =
+  $R extends ['r', infer $F1 extends string, infer $M1 extends $Node, ...infer $Rest]
+    ? ['r', $F1, $Flush<$M1>, ...$Rest]
+    : $R
+
+/// the tag, and then each piece of the result the host has to paste on
+export type $Tag<$R> = $R extends [infer $T, ...unknown[]] ? $T : 'bad'
+export type $Frames<$R> = $R extends ['s', infer $Ks extends unknown[], ...unknown[]] ? $Ks : []
+export type $MemOf<$R> =
+  $R extends ['s', unknown, infer $M1 extends $Node, ...unknown[]] ? $M1
+  : $R extends ['r', unknown, infer $M1 extends $Node, ...unknown[]] ? $M1
+  : never
+export type $GlobalsOf<$R> =
+  $R extends ['s', unknown, unknown, infer $h0, infer $h1, infer $h2, infer $h3, infer $h4, infer $h5, infer $h6, infer $h7, infer $h8] ? [$h0, $h1, $h2, $h3, $h4, $h5, $h6, $h7, $h8]
+  : $R extends ['r', unknown, unknown, infer $h0, infer $h1, infer $h2, infer $h3, infer $h4, infer $h5, infer $h6, infer $h7, infer $h8, unknown] ? [$h0, $h1, $h2, $h3, $h4, $h5, $h6, $h7, $h8]
+  : []
+export type $ValueOf<$R> =
+  $R extends ['r', unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $V] ? $V : 'void'
+
+export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? ['r', $Flush<$M>]
-  : ['s', '0_0', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
+  ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, '00000000000000000000000000000000']
+  : ['s', [['0_0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
 
 
-export type $b1_0<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue> =
+export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? ['r', $Flush<$M>, '00000000000000000000010000000000']
-  : ['s', '1_0', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
+  ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, '00000000000000000000010000000000']
+  : ['s', [['1_0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
 
 
 export type $__wasm_call_ctors<$F extends string, $M extends $Node> =
-  $b0_0<$F, $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010011001111', '00000000000000000000010011010000', '00000000000000010000010011010000', '00000000000000000000010000000000', '00000000000000010000010011010000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001'>
+  $Exit<$b0_0<$F, [], $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010011001111', '00000000000000000000010011010000', '00000000000000010000010011010000', '00000000000000000000010000000000', '00000000000000010000010011010000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001'>>
 
 export type $entry<$F extends string, $M extends $Node> =
-  $b1_0<$F, $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010011001111', '00000000000000000000010011010000', '00000000000000010000010011010000', '00000000000000000000010000000000', '00000000000000010000010011010000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001'>
+  $Exit<$b1_0<$F, [], $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010011001111', '00000000000000000000010011010000', '00000000000000010000010011010000', '00000000000000000000010000000000', '00000000000000010000010011010000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001'>>

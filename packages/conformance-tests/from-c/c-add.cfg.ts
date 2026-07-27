@@ -205,6 +205,17 @@ export type $Store16<M extends $Node, A extends WasmValue, V extends WasmValue> 
 
 export type $ToNumber<V> = Convert.WasmValue.ToTSNumber<V & string, 'i32'>
 
+/// 64-bit access. A value is a binary string, so a 64-bit value is just its two
+/// 32-bit words written end to end: joining them is a template literal and
+/// splitting them is a single inference. Neither costs arithmetic. Memory is
+/// little-endian, so the low word lives at A and the high word at A+4.
+export type $Hi32<V extends string> = V extends `${infer H0}${infer H1}${infer H2}${infer H3}${infer H4}${infer H5}${infer H6}${infer H7}${infer H8}${infer H9}${infer H10}${infer H11}${infer H12}${infer H13}${infer H14}${infer H15}${infer H16}${infer H17}${infer H18}${infer H19}${infer H20}${infer H21}${infer H22}${infer H23}${infer H24}${infer H25}${infer H26}${infer H27}${infer H28}${infer H29}${infer H30}${infer H31}${infer _Lo}` ? `${H0}${H1}${H2}${H3}${H4}${H5}${H6}${H7}${H8}${H9}${H10}${H11}${H12}${H13}${H14}${H15}${H16}${H17}${H18}${H19}${H20}${H21}${H22}${H23}${H24}${H25}${H26}${H27}${H28}${H29}${H30}${H31}` : never
+export type $Lo32<V extends string> = V extends `${infer H0}${infer H1}${infer H2}${infer H3}${infer H4}${infer H5}${infer H6}${infer H7}${infer H8}${infer H9}${infer H10}${infer H11}${infer H12}${infer H13}${infer H14}${infer H15}${infer H16}${infer H17}${infer H18}${infer H19}${infer H20}${infer H21}${infer H22}${infer H23}${infer H24}${infer H25}${infer H26}${infer H27}${infer H28}${infer H29}${infer H30}${infer H31}${infer Lo}` ? Lo : never
+export type $Load64<M extends $Node, A extends WasmValue> =
+  `${$Load32<M, Wasm.I32Add<A, '00000000000000000000000000000100'>>}${$Load32<M, A>}`
+export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> =
+  $Store32<$Store32<M, A, $Lo32<V>>, Wasm.I32Add<A, '00000000000000000000000000000100'>, $Hi32<V>>
+
 export type $Flip = { '0': '1', '1': '0' }
 
 /// logical not of a wasm boolean (0 or 1)
@@ -220,22 +231,42 @@ export type $Ne<A extends string, B extends string> =
 
 export type $InitialMemory = $Zero
 
-export type $b0_0<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue> =
+/// what the host reads: a returned memory, flushed back to a plain trie
+export type $Exit<$R> =
+  $R extends ['r', infer $F1 extends string, infer $M1 extends $Node, ...infer $Rest]
+    ? ['r', $F1, $Flush<$M1>, ...$Rest]
+    : $R
+
+/// the tag, and then each piece of the result the host has to paste on
+export type $Tag<$R> = $R extends [infer $T, ...unknown[]] ? $T : 'bad'
+export type $Frames<$R> = $R extends ['s', infer $Ks extends unknown[], ...unknown[]] ? $Ks : []
+export type $MemOf<$R> =
+  $R extends ['s', unknown, infer $M1 extends $Node, ...unknown[]] ? $M1
+  : $R extends ['r', unknown, infer $M1 extends $Node, ...unknown[]] ? $M1
+  : never
+export type $GlobalsOf<$R> =
+  $R extends ['s', unknown, unknown, infer $h0, infer $h1, infer $h2, infer $h3, infer $h4, infer $h5, infer $h6, infer $h7, infer $h8] ? [$h0, $h1, $h2, $h3, $h4, $h5, $h6, $h7, $h8]
+  : $R extends ['r', unknown, unknown, infer $h0, infer $h1, infer $h2, infer $h3, infer $h4, infer $h5, infer $h6, infer $h7, infer $h8, unknown] ? [$h0, $h1, $h2, $h3, $h4, $h5, $h6, $h7, $h8]
+  : []
+export type $ValueOf<$R> =
+  $R extends ['r', unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $V] ? $V : 'void'
+
+export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? ['r', $Flush<$M>]
-  : ['s', '0_0', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
+  ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, '00000000000000000000000000000000']
+  : ['s', [['0_0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
 
 
-export type $b1_0<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
+export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? Wasm.I32Add<$l0, $l1> extends infer $t0 extends WasmValue
-    ? ['r', $Flush<$M>, $t0]
+    ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $t0]
     : never
-  : ['s', '1_0', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $l0, $l1]
+  : ['s', [['1_0', $l0, $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
 
 
 export type $__wasm_call_ctors<$F extends string, $M extends $Node> =
-  $b0_0<$F, $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010000000000', '00000000000000000000010000000000', '00000000000000010000010000000000', '00000000000000000000010000000000', '00000000000000010000010000000000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001'>
+  $Exit<$b0_0<$F, [], $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010000000000', '00000000000000000000010000000000', '00000000000000010000010000000000', '00000000000000000000010000000000', '00000000000000010000010000000000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001'>>
 
 export type $entry<$F extends string, $M extends $Node, $p0 extends WasmValue, $p1 extends WasmValue> =
-  $b1_0<$F, $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010000000000', '00000000000000000000010000000000', '00000000000000010000010000000000', '00000000000000000000010000000000', '00000000000000010000010000000000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001', $p0, $p1>
+  $Exit<$b1_0<$F, [], $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010000000000', '00000000000000000000010000000000', '00000000000000010000010000000000', '00000000000000000000010000000000', '00000000000000010000010000000000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001', $p0, $p1>>

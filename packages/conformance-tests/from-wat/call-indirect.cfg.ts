@@ -249,23 +249,25 @@ export type $GlobalsOf<$R> =
 export type $ValueOf<$R> =
   $R extends ['r', unknown, unknown, infer $V] ? $V : 'void'
 
-export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node> =
+export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? ['r', $F1, $M, '00000000000000000000000000000100']
-  : ['s', [['0_0'], ...$K], $Flush<$M>]
+  ? Wasm.I32Add<$l0, $l1> extends infer $t0 extends WasmValue
+    ? ['r', $F1, $M, $t0]
+    : never
+  : ['s', [['0_0', $l0, $l1], ...$K], $Flush<$M>]
 
 
-export type $call0<$F extends string, $K extends unknown[], $M extends $Node> =
-  $b0_0<$F, $K, $M>
+export type $call0<$F extends string, $K extends unknown[], $M extends $Node, $p0 extends WasmValue, $p1 extends WasmValue> =
+  $b0_0<$F, $K, $M, $p0, $p1>
 
-export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node> =
+export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $call0<$F1, [['1_1'], ...$K], $M> extends infer $c0
+  ? $indirect0<'00000000000000000000000000000000', $F1, [['1_1'], ...$K], $M, $l0, $l1> extends infer $c0
     ? $c0 extends ['r', infer $Fr1 extends string, infer $m2 extends $Node, infer $t3 extends WasmValue]
       ? $b1_1<$Fr1, $K, $m2, $t3>
       : $c0
     : never
-  : ['s', [['1_0'], ...$K], $Flush<$M>]
+  : ['s', [['1_0', $l0, $l1], ...$K], $Flush<$M>]
 
 
 export type $b1_1<$F extends string, $K extends unknown[], $M extends $Node, $k0 extends WasmValue> =
@@ -274,5 +276,29 @@ export type $b1_1<$F extends string, $K extends unknown[], $M extends $Node, $k0
   : ['s', [['1_1', $k0], ...$K], $Flush<$M>]
 
 
-export type $entry<$F extends string, $M extends $Node> =
-  $Exit<$b1_0<$F, [], $Buf<$M>>>
+export type $call1<$F extends string, $K extends unknown[], $M extends $Node, $p0 extends WasmValue, $p1 extends WasmValue> =
+  $b1_0<$F, $K, $M, $p0, $p1>
+
+export type $b2_0<$F extends string, $K extends unknown[], $M extends $Node, $l0 extends WasmValue, $l1 extends WasmValue> =
+  $F extends `1${infer $F1}`
+  ? $call1<$F1, [['2_1'], ...$K], $M, $l0, $l1> extends infer $c0
+    ? $c0 extends ['r', infer $Fr1 extends string, infer $m2 extends $Node, infer $t3 extends WasmValue]
+      ? $b2_1<$Fr1, $K, $m2, $t3>
+      : $c0
+    : never
+  : ['s', [['2_0', $l0, $l1], ...$K], $Flush<$M>]
+
+
+export type $b2_1<$F extends string, $K extends unknown[], $M extends $Node, $k0 extends WasmValue> =
+  $F extends `1${infer $F1}`
+  ? ['r', $F1, $M, $k0]
+  : ['s', [['2_1', $k0], ...$K], $Flush<$M>]
+
+
+export type $entry<$F extends string, $M extends $Node, $p0 extends WasmValue, $p1 extends WasmValue> =
+  $Exit<$b2_0<$F, [], $Buf<$M>, $p0, $p1>>
+
+// call_indirect on signature 0: 1 reachable target
+export type $indirect0<$C extends WasmValue, $F extends string, $K extends unknown[], $M extends $Node, $p0 extends WasmValue, $p1 extends WasmValue> =
+  $C extends '00000000000000000000000000000000' ? $call0<$F, $K, $M, $p0, $p1> :
+  never
