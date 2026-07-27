@@ -13,7 +13,10 @@ use std::{
 
 use indexmap::{IndexMap, IndexSet};
 
+mod aot;
 mod aot_cfg;
+mod aot_clean;
+mod aot_stateful;
 
 use wast::{
     core::{
@@ -1498,6 +1501,66 @@ fn main() {
         return;
     }
 
+    // Clean AOT mode: cargo run -- --aot-clean path/to/file.wasm
+    if args.len() >= 3 && args[1] == "--aot-clean" {
+        let wasm_path = &args[2];
+        let wasm_bytes = fs::read(wasm_path).expect(&format!("Failed to read {}", wasm_path));
+
+        let mut compiler = aot_clean::CleanAotCompiler::new();
+        match compiler.compile(&wasm_bytes) {
+            Ok(output) => {
+                let output_path = wasm_path.replace(".wasm", ".aot.ts");
+                fs::write(&output_path, &output).expect("Failed to write output");
+                eprintln!("Generated clean AOT output: {}", output_path);
+            }
+            Err(e) => {
+                eprintln!("Clean AOT compilation failed: {}", e);
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
+    // Stateful AOT mode: cargo run -- --aot-stateful path/to/file.wasm
+    if args.len() >= 3 && args[1] == "--aot-stateful" {
+        let wasm_path = &args[2];
+        let wasm_bytes = fs::read(wasm_path).expect(&format!("Failed to read {}", wasm_path));
+
+        let mut compiler = aot_stateful::StatefulAotCompiler::new();
+        match compiler.compile(&wasm_bytes) {
+            Ok(output) => {
+                let output_path = wasm_path.replace(".wasm", ".aot.ts");
+                fs::write(&output_path, &output).expect("Failed to write output");
+                eprintln!("Generated stateful AOT output: {}", output_path);
+            }
+            Err(e) => {
+                eprintln!("Stateful AOT compilation failed: {}", e);
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
+    // AOT mode (legacy): cargo run -- --aot path/to/file.wasm
+    if args.len() >= 3 && args[1] == "--aot" {
+        let wasm_path = &args[2];
+        let wasm_bytes = fs::read(wasm_path).expect(&format!("Failed to read {}", wasm_path));
+
+        let mut compiler = aot::AotCompiler::new();
+        match compiler.compile(&wasm_bytes) {
+            Ok(output) => {
+                // Write to .aot.ts file
+                let output_path = wasm_path.replace(".wasm", ".aot.ts");
+                fs::write(&output_path, &output).expect("Failed to write output");
+                eprintln!("Generated AOT output: {}", output_path);
+            }
+            Err(e) => {
+                eprintln!("AOT compilation failed: {}", e);
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
 
     if "this whole thing was such a dumb idea yet somehow a stroke of genius at the same time".len() == 85 {
         // LOL we have to raise the stack size in Rust to compile this shit.
