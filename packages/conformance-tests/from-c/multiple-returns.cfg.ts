@@ -251,22 +251,32 @@ export type $GlobalsOf<$R> =
 export type $ValueOf<$R> =
   $R extends ['r', unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $V] ? $V : 'void'
 
+/// one trie branch at a time, for a memory too big for the printer
+export type $Kid0<$M> = $M extends [infer $c0, unknown, unknown, unknown, unknown, unknown, unknown, unknown] ? $c0 : never
+export type $Kid1<$M> = $M extends [unknown, infer $c1, unknown, unknown, unknown, unknown, unknown, unknown] ? $c1 : never
+export type $Kid2<$M> = $M extends [unknown, unknown, infer $c2, unknown, unknown, unknown, unknown, unknown] ? $c2 : never
+export type $Kid3<$M> = $M extends [unknown, unknown, unknown, infer $c3, unknown, unknown, unknown, unknown] ? $c3 : never
+export type $Kid4<$M> = $M extends [unknown, unknown, unknown, unknown, infer $c4, unknown, unknown, unknown] ? $c4 : never
+export type $Kid5<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, infer $c5, unknown, unknown] ? $c5 : never
+export type $Kid6<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, infer $c6, unknown] ? $c6 : never
+export type $Kid7<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $c7] ? $c7 : never
+
 export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, '00000000000000000000000000000000']
-  : ['s', [['0_0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
+  : ['s', [['0_0', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
 
 
 export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, '00000000000000000000010000000000']
-  : ['s', [['1_0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
+  : ['s', [['1_0', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
 
 
 export type $b2_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, '00000000000000000000000000000100']
-  : ['s', [['2_0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
+  : ['s', [['2_0', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
 
 
 export type $__wasm_call_ctors<$F extends string, $M extends $Node> =

@@ -79,8 +79,9 @@ export const degraded = (
       if (!part.length) continue;
       if (!part.startsWith("[")) return `frame is not a tuple: ${part.slice(0, 40)}`;
       const inner = splitTop(part.slice(part.indexOf("[") + 1, part.lastIndexOf("]")));
-      const [name, ...values] = inner.filter((piece) => piece.length > 0);
+      const [name, wants, ...values] = inner.filter((piece) => piece.length > 0);
       if (!BLOCK.test(name ?? "")) return `frame block is not a name: ${String(name).slice(0, 40)}`;
+      if (!/^"?[01]"?$/.test(wants ?? "")) return `frame marker is not a flag: ${String(wants).slice(0, 40)}`;
       for (const one of values) {
         if (!WORD.test(one)) return `live value is not a word: ${one.slice(0, 40)}`;
       }
@@ -95,9 +96,10 @@ export const degraded = (
   return undefined;
 };
 
-/// A saved call: the block to come back to, then the values it takes -
-/// the locals it reads and the stack it left behind, already in parameter order.
-export type Frame = [string, ...string[]];
+/// A saved call: the block to come back to, whether a returned value belongs on
+/// its stack, and then the values it takes - the locals it reads and the stack
+/// it left behind, already in parameter order.
+export type Frame = { block: string; wantsValue: boolean; saved: string[] };
 
 /// The printed frame list, turned back into source we can paste. The compiler
 /// emits `[['50_105', '000...1'], ['51_2']]`, innermost first.
@@ -108,7 +110,11 @@ export const parseFrames = (printed: string): Frame[] => {
     .map((part) => {
       const inner = part.slice(part.indexOf("[") + 1, part.lastIndexOf("]"));
       const pieces = splitTop(inner).filter((piece) => piece.length > 0);
-      return [pieces[0].replace(/"/g, ""), ...pieces.slice(1).map(toSource)] as Frame;
+      return {
+        block: pieces[0].replace(/"/g, ""),
+        wantsValue: pieces[1].replace(/"/g, "") === "1",
+        saved: pieces.slice(2).map(toSource),
+      };
     });
 };
 
@@ -118,17 +124,22 @@ export const parseFrames = (printed: string): Frame[] => {
 ///
 /// `$Exit` wraps it because this is a result the host reads: a return keeps its
 /// write buffer inside the types, and only what gets printed has to be flushed.
+const printFrame = (f: Frame) =>
+  `['${f.block}', '${f.wantsValue ? 1 : 0}'${f.saved.length ? ", " + f.saved.join(", ") : ""}]`;
+
 export const enter = (
   frame: Frame,
   below: Frame[],
   memory: string,
   globals: string[],
-  returned: string[],
+  value?: string,
 ): string => {
-  const [block, ...saved] = frame;
-  const rest = `[${below.map((f) => `['${f[0]}'${f.slice(1).length ? ", " + f.slice(1).join(", ") : ""}]`).join(", ")}]`;
-  const args = [`$FUEL`, rest, `$Buf<${memory}>`, ...globals, ...saved, ...returned];
-  return `$Exit<$b${block}<${args.join(", ")}>>`;
+  // the value only goes on when the frame asked for one: a void call leaves the
+  // stack as it was, and the blocks after it were compiled for that stack
+  const returned = frame.wantsValue && value !== undefined ? [value] : [];
+  const rest = `[${below.map(printFrame).join(", ")}]`;
+  const args = [`$FUEL`, rest, `$Buf<${memory}>`, ...globals, ...frame.saved, ...returned];
+  return `$Exit<$b${frame.block}<${args.join(", ")}>>`;
 };
 
 /// Did the printer give up part way through?
@@ -143,9 +154,16 @@ const TRUNCATED = /\bany\b/;
 export const readState = async (
   read: (name: string) => Promise<string>,
   fanout: number,
-): Promise<string> => {
-  const whole = await read("$Out_Mem");
-  if (!TRUNCATED.test(whole) || fanout === 0) return whole;
+  // Once a memory has grown past what the printer will emit it does not shrink
+  // back, and asking for the whole thing again costs a full print - the most
+  // expensive read in the chunk - to learn what we already know. So the caller
+  // remembers, and after the first truncation we go straight to the branches.
+  splitAlready = false,
+): Promise<{ state: string; split: boolean }> => {
+  if (!splitAlready) {
+    const whole = await read("$Out_Mem");
+    if (!TRUNCATED.test(whole) || fanout === 0) return { state: whole, split: false };
+  }
   const branches: string[] = [];
   for (let i = 0; i < fanout; i++) {
     const branch = await read(`$Out_Mem_${i}`);
@@ -159,8 +177,20 @@ export const readState = async (
     }
     branches.push(`[${inner.join(", ")}]`);
   }
-  return `[${branches.join(", ")}]`;
+  return { state: `[${branches.join(", ")}]`, split: true };
 };
+
+/// Everything needed to pick a run up again: where it was, what it was holding,
+/// and how much of it has already been paid for.
+export interface Checkpoint {
+  call: string;
+  memory: string;
+  frames: Frame[];
+  globals: string[];
+  chunks: number;
+  evalMs: number;
+  split: boolean;
+}
 
 export interface RunResult {
   value?: string;
@@ -192,6 +222,11 @@ export const run = async (
     quiet?: boolean;
     memory?: string;
     session?: Session;
+    /// pick up where a previous run left off
+    resume?: Checkpoint;
+    /// where to write the checkpoint, and how often
+    save?: string;
+    every?: number;
   } = {},
 ): Promise<RunResult> => {
   let fuel = options.fuel ?? 64;
@@ -222,9 +257,19 @@ export const run = async (
   let call = `$${entry}<$FUEL, ${options.memory ?? "$InitialMemory"}${args.length ? ", " + args.join(", ") : ""}>`;
   let memory = options.memory ?? "$InitialMemory";
   let chunks = 0;
+  let carried = 0;
   // the frames below the block currently running, innermost first: what the
   // host has to hand back to when a call returns after a suspension
   let frames: Frame[] = [];
+  // has the memory already outgrown the printer once?
+  let split = false;
+  if (options.resume) {
+    call = options.resume.call;
+    memory = options.resume.memory;
+    frames = options.resume.frames;
+    split = options.resume.split;
+    carried = options.resume.chunks;
+  }
   let backoffs = 0;
   let evalMs = 0;
   let value_: string | undefined;
@@ -271,7 +316,9 @@ ${splitReaders}
     let globals: string;
     try {
       tag = await read("$Out_Tag");
-      state = await readState(read, fanout);
+      const read_ = await readState(read, fanout, split);
+      state = read_.state;
+      split = read_.split;
       // the frames double as the live-value list for the checks below: every
       // value inside them has to be a word, whichever frame it belongs to
       live = tag === '"s"' ? await read("$Out_Frames") : "[]";
@@ -314,6 +361,21 @@ ${splitReaders}
       .filter((v) => v.length > 0)
       .map(toSource);
 
+    const checkpoint = (next: string) => {
+      if (!options.save) return;
+      if (chunks % (options.every ?? 100) !== 0) return;
+      const point: Checkpoint = {
+        call: next,
+        memory,
+        frames,
+        globals: globalValues,
+        chunks: carried + chunks,
+        evalMs,
+        split,
+      };
+      writeFileSync(options.save, JSON.stringify(point));
+    };
+
     if (tag === '"r"') {
       // A return with frames still pending is a call coming back after
       // something inside it suspended: the caller's inline match is long gone,
@@ -326,10 +388,10 @@ ${splitReaders}
       }
       const [resume, ...rest] = frames;
       frames = rest;
-      const returned = value === '"void"' ? [] : [value.replace(/"/g, "")].map((v) => `'${v}'`);
-      call = enter(resume, rest, memory, globalValues, returned);
+      call = enter(resume, rest, memory, globalValues, toSource(value));
+      checkpoint(call);
       if (!options.quiet) {
-        process.stdout.write(`\r  chunk ${chunks}: returned into ${resume[0]}, ${rest.length} frames left   `);
+        process.stdout.write(`\r  chunk ${chunks}: returned into ${resume.block}, ${rest.length} frames left   `);
       }
       continue;
     }
@@ -343,24 +405,36 @@ ${splitReaders}
     }
     const [innermost, ...outer] = parsed;
     frames = outer;
-    call = enter(innermost, outer, memory, globalValues, []);
+    call = enter(innermost, outer, memory, globalValues);
+    checkpoint(call);
     if (!options.quiet) {
-      process.stdout.write(`\r  chunk ${chunks}: suspended in ${innermost[0]}, ${outer.length} frames, state ${memory.length} chars   `);
+      process.stdout.write(`\r  chunk ${chunks}: suspended in ${innermost.block}, ${outer.length} frames, state ${memory.length} chars   `);
     }
   }
   if (!options.session) env.close();
   if (!options.quiet) process.stdout.write("\n");
-  return { value: value_, memory, chunks, backoffs, fuel, evalMs, totalMs: performance.now() - t0, failed };
+  return { value: value_, memory, chunks: carried + chunks, backoffs, fuel, evalMs, totalMs: performance.now() - t0, failed };
 };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const positional: string[] = [];
-  const options: { fuel?: number; max?: number } = {};
+  const options: {
+    fuel?: number;
+    max?: number;
+    save?: string;
+    every?: number;
+    resume?: Checkpoint;
+  } = {};
   for (let i = 2; i < process.argv.length; i++) {
     const arg = process.argv[i];
     if (arg === "--fuel") options.fuel = Number(process.argv[++i]);
     else if (arg === "--max") options.max = Number(process.argv[++i]);
-    else positional.push(arg);
+    else if (arg === "--save") options.save = process.argv[++i];
+    else if (arg === "--every") options.every = Number(process.argv[++i]);
+    else if (arg === "--resume") {
+      const from = process.argv[++i];
+      options.resume = JSON.parse(readFileSync(from, "utf8")) as Checkpoint;
+    } else positional.push(arg);
   }
   const [modulePath, entry, ...rest] = positional;
   const args = rest.map((a) => (/^-?\d+$/.test(a) ? `'${bin(Number(a))}'` : a));

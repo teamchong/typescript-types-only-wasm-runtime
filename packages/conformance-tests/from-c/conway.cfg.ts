@@ -251,10 +251,20 @@ export type $GlobalsOf<$R> =
 export type $ValueOf<$R> =
   $R extends ['r', unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $V] ? $V : 'void'
 
+/// one trie branch at a time, for a memory too big for the printer
+export type $Kid0<$M> = $M extends [infer $c0, unknown, unknown, unknown, unknown, unknown, unknown, unknown] ? $c0 : never
+export type $Kid1<$M> = $M extends [unknown, infer $c1, unknown, unknown, unknown, unknown, unknown, unknown] ? $c1 : never
+export type $Kid2<$M> = $M extends [unknown, unknown, infer $c2, unknown, unknown, unknown, unknown, unknown] ? $c2 : never
+export type $Kid3<$M> = $M extends [unknown, unknown, unknown, infer $c3, unknown, unknown, unknown, unknown] ? $c3 : never
+export type $Kid4<$M> = $M extends [unknown, unknown, unknown, unknown, infer $c4, unknown, unknown, unknown] ? $c4 : never
+export type $Kid5<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, infer $c5, unknown, unknown] ? $c5 : never
+export type $Kid6<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, infer $c6, unknown] ? $c6 : never
+export type $Kid7<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $c7] ? $c7 : never
+
 export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, '00000000000000000000000000000000']
-  : ['s', [['0_0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['0_0', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
@@ -270,13 +280,13 @@ export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0
     : never
     : never
     : never
-  : ['s', [['1_0', $l0, $l1, $l2, $l3, $l4, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['1_0', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b1_1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? ['r', $F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, '00000000000000000000000000000000']
-  : ['s', [['1_1'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['1_1', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b1_2<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
@@ -286,7 +296,7 @@ export type $b1_2<$F extends string, $K extends unknown[], $M extends $Node, $g0
     ? $b1_4<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, '00000000000000000000000000000000', $l5, $l6, $l7, $l8, $t0, $t1>
     : never
     : never
-  : ['s', [['1_2', $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['1_2', '0', $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b1_3<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
@@ -300,7 +310,7 @@ export type $b1_3<$F extends string, $K extends unknown[], $M extends $Node, $g0
     : never
     : never
     : never
-  : ['s', [['1_3', $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['1_3', '0', $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b1_4<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
@@ -320,7 +330,7 @@ export type $b1_4<$F extends string, $K extends unknown[], $M extends $Node, $g0
     : never
     : never
     : never
-  : ['s', [['1_4', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['1_4', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b1_5<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
@@ -332,7 +342,7 @@ export type $b1_5<$F extends string, $K extends unknown[], $M extends $Node, $g0
     : $b1_4<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $Inc0<$l4>, $l5, $l6, $l7, $l8, $l9, $l10>
     : never
     : never
-  : ['s', [['1_5', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['1_5', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b1_6<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
@@ -348,7 +358,7 @@ export type $b1_6<$F extends string, $K extends unknown[], $M extends $Node, $g0
     : never
     : never
     : never
-  : ['s', [['1_6', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['1_6', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b1_7<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
@@ -362,7 +372,7 @@ export type $b1_7<$F extends string, $K extends unknown[], $M extends $Node, $g0
     : never
     : never
     : never
-  : ['s', [['1_7', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['1_7', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b1_8<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
@@ -370,19 +380,19 @@ export type $b1_8<$F extends string, $K extends unknown[], $M extends $Node, $g0
   ? $Store32<$M, $l5, $Inc0<$l7>> extends infer $m0 extends $Node
     ? $b1_5<$F1, $K, $m0, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $Inc0<$l7>, $l8, $l9, $l10>
     : never
-  : ['s', [['1_8', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['1_8', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b1_9<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b1_3<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8>
-  : ['s', [['1_9', $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['1_9', '0', $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b1_10<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b1_1<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9>
-  : ['s', [['1_10'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['1_10', '0'], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $call1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $p0 extends WasmValue, $p1 extends WasmValue, $p2 extends WasmValue, $p3 extends WasmValue, $p4 extends WasmValue, $p5 extends WasmValue> =
@@ -395,7 +405,7 @@ export type $b2_0<$F extends string, $K extends unknown[], $M extends $Node, $g0
     ? $b2_2<$F1, $K, $M, $Dec7<$t0>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l5, $Dec7<$t0>>
     : $b2_1<$F1, $K, $M, $Dec7<$t0>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $Dec7<$t0>>
     : never
-  : ['s', [['2_0', $l0, $l1, $l2, $l5], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_0', '0', $l0, $l1, $l2, $l5], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l7 extends WasmValue> =
@@ -403,13 +413,13 @@ export type $b2_1<$F extends string, $K extends unknown[], $M extends $Node, $g0
   ? $Dec4<$l7> extends infer $t0 extends WasmValue
     ? ['r', $F1, $M, $Inc7<$t0>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, '00000000000000000000000000000000']
     : never
-  : ['s', [['2_1', $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_1', '0', $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_2<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_4<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc4<$l7>, $l5, $l0, $l7, $LtS00000001<$l2>>
-  : ['s', [['2_2', $l0, $l1, $l2, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_2', '0', $l0, $l1, $l2, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_3<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l7 extends WasmValue> =
@@ -417,7 +427,7 @@ export type $b2_3<$F extends string, $K extends unknown[], $M extends $Node, $g0
   ? $LtS00000001<$l1> extends '00000000000000000000000000000000'
     ? $b2_15<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7>
     : $b2_1<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
-  : ['s', [['2_3', $l0, $l1, $l2, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_3', '0', $l0, $l1, $l2, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_4<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
@@ -427,7 +437,7 @@ export type $b2_4<$F extends string, $K extends unknown[], $M extends $Node, $g0
     ? $b2_7<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
     : $b2_6<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
     : never
-  : ['s', [['2_4', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_4', '0', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_5<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
@@ -443,37 +453,37 @@ export type $b2_5<$F extends string, $K extends unknown[], $M extends $Node, $g0
     : never
     : never
     : never
-  : ['s', [['2_5', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_5', '0', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_6<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_9<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, '00000000000000000000000000000000', $l4, $l5, $l6, $l7, $l8>
-  : ['s', [['2_6', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_6', '0', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_7<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_5<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
-  : ['s', [['2_7', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_7', '0', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_8<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_5<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
-  : ['s', [['2_8', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_8', '0', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_9<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $Dec2<$l7> extends infer $t0 extends WasmValue
-    ? $call1<$F1, [['2_10', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l5, $l3, $Inc4<$t0>> extends infer $c1
+    ? $call1<$F1, [['2_10', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l5, $l3, $Inc4<$t0>> extends infer $c1
     ? $c1 extends ['r', infer $Fr2 extends string, infer $m3 extends $Node, infer $g_4 extends WasmValue, infer $g_5 extends WasmValue, infer $g_6 extends WasmValue, infer $g_7 extends WasmValue, infer $g_8 extends WasmValue, infer $g_9 extends WasmValue, infer $g_10 extends WasmValue, infer $g_11 extends WasmValue, infer $g_12 extends WasmValue, infer $g_13 extends WasmValue, infer $t14 extends WasmValue]
       ? $b2_10<$Fr2, $K, $m3, $g_4, $g_5, $g_6, $g_7, $g_8, $g_9, $g_10, $g_11, $g_12, $g_13, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8>
       : $c1
     : never
     : never
-  : ['s', [['2_9', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_9', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_10<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
@@ -491,7 +501,7 @@ export type $b2_10<$F extends string, $K extends unknown[], $M extends $Node, $g
     : never
     : never
     : never
-  : ['s', [['2_10', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_10', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_11<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $k0 extends WasmValue, $k1 extends WasmValue, $k2 extends WasmValue> =
@@ -509,7 +519,7 @@ export type $b2_11<$F extends string, $K extends unknown[], $M extends $Node, $g
     : never
     : never
     : never
-  : ['s', [['2_11', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $k0, $k1, $k2], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_11', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $k0, $k1, $k2], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_12<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $k0 extends WasmValue> =
@@ -517,31 +527,31 @@ export type $b2_12<$F extends string, $K extends unknown[], $M extends $Node, $g
   ? $k0 extends '00000000000000000000000000000000'
     ? $b2_13<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
     : $b2_9<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8>
-  : ['s', [['2_12', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $k0], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_12', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $k0], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_13<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_8<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
-  : ['s', [['2_13', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_13', '0', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_14<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_3<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7>
-  : ['s', [['2_14', $l0, $l1, $l2, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_14', '0', $l0, $l1, $l2, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_15<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_17<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc4<$l7>, '00000000000000000000000000000000', $l7, $LtS00000001<$l2>>
-  : ['s', [['2_15', $l0, $l1, $l2, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_15', '0', $l0, $l1, $l2, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_16<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_1<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
-  : ['s', [['2_16', $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_16', '0', $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_17<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
@@ -551,7 +561,7 @@ export type $b2_17<$F extends string, $K extends unknown[], $M extends $Node, $g
     ? $b2_20<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
     : $b2_19<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l4, $l2, $l6, $l7, $l0, $l9>
     : never
-  : ['s', [['2_17', $l0, $l1, $l2, $l4, $l6, $l7, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_17', '0', $l0, $l1, $l2, $l4, $l6, $l7, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_18<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
@@ -567,25 +577,25 @@ export type $b2_18<$F extends string, $K extends unknown[], $M extends $Node, $g
     : never
     : never
     : never
-  : ['s', [['2_18', $l0, $l1, $l2, $l4, $l6, $l7, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_18', '0', $l0, $l1, $l2, $l4, $l6, $l7, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_19<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_22<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9>
-  : ['s', [['2_19', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_19', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_20<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_18<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
-  : ['s', [['2_20', $l0, $l1, $l2, $l4, $l6, $l7, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_20', '0', $l0, $l1, $l2, $l4, $l6, $l7, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_21<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_18<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
-  : ['s', [['2_21', $l0, $l1, $l2, $l4, $l6, $l7, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_21', '0', $l0, $l1, $l2, $l4, $l6, $l7, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_22<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue> =
@@ -597,19 +607,19 @@ export type $b2_22<$F extends string, $K extends unknown[], $M extends $Node, $g
     : $b2_22<$F1, $K, $m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc0<$l3>, $l4, $Dec0<$l5>, $l6, $l7, $Inc0<$l8>, $l9>
     : never
     : never
-  : ['s', [['2_22', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_22', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_23<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_21<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
-  : ['s', [['2_23', $l0, $l1, $l2, $l4, $l6, $l7, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_23', '0', $l0, $l1, $l2, $l4, $l6, $l7, $l9], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_24<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_16<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
-  : ['s', [['2_24', $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['2_24', '0', $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $call2<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $p0 extends WasmValue, $p1 extends WasmValue, $p2 extends WasmValue> =
@@ -620,7 +630,7 @@ export type $b3_0<$F extends string, $K extends unknown[], $M extends $Node, $g0
   ? $Not1<$LtS00000001<$l1>> extends '00000000000000000000000000000000'
     ? $b3_3<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l3>
     : $b3_2<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5>
-  : ['s', [['3_0', $l0, $l1, $l2, $l3, $l5], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_0', '0', $l0, $l1, $l2, $l3, $l5], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l3 extends WasmValue> =
@@ -632,25 +642,25 @@ export type $b3_1<$F extends string, $K extends unknown[], $M extends $Node, $g0
     : never
     : never
     : never
-  : ['s', [['3_1', $l3], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_1', '0', $l3], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_2<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b3_5<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $LtS00000001<$l2>>
-  : ['s', [['3_2', $l0, $l1, $l2, $l3, $l5], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_2', '0', $l0, $l1, $l2, $l3, $l5], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_3<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l3 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b3_1<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l3>
-  : ['s', [['3_3', $l3], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_3', '0', $l3], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_4<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l3 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b3_1<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l3>
-  : ['s', [['3_4', $l3], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_4', '0', $l3], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_5<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
@@ -660,7 +670,7 @@ export type $b3_5<$F extends string, $K extends unknown[], $M extends $Node, $g0
     ? $b3_8<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
     : $b3_7<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l0, $l5, $l2, $l7>
     : never
-  : ['s', [['3_5', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_5', '0', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_6<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
@@ -668,25 +678,25 @@ export type $b3_6<$F extends string, $K extends unknown[], $M extends $Node, $g0
   ? $LtS0000004F<$l3> extends '00000000000000000000000000000000'
     ? $b3_17<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
     : $b3_16<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
-  : ['s', [['3_6', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_6', '0', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_7<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b3_10<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7>
-  : ['s', [['3_7', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_7', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_8<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b3_6<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
-  : ['s', [['3_8', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_8', '0', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_9<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b3_6<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
-  : ['s', [['3_9', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_9', '0', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_10<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
@@ -694,7 +704,7 @@ export type $b3_10<$F extends string, $K extends unknown[], $M extends $Node, $g
   ? $LtS0000004F<$l3> extends '00000000000000000000000000000000'
     ? $b3_13<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7>
     : $b3_12<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7>
-  : ['s', [['3_10', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_10', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_11<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
@@ -702,7 +712,7 @@ export type $b3_11<$F extends string, $K extends unknown[], $M extends $Node, $g
   ? $Dec0<$l6> extends '00000000000000000000000000000000'
     ? $b3_14<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
     : $b3_10<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $Inc0<$l4>, $l5, $Dec0<$l6>, $l7>
-  : ['s', [['3_11', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_11', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_12<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
@@ -718,19 +728,19 @@ export type $b3_12<$F extends string, $K extends unknown[], $M extends $Node, $g
     : never
     : never
     : never
-  : ['s', [['3_12', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_12', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_13<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b3_11<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7>
-  : ['s', [['3_13', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_13', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_14<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b3_9<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
-  : ['s', [['3_14', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_14', '0', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_15<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
@@ -744,7 +754,7 @@ export type $b3_15<$F extends string, $K extends unknown[], $M extends $Node, $g
     : never
     : never
     : never
-  : ['s', [['3_15', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_15', '0', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_16<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
@@ -756,19 +766,19 @@ export type $b3_16<$F extends string, $K extends unknown[], $M extends $Node, $g
     : never
     : never
     : never
-  : ['s', [['3_16', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_16', '0', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_17<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b3_15<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
-  : ['s', [['3_17', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_17', '0', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b3_18<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l3 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b3_4<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l3>
-  : ['s', [['3_18', $l3], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['3_18', '0', $l3], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $call3<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $p0 extends WasmValue, $p1 extends WasmValue, $p2 extends WasmValue> =
@@ -779,7 +789,7 @@ export type $b4_0<$F extends string, $K extends unknown[], $M extends $Node, $g0
   ? $Inc5<$g0> extends infer $t0 extends WasmValue
     ? $b4_2<$F1, $K, $M, $Dec7<$t0>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $Dec7<$t0>, $l2, $l4>
     : never
-  : ['s', [['4_0', $l0, $l2, $l4], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_0', '0', $l0, $l2, $l4], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
@@ -787,7 +797,7 @@ export type $b4_1<$F extends string, $K extends unknown[], $M extends $Node, $g0
   ? $Not1<$LtS00000001<$l0>> extends '00000000000000000000000000000000'
     ? $b4_10<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1>
     : $b4_9<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1>
-  : ['s', [['4_1', $l0, $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_1', '0', $l0, $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_2<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue> =
@@ -795,7 +805,7 @@ export type $b4_2<$F extends string, $K extends unknown[], $M extends $Node, $g0
   ? Wasm.I32Add<$l1, $l2> extends infer $t0 extends WasmValue
     ? $b4_4<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, '00000000000000000000000000000000', $l4, $t0>
     : never
-  : ['s', [['4_2', $l0, $l1, $l2, $l4], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_2', '0', $l0, $l1, $l2, $l4], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_3<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue> =
@@ -809,7 +819,7 @@ export type $b4_3<$F extends string, $K extends unknown[], $M extends $Node, $g0
     : never
     : never
     : never
-  : ['s', [['4_3', $l0, $l1, $l2, $l4], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_3', '0', $l0, $l1, $l2, $l4], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_4<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue> =
@@ -827,7 +837,7 @@ export type $b4_4<$F extends string, $K extends unknown[], $M extends $Node, $g0
     : never
     : never
     : never
-  : ['s', [['4_4', $l0, $l1, $l2, $l3, $l4, $l5], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_4', '0', $l0, $l1, $l2, $l3, $l4, $l5], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_5<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $k0 extends WasmValue> =
@@ -835,57 +845,57 @@ export type $b4_5<$F extends string, $K extends unknown[], $M extends $Node, $g0
   ? $k0 extends '00000000000000000000000000000000'
     ? $b4_6<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4>
     : $b4_4<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5>
-  : ['s', [['4_5', $l0, $l1, $l2, $l3, $l4, $l5, $k0], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_5', '0', $l0, $l1, $l2, $l3, $l4, $l5, $k0], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_6<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b4_3<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4>
-  : ['s', [['4_6', $l0, $l1, $l2, $l4], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_6', '0', $l0, $l1, $l2, $l4], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_7<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b4_1<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1>
-  : ['s', [['4_7', $l0, $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_7', '0', $l0, $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_8<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $call3<$F1, [['4_15', $l1], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1, '00000000000000000000000000001001', '00000000000000000000000000001001'> extends infer $c0
+  ? $call3<$F1, [['4_15', '1', $l1], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1, '00000000000000000000000000001001', '00000000000000000000000000001001'> extends infer $c0
     ? $c0 extends ['r', infer $Fr1 extends string, infer $m2 extends $Node, infer $g_3 extends WasmValue, infer $g_4 extends WasmValue, infer $g_5 extends WasmValue, infer $g_6 extends WasmValue, infer $g_7 extends WasmValue, infer $g_8 extends WasmValue, infer $g_9 extends WasmValue, infer $g_10 extends WasmValue, infer $g_11 extends WasmValue, infer $g_12 extends WasmValue, infer $t13 extends WasmValue]
       ? $b4_15<$Fr1, $K, $m2, $g_3, $g_4, $g_5, $g_6, $g_7, $g_8, $g_9, $g_10, $g_11, $g_12, $l1, $t13>
       : $c0
     : never
-  : ['s', [['4_8', $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_8', '0', $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_9<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b4_12<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1>
-  : ['s', [['4_9', $l0, $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_9', '0', $l0, $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_10<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b4_8<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1>
-  : ['s', [['4_10', $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_10', '0', $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_11<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b4_8<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1>
-  : ['s', [['4_11', $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_11', '0', $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_12<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $call2<$F1, [['4_13', $l0, $l1], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1, '00000000000000000000000000001001', '00000000000000000000000000001001'> extends infer $c0
+  ? $call2<$F1, [['4_13', '0', $l0, $l1], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1, '00000000000000000000000000001001', '00000000000000000000000000001001'> extends infer $c0
     ? $c0 extends ['r', infer $Fr1 extends string, infer $m2 extends $Node, infer $g_3 extends WasmValue, infer $g_4 extends WasmValue, infer $g_5 extends WasmValue, infer $g_6 extends WasmValue, infer $g_7 extends WasmValue, infer $g_8 extends WasmValue, infer $g_9 extends WasmValue, infer $g_10 extends WasmValue, infer $g_11 extends WasmValue, infer $g_12 extends WasmValue, infer $t13 extends WasmValue]
       ? $b4_13<$Fr1, $K, $m2, $g_3, $g_4, $g_5, $g_6, $g_7, $g_8, $g_9, $g_10, $g_11, $g_12, $l0, $l1>
       : $c0
     : never
-  : ['s', [['4_12', $l0, $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_12', '0', $l0, $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_13<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
@@ -893,13 +903,13 @@ export type $b4_13<$F extends string, $K extends unknown[], $M extends $Node, $g
   ? $Dec0<$l0> extends '00000000000000000000000000000000'
     ? $b4_14<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1>
     : $b4_12<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $Dec0<$l0>, $l1>
-  : ['s', [['4_13', $l0, $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_13', '0', $l0, $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_14<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b4_11<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1>
-  : ['s', [['4_14', $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_14', '0', $l1], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b4_15<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue, $k0 extends WasmValue> =
@@ -907,7 +917,7 @@ export type $b4_15<$F extends string, $K extends unknown[], $M extends $Node, $g
   ? $Dec5<$l1> extends infer $t0 extends WasmValue
     ? ['r', $F1, $M, $Inc7<$t0>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, '00000000000000000000010001100000']
     : never
-  : ['s', [['4_15', $l1, $k0], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', [['4_15', '0', $l1, $k0], ...$K], $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $__wasm_call_ctors<$F extends string, $M extends $Node> =

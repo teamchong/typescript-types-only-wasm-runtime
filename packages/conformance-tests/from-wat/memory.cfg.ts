@@ -266,7 +266,7 @@ export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $l0
     ? ['r', $F1, $m0, $t1]
     : never
     : never
-  : ['s', [['0_0', $l0], ...$K], $Flush<$M>]
+  : ['s', [['0_0', '0', $l0], ...$K], $Flush<$M>]
 
 
 export type $entry<$F extends string, $M extends $Node, $p0 extends WasmValue> =

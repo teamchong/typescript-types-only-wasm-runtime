@@ -1518,7 +1518,11 @@ impl<'a> FunctionCfg<'a> {
         // frames because there is only ever one of each: an inner frame returns
         // them to the frame below it. The host only ever sees flushed memory, so
         // a snapshot round-trips through text as it did before the buffer.
-        let mut frame = vec![format!("'{}_{}'", self.func_index, block.id)];
+        let mut frame = vec![
+            format!("'{}_{}'", self.func_index, block.id),
+            // resumed exactly as it was: nothing to add to its stack
+            "'0'".to_string(),
+        ];
         frame.push(format!("\u{1}S{}\u{1}", block.id));
         frame.extend(block.stack.iter().cloned());
         let mut alive = vec![format!("[[{}], ...$K]", frame.join(", "))];
@@ -1687,7 +1691,14 @@ impl<'a> FunctionCfg<'a> {
         // where to come back to, and what has to be there when we do. Memory and
         // globals are not in the frame: there is only one of each, and an inner
         // frame hands them back to the frame below it.
-        let mut frame = vec![format!("'{}_{}'", self.func_index, continuation)];
+        let mut frame = vec![
+            format!("'{}_{}'", self.func_index, continuation),
+            // Whether the result belongs on this block's stack when the host
+            // returns into it. Every return carries a value slot so the host can
+            // find the memory by counting, but a void call must not leave one on
+            // the stack - the blocks after it are compiled for a stack without.
+            if num_results > 0 { "'1'" } else { "'0'" }.to_string(),
+        ];
         frame.push(self.local_site(continuation, env));
         frame.extend(carried.iter().cloned());
         let frames = format!("[[{}], ...$K]", frame.join(", "));
