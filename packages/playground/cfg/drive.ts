@@ -59,6 +59,21 @@ const BLOCK = /^"?\d+_\d+"?$/;
 // prints them back and the host can paste them straight into the next chunk
 const STATE = /^(?:[[\],\s]|\$Zero|\$InitialMemory|"[01]{32}")+$/;
 
+/// The first offset the state stops being a state at. Guessing from a list of
+/// things that tend to go wrong reports whichever one appears earliest in 2.6MB,
+/// which is usually not the one that broke it.
+const offence = (state: string): number => {
+  const token = /(?:[[\],\s]|\$Zero|\$InitialMemory|"[01]{32}")/g;
+  let at = 0;
+  while (at < state.length) {
+    token.lastIndex = at;
+    const one = token.exec(state);
+    if (!one || one.index !== at) return at;
+    at = token.lastIndex;
+  }
+  return at;
+};
+
 export const degraded = (
   tag: string,
   state: string,
@@ -68,11 +83,8 @@ export const degraded = (
 ): string | undefined => {
   if (tag !== '"s"' && tag !== '"r"') return `result tag is ${tag.slice(0, 40)}`;
   if (!STATE.test(state)) {
-    const junk = state.match(
-      /\bnever\b|any|unknown|\bstring\b|""|\||\$(?!Zero\b|InitialMemory\b)\w+|\.\.\.|"[01]*"/,
-    );
-    if (!junk) return "state contains something unexpected";
-    return `state contains ${junk[0]} at ${junk.index} of ${state.length}`;
+    const at = offence(state);
+    return `state has ${JSON.stringify(state.slice(at, at + 48))} at ${at} of ${state.length}`;
   }
   if (tag === '"s"') {
     // the frames are pasted back verbatim, so every part of every one of them
