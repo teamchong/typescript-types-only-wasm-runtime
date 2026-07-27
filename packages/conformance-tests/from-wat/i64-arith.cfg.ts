@@ -337,6 +337,54 @@ export type $b4_0<$F extends string, $K extends unknown[], $M extends $Node, $g0
   : ['s', [['4_0', '0', $l0, $l1], ...$K], $Flush<$M>, $g0]
 
 
+export type $b5_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue> =
+  $F extends `1${infer $F1}`
+  ? Wasm.I32Add<$l0, '00000000000000001010011111001110'> extends infer $t0 extends WasmValue
+    ? $Zx64<$t0> extends infer $t1 extends WasmValue
+    ? $Mul64<$t1, '0000000000000000000000000000000000000000100000000000000000000000'> extends infer $t2 extends WasmValue
+    ? Wasm.I64ShrU<$t2, '0000000000000000000000000000000000000000000000000000000000010000'> extends infer $t3 extends WasmValue
+    ? Wasm.I32WrapI64<$t3> extends infer $t4 extends WasmValue
+    ? ['r', $F1, $M, $g0, $t4]
+    : never
+    : never
+    : never
+    : never
+    : never
+  : ['s', [['5_0', '0', $l0], ...$K], $Flush<$M>, $g0]
+
+
+export type $b6_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue> =
+  $F extends `1${infer $F1}`
+  ? Wasm.I32Add<$l0, '00010010001101000101011001111000'> extends infer $t0 extends WasmValue
+    ? $Zx64<$t0> extends infer $t1 extends WasmValue
+    ? $Zx64<'10011010101111001101111011110000'> extends infer $t2 extends WasmValue
+    ? $Mul64<$t1, $t2> extends infer $t3 extends WasmValue
+    ? Wasm.I64ShrU<$t3, '0000000000000000000000000000000000000000000000000000000000100000'> extends infer $t4 extends WasmValue
+    ? Wasm.I32WrapI64<$t4> extends infer $t5 extends WasmValue
+    ? ['r', $F1, $M, $g0, $t5]
+    : never
+    : never
+    : never
+    : never
+    : never
+    : never
+  : ['s', [['6_0', '0', $l0], ...$K], $Flush<$M>, $g0]
+
+
+export type $b7_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue> =
+  $F extends `1${infer $F1}`
+  ? $Zx64<$l0> extends infer $t0 extends WasmValue
+    ? Wasm.I64Shl<$t0, '0000000000000000000000000000000000000000000000000000000000101000'> extends infer $t1 extends WasmValue
+    ? Wasm.I64ShrU<$t1, '0000000000000000000000000000000000000000000000000000000000101000'> extends infer $t2 extends WasmValue
+    ? Wasm.I32WrapI64<$t2> extends infer $t3 extends WasmValue
+    ? ['r', $F1, $M, $g0, $t3]
+    : never
+    : never
+    : never
+    : never
+  : ['s', [['7_0', '0', $l0], ...$K], $Flush<$M>, $g0]
+
+
 export type $mul_fixed<$F extends string, $M extends $Node, $p0 extends WasmValue, $p1 extends WasmValue> =
   $Exit<$b0_0<$F, [], $Buf<$M>, '00000000000000000000000000000001', $p0, $p1>>
 
@@ -351,6 +399,15 @@ export type $add64_hi<$F extends string, $M extends $Node, $p0 extends WasmValue
 
 export type $mul64_hi<$F extends string, $M extends $Node, $p0 extends WasmValue, $p1 extends WasmValue> =
   $Exit<$b4_0<$F, [], $Buf<$M>, '00000000000000000000000000000001', $p0, $p1>>
+
+export type $mul_big<$F extends string, $M extends $Node, $p0 extends WasmValue> =
+  $Exit<$b5_0<$F, [], $Buf<$M>, '00000000000000000000000000000001', $p0>>
+
+export type $mul_big_hi<$F extends string, $M extends $Node, $p0 extends WasmValue> =
+  $Exit<$b6_0<$F, [], $Buf<$M>, '00000000000000000000000000000001', $p0>>
+
+export type $shl_far<$F extends string, $M extends $Node, $p0 extends WasmValue> =
+  $Exit<$b7_0<$F, [], $Buf<$M>, '00000000000000000000000000000001', $p0>>
 
 // Specialised for the constants this module uses: a shift by a known
 // amount is a character move, and a mask by a known constant is a
@@ -391,10 +448,10 @@ export type $Mul64<A extends string, B extends string> =
   : never
 
 export type $Shl64_16<A extends string> =
-  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer c31}${infer c32}${infer c33}${infer c34}${infer c35}${infer c36}${infer c37}${infer c38}${infer c39}${infer c40}${infer c41}${infer c42}${infer c43}${infer c44}${infer c45}${infer c46}${infer c47}${infer c48}${infer c49}${infer c50}${infer c51}${infer c52}${infer c53}${infer c54}${infer c55}${infer c56}${infer c57}${infer c58}${infer c59}${infer c60}${infer c61}${infer c62}${infer c63}` ? `${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}${c27}${c28}${c29}${c30}${c31}${c32}${c33}${c34}${c35}${c36}${c37}${c38}${c39}${c40}${c41}${c42}${c43}${c44}${c45}${c46}${c47}0000000000000000` : never
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer c31}${infer c32}${infer c33}${infer c34}${infer c35}${infer c36}${infer c37}${infer c38}${infer c39}${infer c40}${infer c41}${infer c42}${infer c43}${infer c44}${infer c45}${infer c46}${infer c47}${infer c48}${infer c49}${infer c50}${infer c51}${infer c52}${infer c53}${infer c54}${infer c55}${infer c56}${infer c57}${infer c58}${infer c59}${infer c60}${infer c61}${infer c62}${infer c63}` ? `${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}${c27}${c28}${c29}${c30}${c31}${c32}${c33}${c34}${c35}${c36}${c37}${c38}${c39}${c40}${c41}${c42}${c43}${c44}${c45}${c46}${c47}${c48}${c49}${c50}${c51}${c52}${c53}${c54}${c55}${c56}${c57}${c58}${c59}${c60}${c61}${c62}${c63}0000000000000000` : never
 
 export type $Shl64_32<A extends string> =
-  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer c31}${infer c32}${infer c33}${infer c34}${infer c35}${infer c36}${infer c37}${infer c38}${infer c39}${infer c40}${infer c41}${infer c42}${infer c43}${infer c44}${infer c45}${infer c46}${infer c47}${infer c48}${infer c49}${infer c50}${infer c51}${infer c52}${infer c53}${infer c54}${infer c55}${infer c56}${infer c57}${infer c58}${infer c59}${infer c60}${infer c61}${infer c62}${infer c63}` ? `${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}${c27}${c28}${c29}${c30}${c31}00000000000000000000000000000000` : never
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer c31}${infer c32}${infer c33}${infer c34}${infer c35}${infer c36}${infer c37}${infer c38}${infer c39}${infer c40}${infer c41}${infer c42}${infer c43}${infer c44}${infer c45}${infer c46}${infer c47}${infer c48}${infer c49}${infer c50}${infer c51}${infer c52}${infer c53}${infer c54}${infer c55}${infer c56}${infer c57}${infer c58}${infer c59}${infer c60}${infer c61}${infer c62}${infer c63}` ? `${c32}${c33}${c34}${c35}${c36}${c37}${c38}${c39}${c40}${c41}${c42}${c43}${c44}${c45}${c46}${c47}${c48}${c49}${c50}${c51}${c52}${c53}${c54}${c55}${c56}${c57}${c58}${c59}${c60}${c61}${c62}${c63}00000000000000000000000000000000` : never
 
 export type $Sub64<A extends string, B extends string> =
   Wasm.I32Sub<$Lo64<A>, $Lo64<B>> extends infer $lo extends WasmValue

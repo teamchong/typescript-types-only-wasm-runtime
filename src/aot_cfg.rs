@@ -2584,9 +2584,13 @@ impl BlockEnv {
             .to_string(),
         );
 
-        // shifts by a constant are character moves on the 64-character string
+        // Shifts by a constant are character moves on the 64-character string.
+        // Left means the *high* characters fall off the front and zeros arrive
+        // at the back, so what is kept starts at `amount` - keeping the front
+        // instead quietly computes `(a >> amount) << amount`, which is only
+        // wrong once a term is big enough to reach the part that gets dropped.
         for amount in [16usize, 32] {
-            let kept: String = join(0..64 - amount);
+            let kept: String = join(amount..64);
             let zeros = "0".repeat(amount);
             self.register(
                 &format!("$Shl64_{amount}"),

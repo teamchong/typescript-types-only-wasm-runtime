@@ -41,4 +41,32 @@
           (i64.extend_i32_u (local.get $a))
           (i64.extend_i32_u (local.get $b)))
         (i64.const 32))))
+
+  ;; Products big enough to reach the high half. The sample arguments the runner
+  ;; uses are all small, and a 64-bit shift that keeps the wrong end of the
+  ;; string still looks right while every term fits in 32 bits - this is the
+  ;; shape doom actually hits, and it is what caught it.
+  (func $mul_big (export "mul_big") (param $a i32) (result i32)
+    (i32.wrap_i64
+      (i64.shr_u
+        (i64.mul
+          (i64.extend_i32_u (i32.add (local.get $a) (i32.const 42958)))
+          (i64.const 8388608))
+        (i64.const 16))))
+
+  (func $mul_big_hi (export "mul_big_hi") (param $a i32) (result i32)
+    (i32.wrap_i64
+      (i64.shr_u
+        (i64.mul
+          (i64.extend_i32_u (i32.add (local.get $a) (i32.const 305419896)))
+          (i64.extend_i32_u (i32.const 2596069104)))
+        (i64.const 32))))
+
+  (func $shl_far (export "shl_far") (param $a i32) (result i32)
+    (i32.wrap_i64
+      (i64.shr_u
+        (i64.shl
+          (i64.extend_i32_u (local.get $a))
+          (i64.const 40))
+        (i64.const 40))))
 )
