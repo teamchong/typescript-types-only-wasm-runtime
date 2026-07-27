@@ -229,8 +229,6 @@ export const run = async (
     /// where to write the checkpoint, and how often
     save?: string;
     every?: number;
-    /// make a fresh compiler every this many chunks
-    recycleEvery?: number;
   } = {},
 ): Promise<RunResult> => {
   let fuel = options.fuel ?? 64;
@@ -300,6 +298,13 @@ export const run = async (
     path = fresh.path;
   };
   let recycled = 0;
+  // Chunks the current compiler has done, and how many the last one managed
+  // before it went bad. Wear tracks work, not chunks: in doom's renderer nine
+  // chunks is enough, while the memset at the start goes thousands. Waiting to
+  // be told costs a wasted evaluation and a run of halvings first, so once one
+  // instance has worn out we replace the next one just before the same point.
+  let since = 0;
+  let lifetime = Infinity;
 
   while (chunks < max) {
     // The state is printed as its own top-level type, never nested inside the
@@ -360,8 +365,10 @@ ${splitReaders}
       if (recycled < chunks) {
         recycled = chunks + 1;
         fuel = options.fuel ?? 64;
+        lifetime = Math.max(1, since - 1);
+        since = 0;
         recycle();
-        if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: worn out; new compiler, fuel -> ${fuel}    \n`);
+        if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: worn out; new compiler every ${lifetime}    \n`);
         continue;
       }
       failed = `chunk ${chunks}: ${message}`;
@@ -369,9 +376,10 @@ ${splitReaders}
     }
     evalMs += performance.now() - e0;
     chunks++;
-    if (options.recycleEvery && chunks % options.recycleEvery === 0) {
+    if (++since >= lifetime) {
       recycle();
-      if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: fresh compiler    \n`);
+      since = 0;
+      fuel = options.fuel ?? 64;
     }
     const ceiling = options.fuel ?? 64;
     if (fuel < ceiling && ++settled >= 20) {
@@ -394,8 +402,10 @@ ${splitReaders}
       if (recycled < chunks) {
         recycled = chunks + 1;
         fuel = options.fuel ?? 64;
+        lifetime = Math.max(1, since - 1);
+        since = 0;
         recycle();
-        if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: worn out; new compiler, fuel -> ${fuel}    \n`);
+        if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: worn out; new compiler every ${lifetime}    \n`);
         continue;
       }
       failed = `chunk ${chunks} at fuel ${fuel}: ${bad}`;
@@ -471,7 +481,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     max?: number;
     save?: string;
     every?: number;
-    recycleEvery?: number;
     resume?: Checkpoint;
   } = {};
   for (let i = 2; i < process.argv.length; i++) {
@@ -480,7 +489,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     else if (arg === "--max") options.max = Number(process.argv[++i]);
     else if (arg === "--save") options.save = process.argv[++i];
     else if (arg === "--every") options.every = Number(process.argv[++i]);
-    else if (arg === "--recycle") options.recycleEvery = Number(process.argv[++i]);
     else if (arg === "--resume") {
       const from = process.argv[++i];
       options.resume = JSON.parse(readFileSync(from, "utf8")) as Checkpoint;
