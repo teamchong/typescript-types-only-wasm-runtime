@@ -142,6 +142,11 @@ pub struct CfgCompiler {
     /// specialised helpers emitted on demand: shifts and masks by a constant
     /// are character surgery on the 32-character word, not bit recursion
     helpers: Rc<RefCell<BTreeMap<String, String>>>,
+    /// table slot -> defined function index, from the element section
+    table_funcs: BTreeMap<u32, u32>,
+    /// signatures actually reached through call_indirect, so a dispatch type is
+    /// emitted only for the ones the program uses
+    indirect: Rc<RefCell<BTreeSet<u32>>>,
 }
 
 /// Rewrite the fuel variable in a block body, leaving names that merely start
@@ -186,6 +191,8 @@ impl CfgCompiler {
             num_imports: 0,
             trie_bits: 14,
             helpers: Rc::new(RefCell::new(BTreeMap::new())),
+            table_funcs: BTreeMap::new(),
+            indirect: Rc::new(RefCell::new(BTreeSet::new())),
         }
     }
 
@@ -259,6 +266,35 @@ impl CfgCompiler {
                         }
                     }
                 }
+                Payload::ElementSection(reader) => {
+                    // Only active segments on table 0 initialise the table before
+                    // the program runs; passive ones need table.init, which this
+                    // compiler does not model.
+                    for element in reader {
+                        let element = element.map_err(|e| e.to_string())?;
+                        let base = match element.kind {
+                            wasmparser::ElementKind::Active { table_index, offset_expr } => {
+                                if table_index.unwrap_or(0) != 0 {
+                                    continue;
+                                }
+                                let mut base = 0u32;
+                                for op in offset_expr.get_operators_reader() {
+                                    if let Ok(Operator::I32Const { value }) = op {
+                                        base = value as u32;
+                                    }
+                                }
+                                base
+                            }
+                            _ => continue,
+                        };
+                        if let wasmparser::ElementItems::Functions(funcs) = element.items {
+                            for (slot, func) in funcs.into_iter().enumerate() {
+                                let func = func.map_err(|e| e.to_string())?;
+                                self.table_funcs.insert(base + slot as u32, func);
+                            }
+                        }
+                    }
+                }
                 Payload::CodeSectionEntry(body) => bodies.push(body),
                 _ => {}
             }
@@ -327,6 +363,11 @@ impl CfgCompiler {
         for entry in entries {
             out.push_str(&entry);
         }
+        // one dispatch per signature actually reached through the table
+        let indirect: Vec<u32> = self.indirect.borrow().iter().copied().collect();
+        for type_index in indirect {
+            out.push_str(&self.indirect_dispatch(type_index));
+        }
         // whatever specialised shifts and masks the program turned out to need
         let helpers = self.helpers.borrow();
         if !helpers.is_empty() {
@@ -339,6 +380,60 @@ impl CfgCompiler {
             }
         }
         Ok(out)
+    }
+
+    /// `call_indirect` becomes a match on the table slot. The table is fixed at
+    /// compile time, so the only reachable targets are the entries whose
+    /// signature matches; anything else is a trap, which is `never`.
+    fn indirect_dispatch(&self, type_index: u32) -> String {
+        let Some(func_type) = self.func_types.get(type_index as usize) else {
+            return String::new();
+        };
+        let num_params = func_type.params().len();
+
+        let mut params = vec![
+            "$C extends WasmValue".to_string(),
+            "$M extends $Node".to_string(),
+        ];
+        for i in 0..self.globals.len() {
+            params.push(format!("$g{i} extends WasmValue"));
+        }
+        for i in 0..num_params {
+            params.push(format!("$p{i} extends WasmValue"));
+        }
+
+        let mut call_args = vec!["$M".to_string()];
+        for i in 0..self.globals.len() {
+            call_args.push(format!("$g{i}"));
+        }
+        for i in 0..num_params {
+            call_args.push(format!("$p{i}"));
+        }
+
+        let mut body = String::new();
+        let mut targets = 0;
+        for (slot, func_index) in &self.table_funcs {
+            if self.func_type_indices.get(*func_index as usize) != Some(&type_index) {
+                continue;
+            }
+            if *func_index < self.num_imports {
+                continue;
+            }
+            let defined = func_index - self.num_imports;
+            body.push_str(&format!(
+                "  $C extends '{}' ? $call{defined}<{}> :\n",
+                bits32(*slot as i32),
+                call_args.join(", ")
+            ));
+            targets += 1;
+        }
+        body.push_str("  never");
+
+        format!(
+            "\n// call_indirect on signature {type_index}: {targets} reachable target{}\nexport type $indirect{type_index}<{}> =\n{body}\n",
+            if targets == 1 { "" } else { "s" },
+            params.join(", "),
+        )
     }
 
     /// The handful of operations that are genuinely cheaper by hand.
@@ -1198,6 +1293,7 @@ impl<'a> FunctionCfg<'a> {
     fn compile_block(&mut self, pending: Pending) -> Result<EmittedBlock, String> {
         let mut env = BlockEnv {
             helpers: Rc::clone(&self.module.helpers),
+            indirect: Rc::clone(&self.module.indirect),
             memory: "$M".to_string(),
             globals: (0..self.module.globals.len())
                 .map(|i| format!("$g{i}"))
@@ -1846,6 +1942,46 @@ impl<'a> FunctionCfg<'a> {
                 Ok(Step::Continue)
             }
 
+            CallIndirect { type_index, table_index, .. } => {
+                if *table_index != 0 {
+                    return Err(format!("call_indirect on table {table_index}, only table 0 is supported"));
+                }
+                let func_type = self
+                    .module
+                    .func_types
+                    .get(*type_index as usize)
+                    .cloned()
+                    .ok_or_else(|| format!("call_indirect on unknown signature {type_index}"))?;
+                let num_params = func_type.params().len();
+                let num_results = func_type.results().len();
+                if num_results > 1 {
+                    return Err("calls returning multiple values are not supported".to_string());
+                }
+                for param in func_type.params() {
+                    if *param != ValType::I32 {
+                        return Err(format!("call_indirect takes a {param:?}, only i32 is supported"));
+                    }
+                }
+                // the table index is on top, arguments underneath
+                let callee = env.pop();
+                let mut args = Vec::new();
+                for _ in 0..num_params {
+                    args.push(env.pop());
+                }
+                args.reverse();
+
+                env.indirect.borrow_mut().insert(*type_index);
+
+                let mut call_args = vec![callee, env.memory.clone()];
+                call_args.extend(env.globals.iter().cloned());
+                call_args.extend(args);
+                let call = format!("$indirect{type_index}<{}>", call_args.join(", "));
+                if let Some(value) = env.bind_result(&call, num_results > 0) {
+                    env.push(value);
+                }
+                Ok(Step::Continue)
+            }
+
             Unreachable => Ok(Step::Terminate("never".to_string())),
 
             other => Err(format!("unsupported operator: {other:?}")),
@@ -1901,6 +2037,7 @@ enum Step {
 #[derive(Clone)]
 struct BlockEnv {
     helpers: Rc<RefCell<BTreeMap<String, String>>>,
+    indirect: Rc<RefCell<BTreeSet<u32>>>,
     memory: String,
     globals: Vec<String>,
     locals: Vec<String>,
