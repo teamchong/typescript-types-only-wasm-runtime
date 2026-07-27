@@ -413,22 +413,13 @@ ${splitReaders}
       break;
     }
     evalMs += performance.now() - e0;
-    chunks++;
-    // A fresh compiler does not make the work smaller, so the fuel that was
-    // fitting before still fits. Raising it back to the ceiling here costs a
-    // full run of halvings, once per replacement.
-    worked++;
-    if (++since >= lifetime) {
-      recycle();
-      since = 0;
-    }
-    const ceiling = options.fuel ?? DEFAULT_FUEL;
-    if (fuel < ceiling && ++settled >= 20) {
-      settled = 0;
-      fuel = Math.min(ceiling, fuel * 2);
-      if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: settled; fuel -> ${fuel}    \n`);
-    }
 
+    // The chunk counter only advances on a chunk that was accepted. Counting a
+    // retry as a chunk moves `chunks` out from under the `recycled !== chunks`
+    // guard below, so every retry looks like the first failure of a new chunk:
+    // the driver replaces the compiler forever and never reaches the fuel
+    // halving. That reads as progress in the log - the chunk numbers climb -
+    // while the state stays byte for byte identical.
     const bad = degraded(tag, state, live, value, globals);
     if (bad) {
       // An approximation handed back quietly is not a fuel problem: the same
@@ -455,6 +446,21 @@ ${splitReaders}
       writeFileSync(join(__dirname, "failing-chunk.ts"), file);
       writeFileSync(join(__dirname, "failing-output.txt"), `tag ${tag}\nvalue ${value}\nlive ${live}\nstate ${state}`);
       break;
+    }
+    chunks++;
+    // A fresh compiler does not make the work smaller, so the fuel that was
+    // fitting before still fits. Raising it back to the ceiling here costs a
+    // full run of halvings, once per replacement.
+    worked++;
+    if (++since >= lifetime) {
+      recycle();
+      since = 0;
+    }
+    const ceiling = options.fuel ?? DEFAULT_FUEL;
+    if (fuel < ceiling && ++settled >= 20) {
+      settled = 0;
+      fuel = Math.min(ceiling, fuel * 2);
+      if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: settled; fuel -> ${fuel}    \n`);
     }
 
     memory = toSource(state);
