@@ -43,6 +43,19 @@ fn bits32(value: i32) -> String {
     format!("{:032b}", value as u32)
 }
 
+fn bits64(value: i64) -> String {
+    format!("{:064b}", value as u64)
+}
+
+/// `${infer c0}${infer c1}...${infer c31}${infer Rest}` - each `infer` before a
+/// following pattern takes exactly one character, so this splits a 64-bit value
+/// into its two words without any arithmetic.
+fn split64_pattern() -> (String, String) {
+    let head: String = (0..32).map(|i| format!("${{infer H{i}}}")).collect();
+    let joined: String = (0..32).map(|i| format!("${{H{i}}}")).collect();
+    (head, joined)
+}
+
 fn zero() -> String {
     bits32(0)
 }
@@ -696,6 +709,17 @@ export type $Store16<M extends $Node, A extends WasmValue, V extends WasmValue> 
 
 export type $ToNumber<V> = Convert.WasmValue.ToTSNumber<V & string, 'i32'>
 
+/// 64-bit access. A value is a binary string, so a 64-bit value is just its two
+/// 32-bit words written end to end: joining them is a template literal and
+/// splitting them is a single inference. Neither costs arithmetic. Memory is
+/// little-endian, so the low word lives at A and the high word at A+4.
+export type $Hi32<V extends string> = V extends `{word64_pattern}${{infer _Lo}}` ? `{word64_joined}` : never
+export type $Lo32<V extends string> = V extends `{word64_pattern}${{infer Lo}}` ? Lo : never
+export type $Load64<M extends $Node, A extends WasmValue> =
+  `${{$Load32<M, Wasm.I32Add<A, '{four}'>>}}${{$Load32<M, A>}}`
+export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> =
+  $Store32<$Store32<M, A, $Lo32<V>>, Wasm.I32Add<A, '{four}'>, $Hi32<V>>
+
 {fast_math}
 "#,
             fanout = fanout,
@@ -723,6 +747,8 @@ export type $ToNumber<V> = Convert.WasmValue.ToTSNumber<V & string, 'i32'>
             value_pattern = (0..32)
                 .map(|i| format!("${{infer v{i}}}"))
                 .collect::<String>(),
+            word64_pattern = split64_pattern().0,
+            word64_joined = split64_pattern().1,
             fast_math = Self::emit_fast_math(),
             zeros24 = "0".repeat(24),
             byte3 = (0..8).map(|i| format!("${{w{i}}}")).collect::<String>(),
@@ -1589,6 +1615,33 @@ impl<'a> FunctionCfg<'a> {
                 env.push(format!("'{}'", bits32(self.module.memory_pages as i32)));
                 Ok(Step::Continue)
             }
+
+            // The trie is sparse and unbounded, so there is nothing to allocate:
+            // growing always succeeds and reports the page count from before the
+            // call, which is what the engine returns.
+            MemoryGrow { .. } => {
+                let _pages = env.pop();
+                env.push(format!("'{}'", bits32(self.module.memory_pages as i32)));
+                Ok(Step::Continue)
+            }
+
+            I32Extend16S => env.unary("Wasm.I32Extend16S", Ok(Step::Continue)),
+
+            // 64-bit. DOOM only needs these for its fixed-point pair - FixedMul
+            // is `(a*b)>>16` and FixedDiv is `(a<<16)/b` - plus i64 loads and
+            // stores used as wide data movers, which never touch the 64-bit ALU.
+            I64Const { value } => {
+                env.push(format!("'{}'", bits64(*value)));
+                Ok(Step::Continue)
+            }
+            I64ExtendI32S => env.unary("Wasm.I64ExtendI32S", Ok(Step::Continue)),
+            I32WrapI64 => env.unary("Wasm.I32WrapI64", Ok(Step::Continue)),
+            I64Mul => env.binary("Wasm.I64Mul", Ok(Step::Continue)),
+            I64DivS => env.binary("Wasm.I64DivS", Ok(Step::Continue)),
+            I64Shl => env.binary("Wasm.I64Shl", Ok(Step::Continue)),
+            I64ShrU => env.binary("Wasm.I64ShrU", Ok(Step::Continue)),
+            I64Load { memarg } => env.load("$Load64", memarg.offset, Ok(Step::Continue)),
+            I64Store { memarg } => env.store("$Store64", memarg.offset, Ok(Step::Continue)),
 
             // control flow
             Block { blockty } => {

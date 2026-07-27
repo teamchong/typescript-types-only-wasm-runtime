@@ -7,12 +7,10 @@
     "pnpm": ">=8"
   },
   "scripts": {
-    "browser": "pnpm --filter playground run browser",
     "clean": "rm -f .tsbuildinfo && rm -rf packages/playground/evaluate/results && rm -rf target && rm -rf trace",
     "preinstall": "npx only-allow pnpm",
     "eval": "pnpm --filter playground --silent run eval",
     "eval:spawn": "pnpm --dir packages/playground run eval:spawn",
-    "generate": "tsx ./packages/playground/generate.ts",
     "test:conformance": "pnpm --filter conformance-tests run test",
     "test:math": "pnpm --filter ts-type-math run test",
     "test:create-new": "pnpm --filter conformance-tests run test:create-new",
