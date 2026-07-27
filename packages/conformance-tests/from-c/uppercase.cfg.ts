@@ -228,40 +228,22 @@ export type $b0_0<$F extends string, $M extends $Node, $g0 extends WasmValue, $g
 
 export type $b1_0<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $l0 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Sub<$l0, '00000000000000000000000000100000'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Sub<$l0, '00000000000000000000000001100001'> extends infer $t1 extends WasmValue
-    ? Wasm.I32LtU<$t1, '00000000000000000000000000011010'> extends infer $t2 extends WasmValue
-    ? ($t2 extends '00000000000000000000000000000000' ? $l0 : $t0) extends infer $t3 extends WasmValue
-    ? ['r', $Flush<$M>, $t3]
-    : never
-    : never
-    : never
+  ? ($LtU0000001A<$Dec7<$Inc5<$Dec0<$l0>>>> extends '00000000000000000000000000000000' ? $l0 : $Dec5<$l0>) extends infer $t0 extends WasmValue
+    ? ['r', $Flush<$M>, $t0]
     : never
   : ['s', '1_0', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $l0]
 
 
 export type $b2_0<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $l0 extends WasmValue> =
   $F extends `111${infer $F1}`
-  ? Wasm.I32Sub<$l0, '00000000000000000000000000100000'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Sub<$l0, '00000000000000000000000001100001'> extends infer $t1 extends WasmValue
-    ? Wasm.I32LtU<$t1, '00000000000000000000000000011010'> extends infer $t2 extends WasmValue
-    ? ($t2 extends '00000000000000000000000000000000' ? $l0 : $t0) extends infer $t3 extends WasmValue
-    ? $Store8<$M, '00000000000000000000010000000000', $t3> extends infer $m4 extends $Node
-    ? $Store8<$m4, '00000000000000000000010000000001', '00000000000000000000000000000000'> extends infer $m5 extends $Node
-    ? $b2_1<$F1, $m5, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8>
-    : never
-    : never
-    : never
+  ? ($LtU0000001A<$Dec7<$Inc5<$Dec0<$l0>>>> extends '00000000000000000000000000000000' ? $l0 : $Dec5<$l0>) extends infer $t0 extends WasmValue
+    ? $Store8<$M, '00000000000000000000010000000000', $t0> extends infer $m1 extends $Node
+    ? $Store8<$m1, '00000000000000000000010000000001', '00000000000000000000000000000000'> extends infer $m2 extends $Node
+    ? ['r', $Flush<$m2>, '00000000000000000000010000000000']
     : never
     : never
     : never
   : ['s', '2_0', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $l0]
-
-
-export type $b2_1<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue> =
-  $F extends `1${infer $F1}`
-  ? ['r', $Flush<$M>, '00000000000000000000010000000000']
-  : ['s', '2_1', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8]
 
 
 export type $__wasm_call_ctors<$F extends string, $M extends $Node> =
@@ -272,3 +254,153 @@ export type $toupper<$F extends string, $M extends $Node, $p0 extends WasmValue>
 
 export type $entry<$F extends string, $M extends $Node, $p0 extends WasmValue> =
   $b2_0<$F, $Buf<$M>, '00000000000000000000010000000000', '00000000000000000000010000000010', '00000000000000000000010000010000', '00000000000000010000010000010000', '00000000000000000000010000000000', '00000000000000010000010000010000', '00000000000000100000000000000000', '00000000000000000000000000000000', '00000000000000000000000000000001', $p0>
+
+// Specialised for the constants this module uses: a shift by a known
+// amount is a character move, and a mask by a known constant is a
+// character-by-character choice. Neither needs an adder.
+export type $Dec0<A extends string> = $DecTop32<A>
+
+export type $Dec5<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer L}`
+    ? `${$DecTop27<`${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}`>}${L}`
+    : never
+
+export type $Dec7<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer L}`
+    ? `${$DecTop25<`${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}`>}${L}`
+    : never
+
+export type $DecTop25<A extends string> =
+  A extends `${infer H}1` ? `${H}0` :
+  A extends `${infer H}10` ? `${H}01` :
+  A extends `${infer H}100` ? `${H}011` :
+  A extends `${infer H}1000` ? `${H}0111` :
+  A extends `${infer H}10000` ? `${H}01111` :
+  A extends `${infer H}100000` ? `${H}011111` :
+  A extends `${infer H}1000000` ? `${H}0111111` :
+  A extends `${infer H}10000000` ? `${H}01111111` :
+  A extends `${infer H}100000000` ? `${H}011111111` :
+  A extends `${infer H}1000000000` ? `${H}0111111111` :
+  A extends `${infer H}10000000000` ? `${H}01111111111` :
+  A extends `${infer H}100000000000` ? `${H}011111111111` :
+  A extends `${infer H}1000000000000` ? `${H}0111111111111` :
+  A extends `${infer H}10000000000000` ? `${H}01111111111111` :
+  A extends `${infer H}100000000000000` ? `${H}011111111111111` :
+  A extends `${infer H}1000000000000000` ? `${H}0111111111111111` :
+  A extends `${infer H}10000000000000000` ? `${H}01111111111111111` :
+  A extends `${infer H}100000000000000000` ? `${H}011111111111111111` :
+  A extends `${infer H}1000000000000000000` ? `${H}0111111111111111111` :
+  A extends `${infer H}10000000000000000000` ? `${H}01111111111111111111` :
+  A extends `${infer H}100000000000000000000` ? `${H}011111111111111111111` :
+  A extends `${infer H}1000000000000000000000` ? `${H}0111111111111111111111` :
+  A extends `${infer H}10000000000000000000000` ? `${H}01111111111111111111111` :
+  A extends `${infer H}100000000000000000000000` ? `${H}011111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000` ? `${H}0111111111111111111111111`
+  : '1111111111111111111111111'
+
+export type $DecTop27<A extends string> =
+  A extends `${infer H}1` ? `${H}0` :
+  A extends `${infer H}10` ? `${H}01` :
+  A extends `${infer H}100` ? `${H}011` :
+  A extends `${infer H}1000` ? `${H}0111` :
+  A extends `${infer H}10000` ? `${H}01111` :
+  A extends `${infer H}100000` ? `${H}011111` :
+  A extends `${infer H}1000000` ? `${H}0111111` :
+  A extends `${infer H}10000000` ? `${H}01111111` :
+  A extends `${infer H}100000000` ? `${H}011111111` :
+  A extends `${infer H}1000000000` ? `${H}0111111111` :
+  A extends `${infer H}10000000000` ? `${H}01111111111` :
+  A extends `${infer H}100000000000` ? `${H}011111111111` :
+  A extends `${infer H}1000000000000` ? `${H}0111111111111` :
+  A extends `${infer H}10000000000000` ? `${H}01111111111111` :
+  A extends `${infer H}100000000000000` ? `${H}011111111111111` :
+  A extends `${infer H}1000000000000000` ? `${H}0111111111111111` :
+  A extends `${infer H}10000000000000000` ? `${H}01111111111111111` :
+  A extends `${infer H}100000000000000000` ? `${H}011111111111111111` :
+  A extends `${infer H}1000000000000000000` ? `${H}0111111111111111111` :
+  A extends `${infer H}10000000000000000000` ? `${H}01111111111111111111` :
+  A extends `${infer H}100000000000000000000` ? `${H}011111111111111111111` :
+  A extends `${infer H}1000000000000000000000` ? `${H}0111111111111111111111` :
+  A extends `${infer H}10000000000000000000000` ? `${H}01111111111111111111111` :
+  A extends `${infer H}100000000000000000000000` ? `${H}011111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000` ? `${H}0111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000` ? `${H}01111111111111111111111111` :
+  A extends `${infer H}100000000000000000000000000` ? `${H}011111111111111111111111111`
+  : '111111111111111111111111111'
+
+export type $DecTop32<A extends string> =
+  A extends `${infer H}1` ? `${H}0` :
+  A extends `${infer H}10` ? `${H}01` :
+  A extends `${infer H}100` ? `${H}011` :
+  A extends `${infer H}1000` ? `${H}0111` :
+  A extends `${infer H}10000` ? `${H}01111` :
+  A extends `${infer H}100000` ? `${H}011111` :
+  A extends `${infer H}1000000` ? `${H}0111111` :
+  A extends `${infer H}10000000` ? `${H}01111111` :
+  A extends `${infer H}100000000` ? `${H}011111111` :
+  A extends `${infer H}1000000000` ? `${H}0111111111` :
+  A extends `${infer H}10000000000` ? `${H}01111111111` :
+  A extends `${infer H}100000000000` ? `${H}011111111111` :
+  A extends `${infer H}1000000000000` ? `${H}0111111111111` :
+  A extends `${infer H}10000000000000` ? `${H}01111111111111` :
+  A extends `${infer H}100000000000000` ? `${H}011111111111111` :
+  A extends `${infer H}1000000000000000` ? `${H}0111111111111111` :
+  A extends `${infer H}10000000000000000` ? `${H}01111111111111111` :
+  A extends `${infer H}100000000000000000` ? `${H}011111111111111111` :
+  A extends `${infer H}1000000000000000000` ? `${H}0111111111111111111` :
+  A extends `${infer H}10000000000000000000` ? `${H}01111111111111111111` :
+  A extends `${infer H}100000000000000000000` ? `${H}011111111111111111111` :
+  A extends `${infer H}1000000000000000000000` ? `${H}0111111111111111111111` :
+  A extends `${infer H}10000000000000000000000` ? `${H}01111111111111111111111` :
+  A extends `${infer H}100000000000000000000000` ? `${H}011111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000` ? `${H}0111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000` ? `${H}01111111111111111111111111` :
+  A extends `${infer H}100000000000000000000000000` ? `${H}011111111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000000` ? `${H}0111111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000000` ? `${H}01111111111111111111111111111` :
+  A extends `${infer H}100000000000000000000000000000` ? `${H}011111111111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000000000` ? `${H}0111111111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000000000` ? `${H}01111111111111111111111111111111`
+  : '11111111111111111111111111111111'
+
+export type $Inc5<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer L}`
+    ? `${$IncTop27<`${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}`>}${L}`
+    : never
+
+export type $IncTop27<A extends string> =
+  A extends `${infer H}0` ? `${H}1` :
+  A extends `${infer H}01` ? `${H}10` :
+  A extends `${infer H}011` ? `${H}100` :
+  A extends `${infer H}0111` ? `${H}1000` :
+  A extends `${infer H}01111` ? `${H}10000` :
+  A extends `${infer H}011111` ? `${H}100000` :
+  A extends `${infer H}0111111` ? `${H}1000000` :
+  A extends `${infer H}01111111` ? `${H}10000000` :
+  A extends `${infer H}011111111` ? `${H}100000000` :
+  A extends `${infer H}0111111111` ? `${H}1000000000` :
+  A extends `${infer H}01111111111` ? `${H}10000000000` :
+  A extends `${infer H}011111111111` ? `${H}100000000000` :
+  A extends `${infer H}0111111111111` ? `${H}1000000000000` :
+  A extends `${infer H}01111111111111` ? `${H}10000000000000` :
+  A extends `${infer H}011111111111111` ? `${H}100000000000000` :
+  A extends `${infer H}0111111111111111` ? `${H}1000000000000000` :
+  A extends `${infer H}01111111111111111` ? `${H}10000000000000000` :
+  A extends `${infer H}011111111111111111` ? `${H}100000000000000000` :
+  A extends `${infer H}0111111111111111111` ? `${H}1000000000000000000` :
+  A extends `${infer H}01111111111111111111` ? `${H}10000000000000000000` :
+  A extends `${infer H}011111111111111111111` ? `${H}100000000000000000000` :
+  A extends `${infer H}0111111111111111111111` ? `${H}1000000000000000000000` :
+  A extends `${infer H}01111111111111111111111` ? `${H}10000000000000000000000` :
+  A extends `${infer H}011111111111111111111111` ? `${H}100000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111` ? `${H}1000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111` ? `${H}10000000000000000000000000` :
+  A extends `${infer H}011111111111111111111111111` ? `${H}100000000000000000000000000`
+  : '000000000000000000000000000'
+
+export type $LtU0000001A<A extends string> =
+  A extends `0000000000000000000000000000${infer _r}` ? '00000000000000000000000000000001' :
+  A extends `00000000000000000000000000010${infer _r}` ? '00000000000000000000000000000001' :
+  A extends `0000000000000000000000000001100${infer _r}` ? '00000000000000000000000000000001'
+  : '00000000000000000000000000000000'
+

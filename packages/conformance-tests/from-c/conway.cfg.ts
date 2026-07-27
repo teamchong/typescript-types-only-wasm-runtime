@@ -229,14 +229,10 @@ export type $b0_0<$F extends string, $M extends $Node, $g0 extends WasmValue, $g
 export type $b1_0<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `11${infer $F1}`
   ? $Store32<$M, $l5, '00000000000000000000000000000000'> extends infer $m0 extends $Node
-    ? Wasm.I32Sub<$l4, '00000000000000000000000000000001'> extends infer $t1 extends WasmValue
-    ? Wasm.I32Add<$l3, $Shl3<$l3>> extends infer $t2 extends WasmValue
-    ? Wasm.I32Add<$l4, $t2> extends infer $t3 extends WasmValue
-    ? Wasm.I32Add<$t3, $l0> extends infer $t4 extends WasmValue
-    ? Wasm.I32Sub<$t4, '00000000000000000000000000001010'> extends infer $t5 extends WasmValue
-    ? $b1_1<$F1, $m0, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1, $l2, $l3, $l5, $l7, $t1, $t5>
-    : never
-    : never
+    ? Wasm.I32Add<$l3, $Shl3<$l3>> extends infer $t1 extends WasmValue
+    ? Wasm.I32Add<$l4, $t1> extends infer $t2 extends WasmValue
+    ? Wasm.I32Add<$t2, $l0> extends infer $t3 extends WasmValue
+    ? $b1_2<$F1, $m0, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, '11111111111111111111111111111111', $l1, $l2, $l3, $l5, $Dec3<$Dec1<$t3>>, $l7, $Dec0<$l4>>
     : never
     : never
     : never
@@ -244,69 +240,67 @@ export type $b1_0<$F extends string, $M extends $Node, $g0 extends WasmValue, $g
   : ['s', '1_0', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l7]
 
 
-export type $b1_1<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $k0 extends WasmValue> =
-  $F extends `1${infer $F1}`
-  ? $b1_3<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, '11111111111111111111111111111111', $l1, $l2, $l3, $l5, $k0, $l7, $l8>
-  : ['s', '1_1', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1, $l2, $l3, $l5, $l7, $l8, $k0]
-
-
-export type $b1_2<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
+export type $b1_1<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? ['r', $Flush<$M>]
-  : ['s', '1_2', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  : ['s', '1_1', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+
+
+export type $b1_2<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
+  $F extends `1${infer $F1}`
+  ? Wasm.I32Add<$l0, $l3> extends infer $t0 extends WasmValue
+    ? Wasm.I32GeS<$t0, $l1> extends infer $t1 extends WasmValue
+    ? $b1_4<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, '00000000000000000000000000000000', $l5, $l6, $l7, $l8, $t0, $t1>
+    : never
+    : never
+  : ['s', '1_2', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8]
 
 
 export type $b1_3<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l0, $l3> extends infer $t0 extends WasmValue
-    ? Wasm.I32GeS<$t0, $l1> extends infer $t1 extends WasmValue
-    ? $b1_5<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, '00000000000000000000000000000000', $l5, $l6, $l7, $l8, $t0, $t1>
-    : never
+  ? $Ne<$Inc0<$l0>, '00000000000000000000000000000010'> extends infer $t0 extends WasmValue
+    ? $t0 extends '00000000000000000000000000000000'
+    ? $b1_10<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9>
+    : $b1_2<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $Inc0<$l0>, $l1, $l2, $l3, $l5, $Inc3<$Inc0<$l6>>, $l7, $l8>
     : never
   : ['s', '1_3', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8]
 
 
-export type $b1_4<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
+export type $b1_4<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l6, '00000000000000000000000000001001'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Add<$l0, '00000000000000000000000000000001'> extends infer $t1 extends WasmValue
-    ? $Ne<$t1, '00000000000000000000000000000010'> extends infer $t2 extends WasmValue
-    ? $t2 extends '00000000000000000000000000000000'
-    ? $b1_11<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9>
-    : $b1_3<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $t1, $l1, $l2, $l3, $l5, $t0, $l7, $l8>
+  ? Wasm.I32Or<$Dec0<$l4>, $l0> extends infer $t0 extends WasmValue
+    ? $Eq<$t0, '00000000000000000000000000000000'> extends infer $t1 extends WasmValue
+    ? Wasm.I32Or<$t1, $LtS00000000<$l9>> extends infer $t2 extends WasmValue
+    ? Wasm.I32Or<$l10, $t2> extends infer $t3 extends WasmValue
+    ? $t3 extends '00000000000000000000000000000000'
+    ? $b1_6<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
+    : $b1_5<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
     : never
     : never
     : never
-  : ['s', '1_4', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8]
+    : never
+  : ['s', '1_4', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10]
 
 
 export type $b1_5<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Sub<$l4, '00000000000000000000000000000001'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Or<$t0, $l0> extends infer $t1 extends WasmValue
-    ? $Eq<$t1, '00000000000000000000000000000000'> extends infer $t2 extends WasmValue
-    ? Wasm.I32LtS<$l9, '00000000000000000000000000000000'> extends infer $t3 extends WasmValue
-    ? Wasm.I32Or<$t2, $t3> extends infer $t4 extends WasmValue
-    ? Wasm.I32Or<$l10, $t4> extends infer $t5 extends WasmValue
-    ? $t5 extends '00000000000000000000000000000000'
-    ? $b1_7<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : $b1_6<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : never
-    : never
-    : never
-    : never
-    : never
+  ? $Ne<$Inc0<$l4>, '00000000000000000000000000000011'> extends infer $t0 extends WasmValue
+    ? $t0 extends '00000000000000000000000000000000'
+    ? $b1_9<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8>
+    : $b1_4<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $Inc0<$l4>, $l5, $l6, $l7, $l8, $l9, $l10>
     : never
   : ['s', '1_5', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10]
 
 
 export type $b1_6<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l4, '00000000000000000000000000000001'> extends infer $t0 extends WasmValue
-    ? $Ne<$t0, '00000000000000000000000000000011'> extends infer $t1 extends WasmValue
-    ? $t1 extends '00000000000000000000000000000000'
-    ? $b1_10<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8>
-    : $b1_5<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $t0, $l5, $l6, $l7, $l8, $l9, $l10>
+  ? Wasm.I32Add<$l4, $l8> extends infer $t0 extends WasmValue
+    ? Wasm.I32LeS<$l2, $t0> extends infer $t1 extends WasmValue
+    ? Wasm.I32Or<$LtS00000000<$t0>, $t1> extends infer $t2 extends WasmValue
+    ? $t2 extends '00000000000000000000000000000000'
+    ? $b1_7<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
+    : $b1_5<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
+    : never
     : never
     : never
   : ['s', '1_6', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10]
@@ -314,14 +308,12 @@ export type $b1_6<$F extends string, $M extends $Node, $g0 extends WasmValue, $g
 
 export type $b1_7<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l4, $l8> extends infer $t0 extends WasmValue
-    ? Wasm.I32LtS<$t0, '00000000000000000000000000000000'> extends infer $t1 extends WasmValue
-    ? Wasm.I32LeS<$l2, $t0> extends infer $t2 extends WasmValue
-    ? Wasm.I32Or<$t1, $t2> extends infer $t3 extends WasmValue
-    ? $t3 extends '00000000000000000000000000000000'
+  ? Wasm.I32Add<$l4, $l6> extends infer $t0 extends WasmValue
+    ? $Load8U<$M, $t0> extends infer $t1 extends WasmValue
+    ? $Eq<$t1, '00000000000000000000000000000000'> extends infer $t2 extends WasmValue
+    ? $t2 extends '00000000000000000000000000000000'
     ? $b1_8<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : $b1_6<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : never
+    : $b1_5<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
     : never
     : never
     : never
@@ -329,78 +321,50 @@ export type $b1_7<$F extends string, $M extends $Node, $g0 extends WasmValue, $g
 
 
 export type $b1_8<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
-  $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l4, $l6> extends infer $t0 extends WasmValue
-    ? $Load8U<$M, $t0> extends infer $t1 extends WasmValue
-    ? $Eq<$t1, '00000000000000000000000000000000'> extends infer $t2 extends WasmValue
-    ? $t2 extends '00000000000000000000000000000000'
-    ? $b1_9<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : $b1_6<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : never
-    : never
+  $F extends `11${infer $F1}`
+  ? $Store32<$M, $l5, $Inc0<$l7>> extends infer $m0 extends $Node
+    ? $b1_5<$F1, $m0, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $Inc0<$l7>, $l8, $l9, $l10>
     : never
   : ['s', '1_8', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10]
 
 
-export type $b1_9<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
-  $F extends `11${infer $F1}`
-  ? Wasm.I32Add<$l7, '00000000000000000000000000000001'> extends infer $t0 extends WasmValue
-    ? $Store32<$M, $l5, $t0> extends infer $m1 extends $Node
-    ? $b1_6<$F1, $m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $t0, $l8, $l9, $l10>
-    : never
-    : never
-  : ['s', '1_9', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10]
-
-
-export type $b1_10<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
+export type $b1_9<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $b1_4<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8>
-  : ['s', '1_10', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8]
+  ? $b1_3<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8>
+  : ['s', '1_9', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8]
 
 
-export type $b1_11<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
+export type $b1_10<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $b1_2<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9>
-  : ['s', '1_11', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
+  ? $b1_1<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9>
+  : ['s', '1_10', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $b2_0<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l5 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Sub<$g0, '00000000000000000000000001110000'> extends infer $t0 extends WasmValue
-    ? Wasm.I32LeS<$l1, '00000000000000000000000000000000'> extends infer $t1 extends WasmValue
-    ? $t1 extends '00000000000000000000000000000000'
-    ? $b2_2<$F1, $M, $t0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l5, $t0>
-    : $b2_1<$F1, $M, $t0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $t0>
-    : never
-    : never
+  ? $LtS00000001<$l1> extends '00000000000000000000000000000000'
+    ? $b2_2<$F1, $M, $Dec7<$Inc4<$g0>>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l5, $Dec7<$Inc4<$g0>>>
+    : $b2_1<$F1, $M, $Dec7<$Inc4<$g0>>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $Dec7<$Inc4<$g0>>>
   : ['s', '2_0', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l5]
 
 
 export type $b2_1<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l7, '00000000000000000000000001110000'> extends infer $t0 extends WasmValue
-    ? ['r', $Flush<$M>]
-    : never
+  ? ['r', $Flush<$M>]
   : ['s', '2_1', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7]
 
 
 export type $b2_2<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l7, '00000000000000000000000000010000'> extends infer $t0 extends WasmValue
-    ? Wasm.I32LeS<$l2, '00000000000000000000000000000000'> extends infer $t1 extends WasmValue
-    ? $b2_4<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t0, $l5, $l0, $l7, $t1>
-    : never
-    : never
+  ? $b2_4<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc4<$l7>, $l5, $l0, $l7, $LtS00000001<$l2>>
   : ['s', '2_2', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l5, $l7]
 
 
 export type $b2_3<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32LeS<$l1, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
-    ? $b2_14<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7>
+  ? $LtS00000001<$l1> extends '00000000000000000000000000000000'
+    ? $b2_13<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7>
     : $b2_1<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
-    : never
   : ['s', '2_3', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7]
 
 
@@ -416,16 +380,10 @@ export type $b2_4<$F extends string, $M extends $Node, $g0 extends WasmValue, $g
 
 export type $b2_5<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l4, '00000000000000000000000000001001'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Add<$l6, '00000000000000000000000000001001'> extends infer $t1 extends WasmValue
-    ? Wasm.I32Add<$l5, '00000000000000000000000000000001'> extends infer $t2 extends WasmValue
-    ? $Ne<$t2, $l1> extends infer $t3 extends WasmValue
-    ? $t3 extends '00000000000000000000000000000000'
-    ? $b2_13<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7>
-    : $b2_4<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t0, $t2, $t1, $l7, $l8>
-    : never
-    : never
-    : never
+  ? $Ne<$Inc0<$l5>, $l1> extends infer $t0 extends WasmValue
+    ? $t0 extends '00000000000000000000000000000000'
+    ? $b2_12<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7>
+    : $b2_4<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc3<$Inc0<$l4>>, $Inc0<$l5>, $Inc3<$Inc0<$l6>>, $l7, $l8>
     : never
   : ['s', '2_5', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8]
 
@@ -450,13 +408,13 @@ export type $b2_8<$F extends string, $M extends $Node, $g0 extends WasmValue, $g
 
 export type $b2_9<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l7, '00000000000000000000000000001100'> extends infer $t0 extends WasmValue
-    ? $call1<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l5, $l3, $t0> extends ['r', infer $m1 extends $Node, infer $g_2 extends WasmValue, infer $g_3 extends WasmValue, infer $g_4 extends WasmValue, infer $g_5 extends WasmValue, infer $g_6 extends WasmValue, infer $g_7 extends WasmValue, infer $g_8 extends WasmValue, infer $g_9 extends WasmValue, infer $g_10 extends WasmValue, infer $g_11 extends WasmValue]
-    ? Wasm.I32Add<$l3, $l4> extends infer $t12 extends WasmValue
-    ? $Load32<$m1, $t0> extends infer $t13 extends WasmValue
-    ? $Eq<$AndFFFFFFFE<$t13>, '00000000000000000000000000000010'> extends infer $t14 extends WasmValue
-    ? $Eq<$t13, '00000000000000000000000000000011'> extends infer $t15 extends WasmValue
-    ? $b2_10<$F1, $m1, $g_2, $g_3, $g_4, $g_5, $g_6, $g_7, $g_8, $g_9, $g_10, $g_11, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $t12, $t14, $t15>
+  ? $call1<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l5, $l3, $Inc4<$Dec2<$l7>>> extends ['r', infer $m0 extends $Node, infer $g_1 extends WasmValue, infer $g_2 extends WasmValue, infer $g_3 extends WasmValue, infer $g_4 extends WasmValue, infer $g_5 extends WasmValue, infer $g_6 extends WasmValue, infer $g_7 extends WasmValue, infer $g_8 extends WasmValue, infer $g_9 extends WasmValue, infer $g_10 extends WasmValue]
+    ? Wasm.I32Add<$l3, $l4> extends infer $t11 extends WasmValue
+    ? $Load32<$m0, $Inc4<$Dec2<$l7>>> extends infer $t12 extends WasmValue
+    ? $Eq<$AndFFFFFFFE<$t12>, '00000000000000000000000000000010'> extends infer $t13 extends WasmValue
+    ? $Eq<$t12, '00000000000000000000000000000011'> extends infer $t14 extends WasmValue
+    ? Wasm.I32Add<$l3, $l6> extends infer $t15 extends WasmValue
+    ? $b2_10<$F1, $m0, $g_1, $g_2, $g_3, $g_4, $g_5, $g_6, $g_7, $g_8, $g_9, $g_10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $t11, $t13, $t14, $t15>
     : never
     : never
     : never
@@ -466,159 +424,127 @@ export type $b2_9<$F extends string, $M extends $Node, $g0 extends WasmValue, $g
   : ['s', '2_9', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8]
 
 
-export type $b2_10<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $k0 extends WasmValue, $k1 extends WasmValue, $k2 extends WasmValue> =
+export type $b2_10<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $k0 extends WasmValue, $k1 extends WasmValue, $k2 extends WasmValue, $k3 extends WasmValue> =
   $F extends `11${infer $F1}`
-  ? Wasm.I32Add<$l3, $l6> extends infer $t0 extends WasmValue
-    ? $Load8U<$M, $t0> extends infer $t1 extends WasmValue
-    ? ($t1 extends '00000000000000000000000000000000' ? $k2 : $k1) extends infer $t2 extends WasmValue
-    ? $Store8<$M, $k0, $t2> extends infer $m3 extends $Node
-    ? Wasm.I32Add<$l3, '00000000000000000000000000000001'> extends infer $t4 extends WasmValue
-    ? $Ne<$l2, $t4> extends infer $t5 extends WasmValue
-    ? $b2_11<$F1, $m3, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t4, $l4, $l5, $l6, $l7, $l8, $t5>
+  ? $Load8U<$M, $k3> extends infer $t0 extends WasmValue
+    ? ($t0 extends '00000000000000000000000000000000' ? $k2 : $k1) extends infer $t1 extends WasmValue
+    ? $Store8<$M, $k0, $t1> extends infer $m2 extends $Node
+    ? $Ne<$l2, $Inc0<$l3>> extends infer $t3 extends WasmValue
+    ? $t3 extends '00000000000000000000000000000000'
+    ? $b2_11<$F1, $m2, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
+    : $b2_9<$F1, $m2, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc0<$l3>, $l4, $l5, $l6, $l7, $l8>
     : never
     : never
     : never
     : never
-    : never
-    : never
-  : ['s', '2_10', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $k0, $k1, $k2]
+  : ['s', '2_10', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $k0, $k1, $k2, $k3]
 
 
-export type $b2_11<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $k0 extends WasmValue> =
-  $F extends `1${infer $F1}`
-  ? $k0 extends '00000000000000000000000000000000'
-    ? $b2_12<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
-    : $b2_9<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8>
-  : ['s', '2_11', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $k0]
-
-
-export type $b2_12<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
+export type $b2_11<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_8<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
-  : ['s', '2_12', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8]
+  : ['s', '2_11', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8]
+
+
+export type $b2_12<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l7 extends WasmValue> =
+  $F extends `1${infer $F1}`
+  ? $b2_3<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7>
+  : ['s', '2_12', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7]
 
 
 export type $b2_13<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $b2_3<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7>
+  ? $b2_15<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc4<$l7>, '00000000000000000000000000000000', $l7, $LtS00000001<$l2>>
   : ['s', '2_13', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7]
 
 
-export type $b2_14<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l7 extends WasmValue> =
-  $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l7, '00000000000000000000000000010000'> extends infer $t0 extends WasmValue
-    ? Wasm.I32LeS<$l2, '00000000000000000000000000000000'> extends infer $t1 extends WasmValue
-    ? $b2_16<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t0, '00000000000000000000000000000000', $l7, $t1>
-    : never
-    : never
-  : ['s', '2_14', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7]
-
-
-export type $b2_15<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l7 extends WasmValue> =
+export type $b2_14<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b2_1<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
-  : ['s', '2_15', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7]
+  : ['s', '2_14', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7]
+
+
+export type $b2_15<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
+  $F extends `1${infer $F1}`
+  ? $Eq<$l9, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
+    ? $t0 extends '00000000000000000000000000000000'
+    ? $b2_18<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
+    : $b2_17<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l4, $l2, $l6, $l7, $l0, $l9>
+    : never
+  : ['s', '2_15', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9]
 
 
 export type $b2_16<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Eq<$l9, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
+  ? $Ne<$Inc0<$l6>, $l1> extends infer $t0 extends WasmValue
     ? $t0 extends '00000000000000000000000000000000'
-    ? $b2_19<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
-    : $b2_18<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l4, $l2, $l6, $l7, $l0, $l9>
+    ? $b2_22<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
+    : $b2_15<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $Inc3<$Inc0<$l0>>, $l1, $l2, $Inc3<$Inc0<$l4>>, $Inc0<$l6>, $l7, $l9>
     : never
   : ['s', '2_16', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9]
 
 
-export type $b2_17<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
+export type $b2_17<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l4, '00000000000000000000000000001001'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Add<$l0, '00000000000000000000000000001001'> extends infer $t1 extends WasmValue
-    ? Wasm.I32Add<$l6, '00000000000000000000000000000001'> extends infer $t2 extends WasmValue
-    ? $Ne<$t2, $l1> extends infer $t3 extends WasmValue
-    ? $t3 extends '00000000000000000000000000000000'
-    ? $b2_23<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
-    : $b2_16<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $t1, $l1, $l2, $t0, $t2, $l7, $l9>
-    : never
-    : never
-    : never
-    : never
-  : ['s', '2_17', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9]
+  ? $b2_20<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9>
+  : ['s', '2_17', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9]
 
 
-export type $b2_18<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue> =
+export type $b2_18<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $b2_21<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9>
-  : ['s', '2_18', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9]
+  ? $b2_16<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
+  : ['s', '2_18', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9]
 
 
 export type $b2_19<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $b2_17<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
+  ? $b2_16<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
   : ['s', '2_19', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9]
 
 
-export type $b2_20<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
-  $F extends `1${infer $F1}`
-  ? $b2_17<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
-  : ['s', '2_20', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9]
-
-
-export type $b2_21<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue> =
+export type $b2_20<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue> =
   $F extends `11${infer $F1}`
   ? $Load8U<$M, $l3> extends infer $t0 extends WasmValue
     ? $Store8<$M, $l8, $t0> extends infer $m1 extends $Node
-    ? Wasm.I32Add<$l3, '00000000000000000000000000000001'> extends infer $t2 extends WasmValue
-    ? Wasm.I32Add<$l8, '00000000000000000000000000000001'> extends infer $t3 extends WasmValue
-    ? Wasm.I32Sub<$l5, '00000000000000000000000000000001'> extends infer $t4 extends WasmValue
-    ? $t4 extends '00000000000000000000000000000000'
-    ? $b2_22<$F1, $m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
-    : $b2_21<$F1, $m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t2, $l4, $t4, $l6, $l7, $t3, $l9>
+    ? $Dec0<$l5> extends '00000000000000000000000000000000'
+    ? $b2_21<$F1, $m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
+    : $b2_20<$F1, $m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc0<$l3>, $l4, $Dec0<$l5>, $l6, $l7, $Inc0<$l8>, $l9>
     : never
     : never
-    : never
-    : never
-    : never
-  : ['s', '2_21', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9]
+  : ['s', '2_20', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9]
 
 
-export type $b2_22<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
+export type $b2_21<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $b2_20<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
-  : ['s', '2_22', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9]
+  ? $b2_19<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
+  : ['s', '2_21', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9]
 
 
-export type $b2_23<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l7 extends WasmValue> =
+export type $b2_22<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $b2_15<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
-  : ['s', '2_23', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7]
+  ? $b2_14<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
+  : ['s', '2_22', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7]
 
 
 export type $b3_0<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32GtS<$l1, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
+  ? $Not1<$LtS00000001<$l1>> extends '00000000000000000000000000000000'
     ? $b3_3<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l3>
     : $b3_2<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5>
-    : never
   : ['s', '3_0', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5]
 
 
 export type $b3_1<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l3 extends WasmValue> =
   $F extends `11${infer $F1}`
-  ? Wasm.I32Add<$l3, '00000000000000000000010001100000'> extends infer $t0 extends WasmValue
-    ? $Store8<$M, $t0, '00000000000000000000000000000000'> extends infer $m1 extends $Node
-    ? ['r', $Flush<$m1>, '00000000000000000000010001100000']
-    : never
+  ? $Store8<$M, $Inc10<$Inc7<$Dec5<$l3>>>, '00000000000000000000000000000000'> extends infer $m0 extends $Node
+    ? ['r', $Flush<$m0>, '00000000000000000000010001100000']
     : never
   : ['s', '3_1', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l3]
 
 
 export type $b3_2<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32LeS<$l2, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
-    ? $b3_5<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $t0>
-    : never
+  ? $b3_5<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $LtS00000001<$l2>>
   : ['s', '3_2', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5]
 
 
@@ -646,11 +572,9 @@ export type $b3_5<$F extends string, $M extends $Node, $g0 extends WasmValue, $g
 
 export type $b3_6<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32LtS<$l3, '00000000000000000000000001001111'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
+  ? $LtS0000004F<$l3> extends '00000000000000000000000000000000'
     ? $b3_17<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
     : $b3_16<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
-    : never
   : ['s', '3_6', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7]
 
 
@@ -674,36 +598,26 @@ export type $b3_9<$F extends string, $M extends $Node, $g0 extends WasmValue, $g
 
 export type $b3_10<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32LeS<$l3, '00000000000000000000000001001110'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
+  ? $LtS0000004F<$l3> extends '00000000000000000000000000000000'
     ? $b3_13<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7>
     : $b3_12<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7>
-    : never
   : ['s', '3_10', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7]
 
 
 export type $b3_11<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l4, '00000000000000000000000000000001'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Sub<$l6, '00000000000000000000000000000001'> extends infer $t1 extends WasmValue
-    ? $t1 extends '00000000000000000000000000000000'
+  ? $Dec0<$l6> extends '00000000000000000000000000000000'
     ? $b3_14<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
-    : $b3_10<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $t0, $l5, $t1, $l7>
-    : never
-    : never
+    : $b3_10<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $Inc0<$l4>, $l5, $Dec0<$l6>, $l7>
   : ['s', '3_11', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7]
 
 
 export type $b3_12<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
   $F extends `11${infer $F1}`
-  ? Wasm.I32Add<$l3, '00000000000000000000010001100000'> extends infer $t0 extends WasmValue
-    ? $Load8U<$M, $l4> extends infer $t1 extends WasmValue
-    ? ($t1 extends '00000000000000000000000000000000' ? '00000000000000000000000000101110' : '00000000000000000000000000100100') extends infer $t2 extends WasmValue
-    ? $Store8<$M, $t0, $t2> extends infer $m3 extends $Node
-    ? Wasm.I32Add<$l3, '00000000000000000000000000000001'> extends infer $t4 extends WasmValue
-    ? $b3_11<$F1, $m3, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t4, $l4, $l5, $l6, $l7>
-    : never
-    : never
+  ? $Load8U<$M, $l4> extends infer $t0 extends WasmValue
+    ? ($t0 extends '00000000000000000000000000000000' ? '00000000000000000000000000101110' : '00000000000000000000000000100100') extends infer $t1 extends WasmValue
+    ? $Store8<$M, $Inc10<$Inc7<$Dec5<$l3>>>, $t1> extends infer $m2 extends $Node
+    ? $b3_11<$F1, $m2, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc0<$l3>, $l4, $l5, $l6, $l7>
     : never
     : never
     : never
@@ -724,26 +638,18 @@ export type $b3_14<$F extends string, $M extends $Node, $g0 extends WasmValue, $
 
 export type $b3_15<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l0, '00000000000000000000000000001001'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Add<$l5, '00000000000000000000000000000001'> extends infer $t1 extends WasmValue
-    ? $Ne<$t1, $l1> extends infer $t2 extends WasmValue
-    ? $t2 extends '00000000000000000000000000000000'
+  ? $Ne<$Inc0<$l5>, $l1> extends infer $t0 extends WasmValue
+    ? $t0 extends '00000000000000000000000000000000'
     ? $b3_18<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l3>
-    : $b3_5<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $t0, $l1, $l2, $l3, $t1, $l7>
-    : never
-    : never
+    : $b3_5<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $Inc3<$Inc0<$l0>>, $l1, $l2, $l3, $Inc0<$l5>, $l7>
     : never
   : ['s', '3_15', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7]
 
 
 export type $b3_16<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `11${infer $F1}`
-  ? Wasm.I32Add<$l3, '00000000000000000000010001100000'> extends infer $t0 extends WasmValue
-    ? $Store8<$M, $t0, '00000000000000000000000000001010'> extends infer $m1 extends $Node
-    ? Wasm.I32Add<$l3, '00000000000000000000000000000001'> extends infer $t2 extends WasmValue
-    ? $b3_15<$F1, $m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t2, $l5, $l7>
-    : never
-    : never
+  ? $Store8<$M, $Inc10<$Inc7<$Dec5<$l3>>>, '00000000000000000000000000001010'> extends infer $m0 extends $Node
+    ? $b3_15<$F1, $m0, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc0<$l3>, $l5, $l7>
     : never
   : ['s', '3_16', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7]
 
@@ -762,19 +668,15 @@ export type $b3_18<$F extends string, $M extends $Node, $g0 extends WasmValue, $
 
 export type $b4_0<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Sub<$g0, '00000000000000000000000001100000'> extends infer $t0 extends WasmValue
-    ? $b4_2<$F1, $M, $t0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $t0, $l2, $l4>
-    : never
+  ? $b4_2<$F1, $M, $Dec7<$Inc5<$g0>>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $Dec7<$Inc5<$g0>>, $l2, $l4>
   : ['s', '4_0', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l2, $l4]
 
 
 export type $b4_1<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32GtS<$l0, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
-    ? $b4_10<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1>
-    : $b4_9<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1>
-    : never
+  ? $Not1<$LtS00000001<$l0>> extends '00000000000000000000000000000000'
+    ? $b4_9<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1>
+    : $b4_8<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1>
   : ['s', '4_1', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1]
 
 
@@ -788,14 +690,10 @@ export type $b4_2<$F extends string, $M extends $Node, $g0 extends WasmValue, $g
 
 export type $b4_3<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l2, '00000000000000000000000000001001'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Add<$l4, '00000000000000000000000000000001'> extends infer $t1 extends WasmValue
-    ? $Ne<$t1, '00000000000000000000000000001001'> extends infer $t2 extends WasmValue
-    ? $t2 extends '00000000000000000000000000000000'
-    ? $b4_7<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1>
-    : $b4_2<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $t0, $t1>
-    : never
-    : never
+  ? $Ne<$Inc0<$l4>, '00000000000000000000000000001001'> extends infer $t0 extends WasmValue
+    ? $t0 extends '00000000000000000000000000000000'
+    ? $b4_6<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1>
+    : $b4_2<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $Inc3<$Inc0<$l2>>, $Inc0<$l4>>
     : never
   : ['s', '4_3', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4]
 
@@ -804,12 +702,12 @@ export type $b4_4<$F extends string, $M extends $Node, $g0 extends WasmValue, $g
   $F extends `11${infer $F1}`
   ? Wasm.I32Add<$l3, $l5> extends infer $t0 extends WasmValue
     ? Wasm.I32Add<$l2, $l3> extends infer $t1 extends WasmValue
-    ? Wasm.I32Add<$t1, '00000000000000000000010000000000'> extends infer $t2 extends WasmValue
-    ? $Load8U<$M, $t2> extends infer $t3 extends WasmValue
-    ? $Store8<$M, $t0, $t3> extends infer $m4 extends $Node
-    ? Wasm.I32Add<$l3, '00000000000000000000000000000001'> extends infer $t5 extends WasmValue
-    ? $b4_5<$F1, $m4, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $t5>
-    : never
+    ? $Load8U<$M, $Inc10<$t1>> extends infer $t2 extends WasmValue
+    ? $Store8<$M, $t0, $t2> extends infer $m3 extends $Node
+    ? $Ne<$Inc0<$l3>, '00000000000000000000000000001001'> extends infer $t4 extends WasmValue
+    ? $t4 extends '00000000000000000000000000000000'
+    ? $b4_5<$F1, $m3, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4>
+    : $b4_4<$F1, $m3, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc0<$l3>, $l4, $l5>
     : never
     : never
     : never
@@ -818,94 +716,74 @@ export type $b4_4<$F extends string, $M extends $Node, $g0 extends WasmValue, $g
   : ['s', '4_4', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5]
 
 
-export type $b4_5<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $k0 extends WasmValue> =
-  $F extends `1${infer $F1}`
-  ? $Ne<$k0, '00000000000000000000000000001001'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
-    ? $b4_6<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4>
-    : $b4_4<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $k0, $l4, $l5>
-    : never
-  : ['s', '4_5', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $k0]
-
-
-export type $b4_6<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue> =
+export type $b4_5<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b4_3<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4>
-  : ['s', '4_6', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4]
+  : ['s', '4_5', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4]
 
 
-export type $b4_7<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
+export type $b4_6<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $b4_1<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1>
-  : ['s', '4_7', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1]
+  : ['s', '4_6', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1]
 
 
-export type $b4_8<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue> =
+export type $b4_7<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $call3<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1, '00000000000000000000000000001001', '00000000000000000000000000001001'> extends ['r', infer $m0 extends $Node, infer $g_1 extends WasmValue, infer $g_2 extends WasmValue, infer $g_3 extends WasmValue, infer $g_4 extends WasmValue, infer $g_5 extends WasmValue, infer $g_6 extends WasmValue, infer $g_7 extends WasmValue, infer $g_8 extends WasmValue, infer $g_9 extends WasmValue, infer $g_10 extends WasmValue, infer $t11 extends WasmValue]
-    ? Wasm.I32Add<$l1, '00000000000000000000000001100000'> extends infer $t12 extends WasmValue
     ? ['r', $Flush<$m0>, '00000000000000000000010001100000']
     : never
-    : never
-  : ['s', '4_8', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1]
+  : ['s', '4_7', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1]
 
 
-export type $b4_9<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
+export type $b4_8<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $b4_12<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1>
-  : ['s', '4_9', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1]
+  ? $b4_11<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1>
+  : ['s', '4_8', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1]
+
+
+export type $b4_9<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue> =
+  $F extends `1${infer $F1}`
+  ? $b4_7<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1>
+  : ['s', '4_9', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1]
 
 
 export type $b4_10<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $b4_8<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1>
+  ? $b4_7<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1>
   : ['s', '4_10', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1]
 
 
-export type $b4_11<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue> =
-  $F extends `1${infer $F1}`
-  ? $b4_8<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1>
-  : ['s', '4_11', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1]
-
-
-export type $b4_12<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
+export type $b4_11<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $call2<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1, '00000000000000000000000000001001', '00000000000000000000000000001001'> extends ['r', infer $m0 extends $Node, infer $g_1 extends WasmValue, infer $g_2 extends WasmValue, infer $g_3 extends WasmValue, infer $g_4 extends WasmValue, infer $g_5 extends WasmValue, infer $g_6 extends WasmValue, infer $g_7 extends WasmValue, infer $g_8 extends WasmValue, infer $g_9 extends WasmValue, infer $g_10 extends WasmValue]
-    ? Wasm.I32Sub<$l0, '00000000000000000000000000000001'> extends infer $t11 extends WasmValue
-    ? $t11 extends '00000000000000000000000000000000'
-    ? $b4_13<$F1, $m0, $g_1, $g_2, $g_3, $g_4, $g_5, $g_6, $g_7, $g_8, $g_9, $g_10, $l1>
-    : $b4_12<$F1, $m0, $g_1, $g_2, $g_3, $g_4, $g_5, $g_6, $g_7, $g_8, $g_9, $g_10, $t11, $l1>
+    ? $Dec0<$l0> extends '00000000000000000000000000000000'
+    ? $b4_12<$F1, $m0, $g_1, $g_2, $g_3, $g_4, $g_5, $g_6, $g_7, $g_8, $g_9, $g_10, $l1>
+    : $b4_11<$F1, $m0, $g_1, $g_2, $g_3, $g_4, $g_5, $g_6, $g_7, $g_8, $g_9, $g_10, $Dec0<$l0>, $l1>
     : never
-    : never
-  : ['s', '4_12', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1]
+  : ['s', '4_11', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1]
 
 
-export type $b4_13<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue> =
+export type $b4_12<$F extends string, $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $b4_11<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1>
-  : ['s', '4_13', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1]
+  ? $b4_10<$F1, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1>
+  : ['s', '4_12', $Flush<$M>, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1]
 
 
 export type $u3_0<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue> =
-  Wasm.I32GtS<$l1, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
+  $Not1<$LtS00000001<$l1>> extends '00000000000000000000000000000000'
     ? $u3_3<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l3>
     : $u3_2<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5>
-    : never
 
 
 export type $u3_1<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l3 extends WasmValue> =
-  Wasm.I32Add<$l3, '00000000000000000000010001100000'> extends infer $t0 extends WasmValue
-    ? $Store8<$M, $t0, '00000000000000000000000000000000'> extends infer $m1 extends $Node
-    ? ['r', $m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, '00000000000000000000010001100000']
-    : never
+  $Store8<$M, $Inc10<$Inc7<$Dec5<$l3>>>, '00000000000000000000000000000000'> extends infer $m0 extends $Node
+    ? ['r', $m0, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, '00000000000000000000010001100000']
     : never
 
 
 export type $u3_2<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue> =
-  Wasm.I32LeS<$l2, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
-    ? $u3_5<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $t0>
-    : never
+  $u3_5<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $LtS00000001<$l2>>
 
 
 export type $u3_3<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l3 extends WasmValue> =
@@ -925,11 +803,9 @@ export type $u3_5<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue
 
 
 export type $u3_6<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
-  Wasm.I32LtS<$l3, '00000000000000000000000001001111'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
+  $LtS0000004F<$l3> extends '00000000000000000000000000000000'
     ? $u3_17<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
     : $u3_16<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
-    : never
 
 
 export type $u3_7<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
@@ -945,32 +821,22 @@ export type $u3_9<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue
 
 
 export type $u3_10<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
-  Wasm.I32LeS<$l3, '00000000000000000000000001001110'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
+  $LtS0000004F<$l3> extends '00000000000000000000000000000000'
     ? $u3_13<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7>
     : $u3_12<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7>
-    : never
 
 
 export type $u3_11<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
-  Wasm.I32Add<$l4, '00000000000000000000000000000001'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Sub<$l6, '00000000000000000000000000000001'> extends infer $t1 extends WasmValue
-    ? $t1 extends '00000000000000000000000000000000'
+  $Dec0<$l6> extends '00000000000000000000000000000000'
     ? $u3_14<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l7>
-    : $u3_10<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $t0, $l5, $t1, $l7>
-    : never
-    : never
+    : $u3_10<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $Inc0<$l4>, $l5, $Dec0<$l6>, $l7>
 
 
 export type $u3_12<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
-  Wasm.I32Add<$l3, '00000000000000000000010001100000'> extends infer $t0 extends WasmValue
-    ? $Load8U<$M, $l4> extends infer $t1 extends WasmValue
-    ? ($t1 extends '00000000000000000000000000000000' ? '00000000000000000000000000101110' : '00000000000000000000000000100100') extends infer $t2 extends WasmValue
-    ? $Store8<$M, $t0, $t2> extends infer $m3 extends $Node
-    ? Wasm.I32Add<$l3, '00000000000000000000000000000001'> extends infer $t4 extends WasmValue
-    ? $u3_11<$m3, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t4, $l4, $l5, $l6, $l7>
-    : never
-    : never
+  $Load8U<$M, $l4> extends infer $t0 extends WasmValue
+    ? ($t0 extends '00000000000000000000000000000000' ? '00000000000000000000000000101110' : '00000000000000000000000000100100') extends infer $t1 extends WasmValue
+    ? $Store8<$M, $Inc10<$Inc7<$Dec5<$l3>>>, $t1> extends infer $m2 extends $Node
+    ? $u3_11<$m2, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc0<$l3>, $l4, $l5, $l6, $l7>
     : never
     : never
     : never
@@ -985,24 +851,16 @@ export type $u3_14<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValu
 
 
 export type $u3_15<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
-  Wasm.I32Add<$l0, '00000000000000000000000000001001'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Add<$l5, '00000000000000000000000000000001'> extends infer $t1 extends WasmValue
-    ? $Ne<$t1, $l1> extends infer $t2 extends WasmValue
-    ? $t2 extends '00000000000000000000000000000000'
+  $Ne<$Inc0<$l5>, $l1> extends infer $t0 extends WasmValue
+    ? $t0 extends '00000000000000000000000000000000'
     ? $u3_18<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l3>
-    : $u3_5<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $t0, $l1, $l2, $l3, $t1, $l7>
-    : never
-    : never
+    : $u3_5<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $Inc3<$Inc0<$l0>>, $l1, $l2, $l3, $Inc0<$l5>, $l7>
     : never
 
 
 export type $u3_16<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
-  Wasm.I32Add<$l3, '00000000000000000000010001100000'> extends infer $t0 extends WasmValue
-    ? $Store8<$M, $t0, '00000000000000000000000000001010'> extends infer $m1 extends $Node
-    ? Wasm.I32Add<$l3, '00000000000000000000000000000001'> extends infer $t2 extends WasmValue
-    ? $u3_15<$m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t2, $l5, $l7>
-    : never
-    : never
+  $Store8<$M, $Inc10<$Inc7<$Dec5<$l3>>>, '00000000000000000000000000001010'> extends infer $m0 extends $Node
+    ? $u3_15<$m0, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc0<$l3>, $l5, $l7>
     : never
 
 
@@ -1018,35 +876,23 @@ export type $call3<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValu
   $u3_0<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $p0, $p1, $p2, '00000000000000000000000000000000', '00000000000000000000000000000000'>
 
 export type $u2_0<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l5 extends WasmValue> =
-  Wasm.I32Sub<$g0, '00000000000000000000000001110000'> extends infer $t0 extends WasmValue
-    ? Wasm.I32LeS<$l1, '00000000000000000000000000000000'> extends infer $t1 extends WasmValue
-    ? $t1 extends '00000000000000000000000000000000'
-    ? $u2_2<$M, $t0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l5, $t0>
-    : $u2_1<$M, $t0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $t0>
-    : never
-    : never
+  $LtS00000001<$l1> extends '00000000000000000000000000000000'
+    ? $u2_2<$M, $Dec7<$Inc4<$g0>>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l5, $Dec7<$Inc4<$g0>>>
+    : $u2_1<$M, $Dec7<$Inc4<$g0>>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $Dec7<$Inc4<$g0>>>
 
 
 export type $u2_1<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l7 extends WasmValue> =
-  Wasm.I32Add<$l7, '00000000000000000000000001110000'> extends infer $t0 extends WasmValue
-    ? ['r', $M, $t0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
-    : never
+  ['r', $M, $Inc7<$Dec4<$l7>>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
 export type $u2_2<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
-  Wasm.I32Add<$l7, '00000000000000000000000000010000'> extends infer $t0 extends WasmValue
-    ? Wasm.I32LeS<$l2, '00000000000000000000000000000000'> extends infer $t1 extends WasmValue
-    ? $u2_4<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t0, $l5, $l0, $l7, $t1>
-    : never
-    : never
+  $u2_4<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc4<$l7>, $l5, $l0, $l7, $LtS00000001<$l2>>
 
 
 export type $u2_3<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l7 extends WasmValue> =
-  Wasm.I32LeS<$l1, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
-    ? $u2_14<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7>
+  $LtS00000001<$l1> extends '00000000000000000000000000000000'
+    ? $u2_13<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7>
     : $u2_1<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
-    : never
 
 
 export type $u2_4<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
@@ -1058,16 +904,10 @@ export type $u2_4<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue
 
 
 export type $u2_5<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
-  Wasm.I32Add<$l4, '00000000000000000000000000001001'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Add<$l6, '00000000000000000000000000001001'> extends infer $t1 extends WasmValue
-    ? Wasm.I32Add<$l5, '00000000000000000000000000000001'> extends infer $t2 extends WasmValue
-    ? $Ne<$t2, $l1> extends infer $t3 extends WasmValue
-    ? $t3 extends '00000000000000000000000000000000'
-    ? $u2_13<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7>
-    : $u2_4<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t0, $t2, $t1, $l7, $l8>
-    : never
-    : never
-    : never
+  $Ne<$Inc0<$l5>, $l1> extends infer $t0 extends WasmValue
+    ? $t0 extends '00000000000000000000000000000000'
+    ? $u2_12<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7>
+    : $u2_4<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc3<$Inc0<$l4>>, $Inc0<$l5>, $Inc3<$Inc0<$l6>>, $l7, $l8>
     : never
 
 
@@ -1084,13 +924,13 @@ export type $u2_8<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue
 
 
 export type $u2_9<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
-  Wasm.I32Add<$l7, '00000000000000000000000000001100'> extends infer $t0 extends WasmValue
-    ? $call1<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l5, $l3, $t0> extends ['r', infer $m1 extends $Node, infer $g_2 extends WasmValue, infer $g_3 extends WasmValue, infer $g_4 extends WasmValue, infer $g_5 extends WasmValue, infer $g_6 extends WasmValue, infer $g_7 extends WasmValue, infer $g_8 extends WasmValue, infer $g_9 extends WasmValue, infer $g_10 extends WasmValue, infer $g_11 extends WasmValue]
-    ? Wasm.I32Add<$l3, $l4> extends infer $t12 extends WasmValue
-    ? $Load32<$m1, $t0> extends infer $t13 extends WasmValue
-    ? $Eq<$AndFFFFFFFE<$t13>, '00000000000000000000000000000010'> extends infer $t14 extends WasmValue
-    ? $Eq<$t13, '00000000000000000000000000000011'> extends infer $t15 extends WasmValue
-    ? $u2_10<$m1, $g_2, $g_3, $g_4, $g_5, $g_6, $g_7, $g_8, $g_9, $g_10, $g_11, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $t12, $t14, $t15>
+  $call1<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l5, $l3, $Inc4<$Dec2<$l7>>> extends ['r', infer $m0 extends $Node, infer $g_1 extends WasmValue, infer $g_2 extends WasmValue, infer $g_3 extends WasmValue, infer $g_4 extends WasmValue, infer $g_5 extends WasmValue, infer $g_6 extends WasmValue, infer $g_7 extends WasmValue, infer $g_8 extends WasmValue, infer $g_9 extends WasmValue, infer $g_10 extends WasmValue]
+    ? Wasm.I32Add<$l3, $l4> extends infer $t11 extends WasmValue
+    ? $Load32<$m0, $Inc4<$Dec2<$l7>>> extends infer $t12 extends WasmValue
+    ? $Eq<$AndFFFFFFFE<$t12>, '00000000000000000000000000000010'> extends infer $t13 extends WasmValue
+    ? $Eq<$t12, '00000000000000000000000000000011'> extends infer $t14 extends WasmValue
+    ? Wasm.I32Add<$l3, $l6> extends infer $t15 extends WasmValue
+    ? $u2_10<$m0, $g_1, $g_2, $g_3, $g_4, $g_5, $g_6, $g_7, $g_8, $g_9, $g_10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $t11, $t13, $t14, $t15>
     : never
     : never
     : never
@@ -1099,104 +939,80 @@ export type $u2_9<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue
     : never
 
 
-export type $u2_10<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $k0 extends WasmValue, $k1 extends WasmValue, $k2 extends WasmValue> =
-  Wasm.I32Add<$l3, $l6> extends infer $t0 extends WasmValue
-    ? $Load8U<$M, $t0> extends infer $t1 extends WasmValue
-    ? ($t1 extends '00000000000000000000000000000000' ? $k2 : $k1) extends infer $t2 extends WasmValue
-    ? $Store8<$M, $k0, $t2> extends infer $m3 extends $Node
-    ? Wasm.I32Add<$l3, '00000000000000000000000000000001'> extends infer $t4 extends WasmValue
-    ? $Ne<$l2, $t4> extends infer $t5 extends WasmValue
-    ? $u2_11<$m3, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t4, $l4, $l5, $l6, $l7, $l8, $t5>
-    : never
-    : never
+export type $u2_10<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $k0 extends WasmValue, $k1 extends WasmValue, $k2 extends WasmValue, $k3 extends WasmValue> =
+  $Load8U<$M, $k3> extends infer $t0 extends WasmValue
+    ? ($t0 extends '00000000000000000000000000000000' ? $k2 : $k1) extends infer $t1 extends WasmValue
+    ? $Store8<$M, $k0, $t1> extends infer $m2 extends $Node
+    ? $Ne<$l2, $Inc0<$l3>> extends infer $t3 extends WasmValue
+    ? $t3 extends '00000000000000000000000000000000'
+    ? $u2_11<$m2, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
+    : $u2_9<$m2, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc0<$l3>, $l4, $l5, $l6, $l7, $l8>
     : never
     : never
     : never
     : never
 
 
-export type $u2_11<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $k0 extends WasmValue> =
-  $k0 extends '00000000000000000000000000000000'
-    ? $u2_12<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
-    : $u2_9<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8>
-
-
-export type $u2_12<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
+export type $u2_11<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $u2_8<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
 
 
-export type $u2_13<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l7 extends WasmValue> =
+export type $u2_12<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l7 extends WasmValue> =
   $u2_3<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l7>
 
 
-export type $u2_14<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l7 extends WasmValue> =
-  Wasm.I32Add<$l7, '00000000000000000000000000010000'> extends infer $t0 extends WasmValue
-    ? Wasm.I32LeS<$l2, '00000000000000000000000000000000'> extends infer $t1 extends WasmValue
-    ? $u2_16<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t0, '00000000000000000000000000000000', $l7, $t1>
-    : never
-    : never
+export type $u2_13<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l7 extends WasmValue> =
+  $u2_15<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc4<$l7>, '00000000000000000000000000000000', $l7, $LtS00000001<$l2>>
 
 
-export type $u2_15<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l7 extends WasmValue> =
+export type $u2_14<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l7 extends WasmValue> =
   $u2_1<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
 
 
-export type $u2_16<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
+export type $u2_15<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
   $Eq<$l9, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
     ? $t0 extends '00000000000000000000000000000000'
-    ? $u2_19<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
-    : $u2_18<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l4, $l2, $l6, $l7, $l0, $l9>
+    ? $u2_18<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
+    : $u2_17<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l4, $l2, $l6, $l7, $l0, $l9>
     : never
 
 
-export type $u2_17<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
-  Wasm.I32Add<$l4, '00000000000000000000000000001001'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Add<$l0, '00000000000000000000000000001001'> extends infer $t1 extends WasmValue
-    ? Wasm.I32Add<$l6, '00000000000000000000000000000001'> extends infer $t2 extends WasmValue
-    ? $Ne<$t2, $l1> extends infer $t3 extends WasmValue
-    ? $t3 extends '00000000000000000000000000000000'
-    ? $u2_23<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
-    : $u2_16<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $t1, $l1, $l2, $t0, $t2, $l7, $l9>
-    : never
-    : never
-    : never
+export type $u2_16<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
+  $Ne<$Inc0<$l6>, $l1> extends infer $t0 extends WasmValue
+    ? $t0 extends '00000000000000000000000000000000'
+    ? $u2_22<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
+    : $u2_15<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $Inc3<$Inc0<$l0>>, $l1, $l2, $Inc3<$Inc0<$l4>>, $Inc0<$l6>, $l7, $l9>
     : never
 
 
-export type $u2_18<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue> =
-  $u2_21<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9>
+export type $u2_17<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue> =
+  $u2_20<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9>
+
+
+export type $u2_18<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
+  $u2_16<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
 
 
 export type $u2_19<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
-  $u2_17<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
+  $u2_16<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
 
 
-export type $u2_20<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
-  $u2_17<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
-
-
-export type $u2_21<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue> =
+export type $u2_20<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue> =
   $Load8U<$M, $l3> extends infer $t0 extends WasmValue
     ? $Store8<$M, $l8, $t0> extends infer $m1 extends $Node
-    ? Wasm.I32Add<$l3, '00000000000000000000000000000001'> extends infer $t2 extends WasmValue
-    ? Wasm.I32Add<$l8, '00000000000000000000000000000001'> extends infer $t3 extends WasmValue
-    ? Wasm.I32Sub<$l5, '00000000000000000000000000000001'> extends infer $t4 extends WasmValue
-    ? $t4 extends '00000000000000000000000000000000'
-    ? $u2_22<$m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
-    : $u2_21<$m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $t2, $l4, $t4, $l6, $l7, $t3, $l9>
-    : never
-    : never
-    : never
+    ? $Dec0<$l5> extends '00000000000000000000000000000000'
+    ? $u2_21<$m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
+    : $u2_20<$m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $Inc0<$l3>, $l4, $Dec0<$l5>, $l6, $l7, $Inc0<$l8>, $l9>
     : never
     : never
 
 
-export type $u2_22<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
-  $u2_20<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
+export type $u2_21<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
+  $u2_19<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
 
 
-export type $u2_23<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l7 extends WasmValue> =
-  $u2_15<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
+export type $u2_22<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l7 extends WasmValue> =
+  $u2_14<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l7>
 
 
 export type $call2<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $p0 extends WasmValue, $p1 extends WasmValue, $p2 extends WasmValue> =
@@ -1204,116 +1020,94 @@ export type $call2<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValu
 
 export type $u1_0<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $Store32<$M, $l5, '00000000000000000000000000000000'> extends infer $m0 extends $Node
-    ? Wasm.I32Sub<$l4, '00000000000000000000000000000001'> extends infer $t1 extends WasmValue
-    ? Wasm.I32Add<$l3, $Shl3<$l3>> extends infer $t2 extends WasmValue
-    ? Wasm.I32Add<$l4, $t2> extends infer $t3 extends WasmValue
-    ? Wasm.I32Add<$t3, $l0> extends infer $t4 extends WasmValue
-    ? Wasm.I32Sub<$t4, '00000000000000000000000000001010'> extends infer $t5 extends WasmValue
-    ? $u1_1<$m0, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l1, $l2, $l3, $l5, $l7, $t1, $t5>
-    : never
-    : never
+    ? Wasm.I32Add<$l3, $Shl3<$l3>> extends infer $t1 extends WasmValue
+    ? Wasm.I32Add<$l4, $t1> extends infer $t2 extends WasmValue
+    ? Wasm.I32Add<$t2, $l0> extends infer $t3 extends WasmValue
+    ? $u1_2<$m0, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, '11111111111111111111111111111111', $l1, $l2, $l3, $l5, $Dec3<$Dec1<$t3>>, $l7, $Dec0<$l4>>
     : never
     : never
     : never
     : never
 
 
-export type $u1_1<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $k0 extends WasmValue> =
-  $u1_3<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, '11111111111111111111111111111111', $l1, $l2, $l3, $l5, $k0, $l7, $l8>
-
-
-export type $u1_2<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
+export type $u1_1<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
   ['r', $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9]
 
 
-export type $u1_3<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
+export type $u1_2<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   Wasm.I32Add<$l0, $l3> extends infer $t0 extends WasmValue
     ? Wasm.I32GeS<$t0, $l1> extends infer $t1 extends WasmValue
-    ? $u1_5<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, '00000000000000000000000000000000', $l5, $l6, $l7, $l8, $t0, $t1>
+    ? $u1_4<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, '00000000000000000000000000000000', $l5, $l6, $l7, $l8, $t0, $t1>
     : never
     : never
 
 
-export type $u1_4<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
-  Wasm.I32Add<$l6, '00000000000000000000000000001001'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Add<$l0, '00000000000000000000000000000001'> extends infer $t1 extends WasmValue
-    ? $Ne<$t1, '00000000000000000000000000000010'> extends infer $t2 extends WasmValue
-    ? $t2 extends '00000000000000000000000000000000'
-    ? $u1_11<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9>
-    : $u1_3<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $t1, $l1, $l2, $l3, $l5, $t0, $l7, $l8>
+export type $u1_3<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
+  $Ne<$Inc0<$l0>, '00000000000000000000000000000010'> extends infer $t0 extends WasmValue
+    ? $t0 extends '00000000000000000000000000000000'
+    ? $u1_10<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9>
+    : $u1_2<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $Inc0<$l0>, $l1, $l2, $l3, $l5, $Inc3<$Inc0<$l6>>, $l7, $l8>
+    : never
+
+
+export type $u1_4<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
+  Wasm.I32Or<$Dec0<$l4>, $l0> extends infer $t0 extends WasmValue
+    ? $Eq<$t0, '00000000000000000000000000000000'> extends infer $t1 extends WasmValue
+    ? Wasm.I32Or<$t1, $LtS00000000<$l9>> extends infer $t2 extends WasmValue
+    ? Wasm.I32Or<$l10, $t2> extends infer $t3 extends WasmValue
+    ? $t3 extends '00000000000000000000000000000000'
+    ? $u1_6<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
+    : $u1_5<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
+    : never
     : never
     : never
     : never
 
 
 export type $u1_5<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
-  Wasm.I32Sub<$l4, '00000000000000000000000000000001'> extends infer $t0 extends WasmValue
-    ? Wasm.I32Or<$t0, $l0> extends infer $t1 extends WasmValue
-    ? $Eq<$t1, '00000000000000000000000000000000'> extends infer $t2 extends WasmValue
-    ? Wasm.I32LtS<$l9, '00000000000000000000000000000000'> extends infer $t3 extends WasmValue
-    ? Wasm.I32Or<$t2, $t3> extends infer $t4 extends WasmValue
-    ? Wasm.I32Or<$l10, $t4> extends infer $t5 extends WasmValue
-    ? $t5 extends '00000000000000000000000000000000'
-    ? $u1_7<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : $u1_6<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : never
-    : never
-    : never
-    : never
-    : never
+  $Ne<$Inc0<$l4>, '00000000000000000000000000000011'> extends infer $t0 extends WasmValue
+    ? $t0 extends '00000000000000000000000000000000'
+    ? $u1_9<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8>
+    : $u1_4<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $Inc0<$l4>, $l5, $l6, $l7, $l8, $l9, $l10>
     : never
 
 
 export type $u1_6<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
-  Wasm.I32Add<$l4, '00000000000000000000000000000001'> extends infer $t0 extends WasmValue
-    ? $Ne<$t0, '00000000000000000000000000000011'> extends infer $t1 extends WasmValue
-    ? $t1 extends '00000000000000000000000000000000'
-    ? $u1_10<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8>
-    : $u1_5<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $t0, $l5, $l6, $l7, $l8, $l9, $l10>
+  Wasm.I32Add<$l4, $l8> extends infer $t0 extends WasmValue
+    ? Wasm.I32LeS<$l2, $t0> extends infer $t1 extends WasmValue
+    ? Wasm.I32Or<$LtS00000000<$t0>, $t1> extends infer $t2 extends WasmValue
+    ? $t2 extends '00000000000000000000000000000000'
+    ? $u1_7<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
+    : $u1_5<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
+    : never
     : never
     : never
 
 
 export type $u1_7<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
-  Wasm.I32Add<$l4, $l8> extends infer $t0 extends WasmValue
-    ? Wasm.I32LtS<$t0, '00000000000000000000000000000000'> extends infer $t1 extends WasmValue
-    ? Wasm.I32LeS<$l2, $t0> extends infer $t2 extends WasmValue
-    ? Wasm.I32Or<$t1, $t2> extends infer $t3 extends WasmValue
-    ? $t3 extends '00000000000000000000000000000000'
+  Wasm.I32Add<$l4, $l6> extends infer $t0 extends WasmValue
+    ? $Load8U<$M, $t0> extends infer $t1 extends WasmValue
+    ? $Eq<$t1, '00000000000000000000000000000000'> extends infer $t2 extends WasmValue
+    ? $t2 extends '00000000000000000000000000000000'
     ? $u1_8<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : $u1_6<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : never
+    : $u1_5<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
     : never
     : never
     : never
 
 
 export type $u1_8<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
-  Wasm.I32Add<$l4, $l6> extends infer $t0 extends WasmValue
-    ? $Load8U<$M, $t0> extends infer $t1 extends WasmValue
-    ? $Eq<$t1, '00000000000000000000000000000000'> extends infer $t2 extends WasmValue
-    ? $t2 extends '00000000000000000000000000000000'
-    ? $u1_9<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : $u1_6<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : never
-    : never
+  $Store32<$M, $l5, $Inc0<$l7>> extends infer $m0 extends $Node
+    ? $u1_5<$m0, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $Inc0<$l7>, $l8, $l9, $l10>
     : never
 
 
-export type $u1_9<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
-  Wasm.I32Add<$l7, '00000000000000000000000000000001'> extends infer $t0 extends WasmValue
-    ? $Store32<$M, $l5, $t0> extends infer $m1 extends $Node
-    ? $u1_6<$m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $t0, $l8, $l9, $l10>
-    : never
-    : never
+export type $u1_9<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
+  $u1_3<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8>
 
 
-export type $u1_10<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
-  $u1_4<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8>
-
-
-export type $u1_11<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
-  $u1_2<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9>
+export type $u1_10<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue> =
+  $u1_1<$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9>
 
 
 export type $call1<$M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $p0 extends WasmValue, $p1 extends WasmValue, $p2 extends WasmValue, $p3 extends WasmValue, $p4 extends WasmValue, $p5 extends WasmValue> =
@@ -1341,6 +1135,1000 @@ export type $AndFFFFFFFE<A extends string> =
   A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer c31}`
     ? `${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}${c27}${c28}${c29}${c30}0`
     : never
+
+export type $Dec0<A extends string> = $DecTop32<A>
+
+export type $Dec1<A extends string> =
+  A extends `${infer H}10` ? `${H}00` :
+  A extends `${infer H}11` ? `${H}01` :
+  A extends `${infer H}100` ? `${H}010` :
+  A extends `${infer H}101` ? `${H}011` :
+  A extends `${infer H}1000` ? `${H}0110` :
+  A extends `${infer H}1001` ? `${H}0111` :
+  A extends `${infer H}10000` ? `${H}01110` :
+  A extends `${infer H}10001` ? `${H}01111` :
+  A extends `${infer H}100000` ? `${H}011110` :
+  A extends `${infer H}100001` ? `${H}011111` :
+  A extends `${infer H}1000000` ? `${H}0111110` :
+  A extends `${infer H}1000001` ? `${H}0111111` :
+  A extends `${infer H}10000000` ? `${H}01111110` :
+  A extends `${infer H}10000001` ? `${H}01111111` :
+  A extends `${infer H}100000000` ? `${H}011111110` :
+  A extends `${infer H}100000001` ? `${H}011111111` :
+  A extends `${infer H}1000000000` ? `${H}0111111110` :
+  A extends `${infer H}1000000001` ? `${H}0111111111` :
+  A extends `${infer H}10000000000` ? `${H}01111111110` :
+  A extends `${infer H}10000000001` ? `${H}01111111111` :
+  A extends `${infer H}100000000000` ? `${H}011111111110` :
+  A extends `${infer H}100000000001` ? `${H}011111111111` :
+  A extends `${infer H}1000000000000` ? `${H}0111111111110` :
+  A extends `${infer H}1000000000001` ? `${H}0111111111111` :
+  A extends `${infer H}10000000000000` ? `${H}01111111111110` :
+  A extends `${infer H}10000000000001` ? `${H}01111111111111` :
+  A extends `${infer H}100000000000000` ? `${H}011111111111110` :
+  A extends `${infer H}100000000000001` ? `${H}011111111111111` :
+  A extends `${infer H}1000000000000000` ? `${H}0111111111111110` :
+  A extends `${infer H}1000000000000001` ? `${H}0111111111111111` :
+  A extends `${infer H}10000000000000000` ? `${H}01111111111111110` :
+  A extends `${infer H}10000000000000001` ? `${H}01111111111111111` :
+  A extends `${infer H}100000000000000000` ? `${H}011111111111111110` :
+  A extends `${infer H}100000000000000001` ? `${H}011111111111111111` :
+  A extends `${infer H}1000000000000000000` ? `${H}0111111111111111110` :
+  A extends `${infer H}1000000000000000001` ? `${H}0111111111111111111` :
+  A extends `${infer H}10000000000000000000` ? `${H}01111111111111111110` :
+  A extends `${infer H}10000000000000000001` ? `${H}01111111111111111111` :
+  A extends `${infer H}100000000000000000000` ? `${H}011111111111111111110` :
+  A extends `${infer H}100000000000000000001` ? `${H}011111111111111111111` :
+  A extends `${infer H}1000000000000000000000` ? `${H}0111111111111111111110` :
+  A extends `${infer H}1000000000000000000001` ? `${H}0111111111111111111111` :
+  A extends `${infer H}10000000000000000000000` ? `${H}01111111111111111111110` :
+  A extends `${infer H}10000000000000000000001` ? `${H}01111111111111111111111` :
+  A extends `${infer H}100000000000000000000000` ? `${H}011111111111111111111110` :
+  A extends `${infer H}100000000000000000000001` ? `${H}011111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000` ? `${H}0111111111111111111111110` :
+  A extends `${infer H}1000000000000000000000001` ? `${H}0111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000` ? `${H}01111111111111111111111110` :
+  A extends `${infer H}10000000000000000000000001` ? `${H}01111111111111111111111111` :
+  A extends `${infer H}100000000000000000000000000` ? `${H}011111111111111111111111110` :
+  A extends `${infer H}100000000000000000000000001` ? `${H}011111111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000000` ? `${H}0111111111111111111111111110` :
+  A extends `${infer H}1000000000000000000000000001` ? `${H}0111111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000000` ? `${H}01111111111111111111111111110` :
+  A extends `${infer H}10000000000000000000000000001` ? `${H}01111111111111111111111111111` :
+  A extends `${infer H}100000000000000000000000000000` ? `${H}011111111111111111111111111110` :
+  A extends `${infer H}100000000000000000000000000001` ? `${H}011111111111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000000000` ? `${H}0111111111111111111111111111110` :
+  A extends `${infer H}1000000000000000000000000000001` ? `${H}0111111111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000000000` ? `${H}01111111111111111111111111111110` :
+  A extends `${infer H}10000000000000000000000000000001` ? `${H}01111111111111111111111111111111`
+  : `1111111111111111111111111111111${$Low1<A>}`
+
+export type $Dec2<A extends string> =
+  A extends `${infer H}100` ? `${H}000` :
+  A extends `${infer H}101` ? `${H}001` :
+  A extends `${infer H}110` ? `${H}010` :
+  A extends `${infer H}111` ? `${H}011` :
+  A extends `${infer H}1000` ? `${H}0100` :
+  A extends `${infer H}1001` ? `${H}0101` :
+  A extends `${infer H}1010` ? `${H}0110` :
+  A extends `${infer H}1011` ? `${H}0111` :
+  A extends `${infer H}10000` ? `${H}01100` :
+  A extends `${infer H}10001` ? `${H}01101` :
+  A extends `${infer H}10010` ? `${H}01110` :
+  A extends `${infer H}10011` ? `${H}01111` :
+  A extends `${infer H}100000` ? `${H}011100` :
+  A extends `${infer H}100001` ? `${H}011101` :
+  A extends `${infer H}100010` ? `${H}011110` :
+  A extends `${infer H}100011` ? `${H}011111` :
+  A extends `${infer H}1000000` ? `${H}0111100` :
+  A extends `${infer H}1000001` ? `${H}0111101` :
+  A extends `${infer H}1000010` ? `${H}0111110` :
+  A extends `${infer H}1000011` ? `${H}0111111` :
+  A extends `${infer H}10000000` ? `${H}01111100` :
+  A extends `${infer H}10000001` ? `${H}01111101` :
+  A extends `${infer H}10000010` ? `${H}01111110` :
+  A extends `${infer H}10000011` ? `${H}01111111` :
+  A extends `${infer H}100000000` ? `${H}011111100` :
+  A extends `${infer H}100000001` ? `${H}011111101` :
+  A extends `${infer H}100000010` ? `${H}011111110` :
+  A extends `${infer H}100000011` ? `${H}011111111` :
+  A extends `${infer H}1000000000` ? `${H}0111111100` :
+  A extends `${infer H}1000000001` ? `${H}0111111101` :
+  A extends `${infer H}1000000010` ? `${H}0111111110` :
+  A extends `${infer H}1000000011` ? `${H}0111111111` :
+  A extends `${infer H}10000000000` ? `${H}01111111100` :
+  A extends `${infer H}10000000001` ? `${H}01111111101` :
+  A extends `${infer H}10000000010` ? `${H}01111111110` :
+  A extends `${infer H}10000000011` ? `${H}01111111111` :
+  A extends `${infer H}100000000000` ? `${H}011111111100` :
+  A extends `${infer H}100000000001` ? `${H}011111111101` :
+  A extends `${infer H}100000000010` ? `${H}011111111110` :
+  A extends `${infer H}100000000011` ? `${H}011111111111` :
+  A extends `${infer H}1000000000000` ? `${H}0111111111100` :
+  A extends `${infer H}1000000000001` ? `${H}0111111111101` :
+  A extends `${infer H}1000000000010` ? `${H}0111111111110` :
+  A extends `${infer H}1000000000011` ? `${H}0111111111111` :
+  A extends `${infer H}10000000000000` ? `${H}01111111111100` :
+  A extends `${infer H}10000000000001` ? `${H}01111111111101` :
+  A extends `${infer H}10000000000010` ? `${H}01111111111110` :
+  A extends `${infer H}10000000000011` ? `${H}01111111111111` :
+  A extends `${infer H}100000000000000` ? `${H}011111111111100` :
+  A extends `${infer H}100000000000001` ? `${H}011111111111101` :
+  A extends `${infer H}100000000000010` ? `${H}011111111111110` :
+  A extends `${infer H}100000000000011` ? `${H}011111111111111` :
+  A extends `${infer H}1000000000000000` ? `${H}0111111111111100` :
+  A extends `${infer H}1000000000000001` ? `${H}0111111111111101` :
+  A extends `${infer H}1000000000000010` ? `${H}0111111111111110` :
+  A extends `${infer H}1000000000000011` ? `${H}0111111111111111` :
+  A extends `${infer H}10000000000000000` ? `${H}01111111111111100` :
+  A extends `${infer H}10000000000000001` ? `${H}01111111111111101` :
+  A extends `${infer H}10000000000000010` ? `${H}01111111111111110` :
+  A extends `${infer H}10000000000000011` ? `${H}01111111111111111` :
+  A extends `${infer H}100000000000000000` ? `${H}011111111111111100` :
+  A extends `${infer H}100000000000000001` ? `${H}011111111111111101` :
+  A extends `${infer H}100000000000000010` ? `${H}011111111111111110` :
+  A extends `${infer H}100000000000000011` ? `${H}011111111111111111` :
+  A extends `${infer H}1000000000000000000` ? `${H}0111111111111111100` :
+  A extends `${infer H}1000000000000000001` ? `${H}0111111111111111101` :
+  A extends `${infer H}1000000000000000010` ? `${H}0111111111111111110` :
+  A extends `${infer H}1000000000000000011` ? `${H}0111111111111111111` :
+  A extends `${infer H}10000000000000000000` ? `${H}01111111111111111100` :
+  A extends `${infer H}10000000000000000001` ? `${H}01111111111111111101` :
+  A extends `${infer H}10000000000000000010` ? `${H}01111111111111111110` :
+  A extends `${infer H}10000000000000000011` ? `${H}01111111111111111111` :
+  A extends `${infer H}100000000000000000000` ? `${H}011111111111111111100` :
+  A extends `${infer H}100000000000000000001` ? `${H}011111111111111111101` :
+  A extends `${infer H}100000000000000000010` ? `${H}011111111111111111110` :
+  A extends `${infer H}100000000000000000011` ? `${H}011111111111111111111` :
+  A extends `${infer H}1000000000000000000000` ? `${H}0111111111111111111100` :
+  A extends `${infer H}1000000000000000000001` ? `${H}0111111111111111111101` :
+  A extends `${infer H}1000000000000000000010` ? `${H}0111111111111111111110` :
+  A extends `${infer H}1000000000000000000011` ? `${H}0111111111111111111111` :
+  A extends `${infer H}10000000000000000000000` ? `${H}01111111111111111111100` :
+  A extends `${infer H}10000000000000000000001` ? `${H}01111111111111111111101` :
+  A extends `${infer H}10000000000000000000010` ? `${H}01111111111111111111110` :
+  A extends `${infer H}10000000000000000000011` ? `${H}01111111111111111111111` :
+  A extends `${infer H}100000000000000000000000` ? `${H}011111111111111111111100` :
+  A extends `${infer H}100000000000000000000001` ? `${H}011111111111111111111101` :
+  A extends `${infer H}100000000000000000000010` ? `${H}011111111111111111111110` :
+  A extends `${infer H}100000000000000000000011` ? `${H}011111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000` ? `${H}0111111111111111111111100` :
+  A extends `${infer H}1000000000000000000000001` ? `${H}0111111111111111111111101` :
+  A extends `${infer H}1000000000000000000000010` ? `${H}0111111111111111111111110` :
+  A extends `${infer H}1000000000000000000000011` ? `${H}0111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000` ? `${H}01111111111111111111111100` :
+  A extends `${infer H}10000000000000000000000001` ? `${H}01111111111111111111111101` :
+  A extends `${infer H}10000000000000000000000010` ? `${H}01111111111111111111111110` :
+  A extends `${infer H}10000000000000000000000011` ? `${H}01111111111111111111111111` :
+  A extends `${infer H}100000000000000000000000000` ? `${H}011111111111111111111111100` :
+  A extends `${infer H}100000000000000000000000001` ? `${H}011111111111111111111111101` :
+  A extends `${infer H}100000000000000000000000010` ? `${H}011111111111111111111111110` :
+  A extends `${infer H}100000000000000000000000011` ? `${H}011111111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000000` ? `${H}0111111111111111111111111100` :
+  A extends `${infer H}1000000000000000000000000001` ? `${H}0111111111111111111111111101` :
+  A extends `${infer H}1000000000000000000000000010` ? `${H}0111111111111111111111111110` :
+  A extends `${infer H}1000000000000000000000000011` ? `${H}0111111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000000` ? `${H}01111111111111111111111111100` :
+  A extends `${infer H}10000000000000000000000000001` ? `${H}01111111111111111111111111101` :
+  A extends `${infer H}10000000000000000000000000010` ? `${H}01111111111111111111111111110` :
+  A extends `${infer H}10000000000000000000000000011` ? `${H}01111111111111111111111111111` :
+  A extends `${infer H}100000000000000000000000000000` ? `${H}011111111111111111111111111100` :
+  A extends `${infer H}100000000000000000000000000001` ? `${H}011111111111111111111111111101` :
+  A extends `${infer H}100000000000000000000000000010` ? `${H}011111111111111111111111111110` :
+  A extends `${infer H}100000000000000000000000000011` ? `${H}011111111111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000000000` ? `${H}0111111111111111111111111111100` :
+  A extends `${infer H}1000000000000000000000000000001` ? `${H}0111111111111111111111111111101` :
+  A extends `${infer H}1000000000000000000000000000010` ? `${H}0111111111111111111111111111110` :
+  A extends `${infer H}1000000000000000000000000000011` ? `${H}0111111111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000000000` ? `${H}01111111111111111111111111111100` :
+  A extends `${infer H}10000000000000000000000000000001` ? `${H}01111111111111111111111111111101` :
+  A extends `${infer H}10000000000000000000000000000010` ? `${H}01111111111111111111111111111110` :
+  A extends `${infer H}10000000000000000000000000000011` ? `${H}01111111111111111111111111111111`
+  : `111111111111111111111111111111${$Low2<A>}`
+
+export type $Dec3<A extends string> =
+  A extends `${infer H}1000` ? `${H}0000` :
+  A extends `${infer H}1001` ? `${H}0001` :
+  A extends `${infer H}1010` ? `${H}0010` :
+  A extends `${infer H}1011` ? `${H}0011` :
+  A extends `${infer H}1100` ? `${H}0100` :
+  A extends `${infer H}1101` ? `${H}0101` :
+  A extends `${infer H}1110` ? `${H}0110` :
+  A extends `${infer H}1111` ? `${H}0111` :
+  A extends `${infer H}10000` ? `${H}01000` :
+  A extends `${infer H}10001` ? `${H}01001` :
+  A extends `${infer H}10010` ? `${H}01010` :
+  A extends `${infer H}10011` ? `${H}01011` :
+  A extends `${infer H}10100` ? `${H}01100` :
+  A extends `${infer H}10101` ? `${H}01101` :
+  A extends `${infer H}10110` ? `${H}01110` :
+  A extends `${infer H}10111` ? `${H}01111` :
+  A extends `${infer H}100000` ? `${H}011000` :
+  A extends `${infer H}100001` ? `${H}011001` :
+  A extends `${infer H}100010` ? `${H}011010` :
+  A extends `${infer H}100011` ? `${H}011011` :
+  A extends `${infer H}100100` ? `${H}011100` :
+  A extends `${infer H}100101` ? `${H}011101` :
+  A extends `${infer H}100110` ? `${H}011110` :
+  A extends `${infer H}100111` ? `${H}011111` :
+  A extends `${infer H}1000000` ? `${H}0111000` :
+  A extends `${infer H}1000001` ? `${H}0111001` :
+  A extends `${infer H}1000010` ? `${H}0111010` :
+  A extends `${infer H}1000011` ? `${H}0111011` :
+  A extends `${infer H}1000100` ? `${H}0111100` :
+  A extends `${infer H}1000101` ? `${H}0111101` :
+  A extends `${infer H}1000110` ? `${H}0111110` :
+  A extends `${infer H}1000111` ? `${H}0111111` :
+  A extends `${infer H}10000000` ? `${H}01111000` :
+  A extends `${infer H}10000001` ? `${H}01111001` :
+  A extends `${infer H}10000010` ? `${H}01111010` :
+  A extends `${infer H}10000011` ? `${H}01111011` :
+  A extends `${infer H}10000100` ? `${H}01111100` :
+  A extends `${infer H}10000101` ? `${H}01111101` :
+  A extends `${infer H}10000110` ? `${H}01111110` :
+  A extends `${infer H}10000111` ? `${H}01111111` :
+  A extends `${infer H}100000000` ? `${H}011111000` :
+  A extends `${infer H}100000001` ? `${H}011111001` :
+  A extends `${infer H}100000010` ? `${H}011111010` :
+  A extends `${infer H}100000011` ? `${H}011111011` :
+  A extends `${infer H}100000100` ? `${H}011111100` :
+  A extends `${infer H}100000101` ? `${H}011111101` :
+  A extends `${infer H}100000110` ? `${H}011111110` :
+  A extends `${infer H}100000111` ? `${H}011111111` :
+  A extends `${infer H}1000000000` ? `${H}0111111000` :
+  A extends `${infer H}1000000001` ? `${H}0111111001` :
+  A extends `${infer H}1000000010` ? `${H}0111111010` :
+  A extends `${infer H}1000000011` ? `${H}0111111011` :
+  A extends `${infer H}1000000100` ? `${H}0111111100` :
+  A extends `${infer H}1000000101` ? `${H}0111111101` :
+  A extends `${infer H}1000000110` ? `${H}0111111110` :
+  A extends `${infer H}1000000111` ? `${H}0111111111` :
+  A extends `${infer H}10000000000` ? `${H}01111111000` :
+  A extends `${infer H}10000000001` ? `${H}01111111001` :
+  A extends `${infer H}10000000010` ? `${H}01111111010` :
+  A extends `${infer H}10000000011` ? `${H}01111111011` :
+  A extends `${infer H}10000000100` ? `${H}01111111100` :
+  A extends `${infer H}10000000101` ? `${H}01111111101` :
+  A extends `${infer H}10000000110` ? `${H}01111111110` :
+  A extends `${infer H}10000000111` ? `${H}01111111111` :
+  A extends `${infer H}100000000000` ? `${H}011111111000` :
+  A extends `${infer H}100000000001` ? `${H}011111111001` :
+  A extends `${infer H}100000000010` ? `${H}011111111010` :
+  A extends `${infer H}100000000011` ? `${H}011111111011` :
+  A extends `${infer H}100000000100` ? `${H}011111111100` :
+  A extends `${infer H}100000000101` ? `${H}011111111101` :
+  A extends `${infer H}100000000110` ? `${H}011111111110` :
+  A extends `${infer H}100000000111` ? `${H}011111111111` :
+  A extends `${infer H}1000000000000` ? `${H}0111111111000` :
+  A extends `${infer H}1000000000001` ? `${H}0111111111001` :
+  A extends `${infer H}1000000000010` ? `${H}0111111111010` :
+  A extends `${infer H}1000000000011` ? `${H}0111111111011` :
+  A extends `${infer H}1000000000100` ? `${H}0111111111100` :
+  A extends `${infer H}1000000000101` ? `${H}0111111111101` :
+  A extends `${infer H}1000000000110` ? `${H}0111111111110` :
+  A extends `${infer H}1000000000111` ? `${H}0111111111111` :
+  A extends `${infer H}10000000000000` ? `${H}01111111111000` :
+  A extends `${infer H}10000000000001` ? `${H}01111111111001` :
+  A extends `${infer H}10000000000010` ? `${H}01111111111010` :
+  A extends `${infer H}10000000000011` ? `${H}01111111111011` :
+  A extends `${infer H}10000000000100` ? `${H}01111111111100` :
+  A extends `${infer H}10000000000101` ? `${H}01111111111101` :
+  A extends `${infer H}10000000000110` ? `${H}01111111111110` :
+  A extends `${infer H}10000000000111` ? `${H}01111111111111` :
+  A extends `${infer H}100000000000000` ? `${H}011111111111000` :
+  A extends `${infer H}100000000000001` ? `${H}011111111111001` :
+  A extends `${infer H}100000000000010` ? `${H}011111111111010` :
+  A extends `${infer H}100000000000011` ? `${H}011111111111011` :
+  A extends `${infer H}100000000000100` ? `${H}011111111111100` :
+  A extends `${infer H}100000000000101` ? `${H}011111111111101` :
+  A extends `${infer H}100000000000110` ? `${H}011111111111110` :
+  A extends `${infer H}100000000000111` ? `${H}011111111111111` :
+  A extends `${infer H}1000000000000000` ? `${H}0111111111111000` :
+  A extends `${infer H}1000000000000001` ? `${H}0111111111111001` :
+  A extends `${infer H}1000000000000010` ? `${H}0111111111111010` :
+  A extends `${infer H}1000000000000011` ? `${H}0111111111111011` :
+  A extends `${infer H}1000000000000100` ? `${H}0111111111111100` :
+  A extends `${infer H}1000000000000101` ? `${H}0111111111111101` :
+  A extends `${infer H}1000000000000110` ? `${H}0111111111111110` :
+  A extends `${infer H}1000000000000111` ? `${H}0111111111111111` :
+  A extends `${infer H}10000000000000000` ? `${H}01111111111111000` :
+  A extends `${infer H}10000000000000001` ? `${H}01111111111111001` :
+  A extends `${infer H}10000000000000010` ? `${H}01111111111111010` :
+  A extends `${infer H}10000000000000011` ? `${H}01111111111111011` :
+  A extends `${infer H}10000000000000100` ? `${H}01111111111111100` :
+  A extends `${infer H}10000000000000101` ? `${H}01111111111111101` :
+  A extends `${infer H}10000000000000110` ? `${H}01111111111111110` :
+  A extends `${infer H}10000000000000111` ? `${H}01111111111111111` :
+  A extends `${infer H}100000000000000000` ? `${H}011111111111111000` :
+  A extends `${infer H}100000000000000001` ? `${H}011111111111111001` :
+  A extends `${infer H}100000000000000010` ? `${H}011111111111111010` :
+  A extends `${infer H}100000000000000011` ? `${H}011111111111111011` :
+  A extends `${infer H}100000000000000100` ? `${H}011111111111111100` :
+  A extends `${infer H}100000000000000101` ? `${H}011111111111111101` :
+  A extends `${infer H}100000000000000110` ? `${H}011111111111111110` :
+  A extends `${infer H}100000000000000111` ? `${H}011111111111111111` :
+  A extends `${infer H}1000000000000000000` ? `${H}0111111111111111000` :
+  A extends `${infer H}1000000000000000001` ? `${H}0111111111111111001` :
+  A extends `${infer H}1000000000000000010` ? `${H}0111111111111111010` :
+  A extends `${infer H}1000000000000000011` ? `${H}0111111111111111011` :
+  A extends `${infer H}1000000000000000100` ? `${H}0111111111111111100` :
+  A extends `${infer H}1000000000000000101` ? `${H}0111111111111111101` :
+  A extends `${infer H}1000000000000000110` ? `${H}0111111111111111110` :
+  A extends `${infer H}1000000000000000111` ? `${H}0111111111111111111` :
+  A extends `${infer H}10000000000000000000` ? `${H}01111111111111111000` :
+  A extends `${infer H}10000000000000000001` ? `${H}01111111111111111001` :
+  A extends `${infer H}10000000000000000010` ? `${H}01111111111111111010` :
+  A extends `${infer H}10000000000000000011` ? `${H}01111111111111111011` :
+  A extends `${infer H}10000000000000000100` ? `${H}01111111111111111100` :
+  A extends `${infer H}10000000000000000101` ? `${H}01111111111111111101` :
+  A extends `${infer H}10000000000000000110` ? `${H}01111111111111111110` :
+  A extends `${infer H}10000000000000000111` ? `${H}01111111111111111111` :
+  A extends `${infer H}100000000000000000000` ? `${H}011111111111111111000` :
+  A extends `${infer H}100000000000000000001` ? `${H}011111111111111111001` :
+  A extends `${infer H}100000000000000000010` ? `${H}011111111111111111010` :
+  A extends `${infer H}100000000000000000011` ? `${H}011111111111111111011` :
+  A extends `${infer H}100000000000000000100` ? `${H}011111111111111111100` :
+  A extends `${infer H}100000000000000000101` ? `${H}011111111111111111101` :
+  A extends `${infer H}100000000000000000110` ? `${H}011111111111111111110` :
+  A extends `${infer H}100000000000000000111` ? `${H}011111111111111111111` :
+  A extends `${infer H}1000000000000000000000` ? `${H}0111111111111111111000` :
+  A extends `${infer H}1000000000000000000001` ? `${H}0111111111111111111001` :
+  A extends `${infer H}1000000000000000000010` ? `${H}0111111111111111111010` :
+  A extends `${infer H}1000000000000000000011` ? `${H}0111111111111111111011` :
+  A extends `${infer H}1000000000000000000100` ? `${H}0111111111111111111100` :
+  A extends `${infer H}1000000000000000000101` ? `${H}0111111111111111111101` :
+  A extends `${infer H}1000000000000000000110` ? `${H}0111111111111111111110` :
+  A extends `${infer H}1000000000000000000111` ? `${H}0111111111111111111111` :
+  A extends `${infer H}10000000000000000000000` ? `${H}01111111111111111111000` :
+  A extends `${infer H}10000000000000000000001` ? `${H}01111111111111111111001` :
+  A extends `${infer H}10000000000000000000010` ? `${H}01111111111111111111010` :
+  A extends `${infer H}10000000000000000000011` ? `${H}01111111111111111111011` :
+  A extends `${infer H}10000000000000000000100` ? `${H}01111111111111111111100` :
+  A extends `${infer H}10000000000000000000101` ? `${H}01111111111111111111101` :
+  A extends `${infer H}10000000000000000000110` ? `${H}01111111111111111111110` :
+  A extends `${infer H}10000000000000000000111` ? `${H}01111111111111111111111` :
+  A extends `${infer H}100000000000000000000000` ? `${H}011111111111111111111000` :
+  A extends `${infer H}100000000000000000000001` ? `${H}011111111111111111111001` :
+  A extends `${infer H}100000000000000000000010` ? `${H}011111111111111111111010` :
+  A extends `${infer H}100000000000000000000011` ? `${H}011111111111111111111011` :
+  A extends `${infer H}100000000000000000000100` ? `${H}011111111111111111111100` :
+  A extends `${infer H}100000000000000000000101` ? `${H}011111111111111111111101` :
+  A extends `${infer H}100000000000000000000110` ? `${H}011111111111111111111110` :
+  A extends `${infer H}100000000000000000000111` ? `${H}011111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000` ? `${H}0111111111111111111111000` :
+  A extends `${infer H}1000000000000000000000001` ? `${H}0111111111111111111111001` :
+  A extends `${infer H}1000000000000000000000010` ? `${H}0111111111111111111111010` :
+  A extends `${infer H}1000000000000000000000011` ? `${H}0111111111111111111111011` :
+  A extends `${infer H}1000000000000000000000100` ? `${H}0111111111111111111111100` :
+  A extends `${infer H}1000000000000000000000101` ? `${H}0111111111111111111111101` :
+  A extends `${infer H}1000000000000000000000110` ? `${H}0111111111111111111111110` :
+  A extends `${infer H}1000000000000000000000111` ? `${H}0111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000` ? `${H}01111111111111111111111000` :
+  A extends `${infer H}10000000000000000000000001` ? `${H}01111111111111111111111001` :
+  A extends `${infer H}10000000000000000000000010` ? `${H}01111111111111111111111010` :
+  A extends `${infer H}10000000000000000000000011` ? `${H}01111111111111111111111011` :
+  A extends `${infer H}10000000000000000000000100` ? `${H}01111111111111111111111100` :
+  A extends `${infer H}10000000000000000000000101` ? `${H}01111111111111111111111101` :
+  A extends `${infer H}10000000000000000000000110` ? `${H}01111111111111111111111110` :
+  A extends `${infer H}10000000000000000000000111` ? `${H}01111111111111111111111111` :
+  A extends `${infer H}100000000000000000000000000` ? `${H}011111111111111111111111000` :
+  A extends `${infer H}100000000000000000000000001` ? `${H}011111111111111111111111001` :
+  A extends `${infer H}100000000000000000000000010` ? `${H}011111111111111111111111010` :
+  A extends `${infer H}100000000000000000000000011` ? `${H}011111111111111111111111011` :
+  A extends `${infer H}100000000000000000000000100` ? `${H}011111111111111111111111100` :
+  A extends `${infer H}100000000000000000000000101` ? `${H}011111111111111111111111101` :
+  A extends `${infer H}100000000000000000000000110` ? `${H}011111111111111111111111110` :
+  A extends `${infer H}100000000000000000000000111` ? `${H}011111111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000000` ? `${H}0111111111111111111111111000` :
+  A extends `${infer H}1000000000000000000000000001` ? `${H}0111111111111111111111111001` :
+  A extends `${infer H}1000000000000000000000000010` ? `${H}0111111111111111111111111010` :
+  A extends `${infer H}1000000000000000000000000011` ? `${H}0111111111111111111111111011` :
+  A extends `${infer H}1000000000000000000000000100` ? `${H}0111111111111111111111111100` :
+  A extends `${infer H}1000000000000000000000000101` ? `${H}0111111111111111111111111101` :
+  A extends `${infer H}1000000000000000000000000110` ? `${H}0111111111111111111111111110` :
+  A extends `${infer H}1000000000000000000000000111` ? `${H}0111111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000000` ? `${H}01111111111111111111111111000` :
+  A extends `${infer H}10000000000000000000000000001` ? `${H}01111111111111111111111111001` :
+  A extends `${infer H}10000000000000000000000000010` ? `${H}01111111111111111111111111010` :
+  A extends `${infer H}10000000000000000000000000011` ? `${H}01111111111111111111111111011` :
+  A extends `${infer H}10000000000000000000000000100` ? `${H}01111111111111111111111111100` :
+  A extends `${infer H}10000000000000000000000000101` ? `${H}01111111111111111111111111101` :
+  A extends `${infer H}10000000000000000000000000110` ? `${H}01111111111111111111111111110` :
+  A extends `${infer H}10000000000000000000000000111` ? `${H}01111111111111111111111111111` :
+  A extends `${infer H}100000000000000000000000000000` ? `${H}011111111111111111111111111000` :
+  A extends `${infer H}100000000000000000000000000001` ? `${H}011111111111111111111111111001` :
+  A extends `${infer H}100000000000000000000000000010` ? `${H}011111111111111111111111111010` :
+  A extends `${infer H}100000000000000000000000000011` ? `${H}011111111111111111111111111011` :
+  A extends `${infer H}100000000000000000000000000100` ? `${H}011111111111111111111111111100` :
+  A extends `${infer H}100000000000000000000000000101` ? `${H}011111111111111111111111111101` :
+  A extends `${infer H}100000000000000000000000000110` ? `${H}011111111111111111111111111110` :
+  A extends `${infer H}100000000000000000000000000111` ? `${H}011111111111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000000000` ? `${H}0111111111111111111111111111000` :
+  A extends `${infer H}1000000000000000000000000000001` ? `${H}0111111111111111111111111111001` :
+  A extends `${infer H}1000000000000000000000000000010` ? `${H}0111111111111111111111111111010` :
+  A extends `${infer H}1000000000000000000000000000011` ? `${H}0111111111111111111111111111011` :
+  A extends `${infer H}1000000000000000000000000000100` ? `${H}0111111111111111111111111111100` :
+  A extends `${infer H}1000000000000000000000000000101` ? `${H}0111111111111111111111111111101` :
+  A extends `${infer H}1000000000000000000000000000110` ? `${H}0111111111111111111111111111110` :
+  A extends `${infer H}1000000000000000000000000000111` ? `${H}0111111111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000000000` ? `${H}01111111111111111111111111111000` :
+  A extends `${infer H}10000000000000000000000000000001` ? `${H}01111111111111111111111111111001` :
+  A extends `${infer H}10000000000000000000000000000010` ? `${H}01111111111111111111111111111010` :
+  A extends `${infer H}10000000000000000000000000000011` ? `${H}01111111111111111111111111111011` :
+  A extends `${infer H}10000000000000000000000000000100` ? `${H}01111111111111111111111111111100` :
+  A extends `${infer H}10000000000000000000000000000101` ? `${H}01111111111111111111111111111101` :
+  A extends `${infer H}10000000000000000000000000000110` ? `${H}01111111111111111111111111111110` :
+  A extends `${infer H}10000000000000000000000000000111` ? `${H}01111111111111111111111111111111`
+  : `11111111111111111111111111111${$Low3<A>}`
+
+export type $Dec4<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer L}`
+    ? `${$DecTop28<`${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}${c27}`>}${L}`
+    : never
+
+export type $Dec5<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer L}`
+    ? `${$DecTop27<`${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}`>}${L}`
+    : never
+
+export type $Dec7<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer L}`
+    ? `${$DecTop25<`${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}`>}${L}`
+    : never
+
+export type $DecTop25<A extends string> =
+  A extends `${infer H}1` ? `${H}0` :
+  A extends `${infer H}10` ? `${H}01` :
+  A extends `${infer H}100` ? `${H}011` :
+  A extends `${infer H}1000` ? `${H}0111` :
+  A extends `${infer H}10000` ? `${H}01111` :
+  A extends `${infer H}100000` ? `${H}011111` :
+  A extends `${infer H}1000000` ? `${H}0111111` :
+  A extends `${infer H}10000000` ? `${H}01111111` :
+  A extends `${infer H}100000000` ? `${H}011111111` :
+  A extends `${infer H}1000000000` ? `${H}0111111111` :
+  A extends `${infer H}10000000000` ? `${H}01111111111` :
+  A extends `${infer H}100000000000` ? `${H}011111111111` :
+  A extends `${infer H}1000000000000` ? `${H}0111111111111` :
+  A extends `${infer H}10000000000000` ? `${H}01111111111111` :
+  A extends `${infer H}100000000000000` ? `${H}011111111111111` :
+  A extends `${infer H}1000000000000000` ? `${H}0111111111111111` :
+  A extends `${infer H}10000000000000000` ? `${H}01111111111111111` :
+  A extends `${infer H}100000000000000000` ? `${H}011111111111111111` :
+  A extends `${infer H}1000000000000000000` ? `${H}0111111111111111111` :
+  A extends `${infer H}10000000000000000000` ? `${H}01111111111111111111` :
+  A extends `${infer H}100000000000000000000` ? `${H}011111111111111111111` :
+  A extends `${infer H}1000000000000000000000` ? `${H}0111111111111111111111` :
+  A extends `${infer H}10000000000000000000000` ? `${H}01111111111111111111111` :
+  A extends `${infer H}100000000000000000000000` ? `${H}011111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000` ? `${H}0111111111111111111111111`
+  : '1111111111111111111111111'
+
+export type $DecTop27<A extends string> =
+  A extends `${infer H}1` ? `${H}0` :
+  A extends `${infer H}10` ? `${H}01` :
+  A extends `${infer H}100` ? `${H}011` :
+  A extends `${infer H}1000` ? `${H}0111` :
+  A extends `${infer H}10000` ? `${H}01111` :
+  A extends `${infer H}100000` ? `${H}011111` :
+  A extends `${infer H}1000000` ? `${H}0111111` :
+  A extends `${infer H}10000000` ? `${H}01111111` :
+  A extends `${infer H}100000000` ? `${H}011111111` :
+  A extends `${infer H}1000000000` ? `${H}0111111111` :
+  A extends `${infer H}10000000000` ? `${H}01111111111` :
+  A extends `${infer H}100000000000` ? `${H}011111111111` :
+  A extends `${infer H}1000000000000` ? `${H}0111111111111` :
+  A extends `${infer H}10000000000000` ? `${H}01111111111111` :
+  A extends `${infer H}100000000000000` ? `${H}011111111111111` :
+  A extends `${infer H}1000000000000000` ? `${H}0111111111111111` :
+  A extends `${infer H}10000000000000000` ? `${H}01111111111111111` :
+  A extends `${infer H}100000000000000000` ? `${H}011111111111111111` :
+  A extends `${infer H}1000000000000000000` ? `${H}0111111111111111111` :
+  A extends `${infer H}10000000000000000000` ? `${H}01111111111111111111` :
+  A extends `${infer H}100000000000000000000` ? `${H}011111111111111111111` :
+  A extends `${infer H}1000000000000000000000` ? `${H}0111111111111111111111` :
+  A extends `${infer H}10000000000000000000000` ? `${H}01111111111111111111111` :
+  A extends `${infer H}100000000000000000000000` ? `${H}011111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000` ? `${H}0111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000` ? `${H}01111111111111111111111111` :
+  A extends `${infer H}100000000000000000000000000` ? `${H}011111111111111111111111111`
+  : '111111111111111111111111111'
+
+export type $DecTop28<A extends string> =
+  A extends `${infer H}1` ? `${H}0` :
+  A extends `${infer H}10` ? `${H}01` :
+  A extends `${infer H}100` ? `${H}011` :
+  A extends `${infer H}1000` ? `${H}0111` :
+  A extends `${infer H}10000` ? `${H}01111` :
+  A extends `${infer H}100000` ? `${H}011111` :
+  A extends `${infer H}1000000` ? `${H}0111111` :
+  A extends `${infer H}10000000` ? `${H}01111111` :
+  A extends `${infer H}100000000` ? `${H}011111111` :
+  A extends `${infer H}1000000000` ? `${H}0111111111` :
+  A extends `${infer H}10000000000` ? `${H}01111111111` :
+  A extends `${infer H}100000000000` ? `${H}011111111111` :
+  A extends `${infer H}1000000000000` ? `${H}0111111111111` :
+  A extends `${infer H}10000000000000` ? `${H}01111111111111` :
+  A extends `${infer H}100000000000000` ? `${H}011111111111111` :
+  A extends `${infer H}1000000000000000` ? `${H}0111111111111111` :
+  A extends `${infer H}10000000000000000` ? `${H}01111111111111111` :
+  A extends `${infer H}100000000000000000` ? `${H}011111111111111111` :
+  A extends `${infer H}1000000000000000000` ? `${H}0111111111111111111` :
+  A extends `${infer H}10000000000000000000` ? `${H}01111111111111111111` :
+  A extends `${infer H}100000000000000000000` ? `${H}011111111111111111111` :
+  A extends `${infer H}1000000000000000000000` ? `${H}0111111111111111111111` :
+  A extends `${infer H}10000000000000000000000` ? `${H}01111111111111111111111` :
+  A extends `${infer H}100000000000000000000000` ? `${H}011111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000` ? `${H}0111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000` ? `${H}01111111111111111111111111` :
+  A extends `${infer H}100000000000000000000000000` ? `${H}011111111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000000` ? `${H}0111111111111111111111111111`
+  : '1111111111111111111111111111'
+
+export type $DecTop32<A extends string> =
+  A extends `${infer H}1` ? `${H}0` :
+  A extends `${infer H}10` ? `${H}01` :
+  A extends `${infer H}100` ? `${H}011` :
+  A extends `${infer H}1000` ? `${H}0111` :
+  A extends `${infer H}10000` ? `${H}01111` :
+  A extends `${infer H}100000` ? `${H}011111` :
+  A extends `${infer H}1000000` ? `${H}0111111` :
+  A extends `${infer H}10000000` ? `${H}01111111` :
+  A extends `${infer H}100000000` ? `${H}011111111` :
+  A extends `${infer H}1000000000` ? `${H}0111111111` :
+  A extends `${infer H}10000000000` ? `${H}01111111111` :
+  A extends `${infer H}100000000000` ? `${H}011111111111` :
+  A extends `${infer H}1000000000000` ? `${H}0111111111111` :
+  A extends `${infer H}10000000000000` ? `${H}01111111111111` :
+  A extends `${infer H}100000000000000` ? `${H}011111111111111` :
+  A extends `${infer H}1000000000000000` ? `${H}0111111111111111` :
+  A extends `${infer H}10000000000000000` ? `${H}01111111111111111` :
+  A extends `${infer H}100000000000000000` ? `${H}011111111111111111` :
+  A extends `${infer H}1000000000000000000` ? `${H}0111111111111111111` :
+  A extends `${infer H}10000000000000000000` ? `${H}01111111111111111111` :
+  A extends `${infer H}100000000000000000000` ? `${H}011111111111111111111` :
+  A extends `${infer H}1000000000000000000000` ? `${H}0111111111111111111111` :
+  A extends `${infer H}10000000000000000000000` ? `${H}01111111111111111111111` :
+  A extends `${infer H}100000000000000000000000` ? `${H}011111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000` ? `${H}0111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000` ? `${H}01111111111111111111111111` :
+  A extends `${infer H}100000000000000000000000000` ? `${H}011111111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000000` ? `${H}0111111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000000` ? `${H}01111111111111111111111111111` :
+  A extends `${infer H}100000000000000000000000000000` ? `${H}011111111111111111111111111111` :
+  A extends `${infer H}1000000000000000000000000000000` ? `${H}0111111111111111111111111111111` :
+  A extends `${infer H}10000000000000000000000000000000` ? `${H}01111111111111111111111111111111`
+  : '11111111111111111111111111111111'
+
+export type $Inc0<A extends string> = $IncTop32<A>
+
+export type $Inc10<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer L}`
+    ? `${$IncTop22<`${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}`>}${L}`
+    : never
+
+export type $Inc3<A extends string> =
+  A extends `${infer H}0000` ? `${H}1000` :
+  A extends `${infer H}0001` ? `${H}1001` :
+  A extends `${infer H}0010` ? `${H}1010` :
+  A extends `${infer H}0011` ? `${H}1011` :
+  A extends `${infer H}0100` ? `${H}1100` :
+  A extends `${infer H}0101` ? `${H}1101` :
+  A extends `${infer H}0110` ? `${H}1110` :
+  A extends `${infer H}0111` ? `${H}1111` :
+  A extends `${infer H}01000` ? `${H}10000` :
+  A extends `${infer H}01001` ? `${H}10001` :
+  A extends `${infer H}01010` ? `${H}10010` :
+  A extends `${infer H}01011` ? `${H}10011` :
+  A extends `${infer H}01100` ? `${H}10100` :
+  A extends `${infer H}01101` ? `${H}10101` :
+  A extends `${infer H}01110` ? `${H}10110` :
+  A extends `${infer H}01111` ? `${H}10111` :
+  A extends `${infer H}011000` ? `${H}100000` :
+  A extends `${infer H}011001` ? `${H}100001` :
+  A extends `${infer H}011010` ? `${H}100010` :
+  A extends `${infer H}011011` ? `${H}100011` :
+  A extends `${infer H}011100` ? `${H}100100` :
+  A extends `${infer H}011101` ? `${H}100101` :
+  A extends `${infer H}011110` ? `${H}100110` :
+  A extends `${infer H}011111` ? `${H}100111` :
+  A extends `${infer H}0111000` ? `${H}1000000` :
+  A extends `${infer H}0111001` ? `${H}1000001` :
+  A extends `${infer H}0111010` ? `${H}1000010` :
+  A extends `${infer H}0111011` ? `${H}1000011` :
+  A extends `${infer H}0111100` ? `${H}1000100` :
+  A extends `${infer H}0111101` ? `${H}1000101` :
+  A extends `${infer H}0111110` ? `${H}1000110` :
+  A extends `${infer H}0111111` ? `${H}1000111` :
+  A extends `${infer H}01111000` ? `${H}10000000` :
+  A extends `${infer H}01111001` ? `${H}10000001` :
+  A extends `${infer H}01111010` ? `${H}10000010` :
+  A extends `${infer H}01111011` ? `${H}10000011` :
+  A extends `${infer H}01111100` ? `${H}10000100` :
+  A extends `${infer H}01111101` ? `${H}10000101` :
+  A extends `${infer H}01111110` ? `${H}10000110` :
+  A extends `${infer H}01111111` ? `${H}10000111` :
+  A extends `${infer H}011111000` ? `${H}100000000` :
+  A extends `${infer H}011111001` ? `${H}100000001` :
+  A extends `${infer H}011111010` ? `${H}100000010` :
+  A extends `${infer H}011111011` ? `${H}100000011` :
+  A extends `${infer H}011111100` ? `${H}100000100` :
+  A extends `${infer H}011111101` ? `${H}100000101` :
+  A extends `${infer H}011111110` ? `${H}100000110` :
+  A extends `${infer H}011111111` ? `${H}100000111` :
+  A extends `${infer H}0111111000` ? `${H}1000000000` :
+  A extends `${infer H}0111111001` ? `${H}1000000001` :
+  A extends `${infer H}0111111010` ? `${H}1000000010` :
+  A extends `${infer H}0111111011` ? `${H}1000000011` :
+  A extends `${infer H}0111111100` ? `${H}1000000100` :
+  A extends `${infer H}0111111101` ? `${H}1000000101` :
+  A extends `${infer H}0111111110` ? `${H}1000000110` :
+  A extends `${infer H}0111111111` ? `${H}1000000111` :
+  A extends `${infer H}01111111000` ? `${H}10000000000` :
+  A extends `${infer H}01111111001` ? `${H}10000000001` :
+  A extends `${infer H}01111111010` ? `${H}10000000010` :
+  A extends `${infer H}01111111011` ? `${H}10000000011` :
+  A extends `${infer H}01111111100` ? `${H}10000000100` :
+  A extends `${infer H}01111111101` ? `${H}10000000101` :
+  A extends `${infer H}01111111110` ? `${H}10000000110` :
+  A extends `${infer H}01111111111` ? `${H}10000000111` :
+  A extends `${infer H}011111111000` ? `${H}100000000000` :
+  A extends `${infer H}011111111001` ? `${H}100000000001` :
+  A extends `${infer H}011111111010` ? `${H}100000000010` :
+  A extends `${infer H}011111111011` ? `${H}100000000011` :
+  A extends `${infer H}011111111100` ? `${H}100000000100` :
+  A extends `${infer H}011111111101` ? `${H}100000000101` :
+  A extends `${infer H}011111111110` ? `${H}100000000110` :
+  A extends `${infer H}011111111111` ? `${H}100000000111` :
+  A extends `${infer H}0111111111000` ? `${H}1000000000000` :
+  A extends `${infer H}0111111111001` ? `${H}1000000000001` :
+  A extends `${infer H}0111111111010` ? `${H}1000000000010` :
+  A extends `${infer H}0111111111011` ? `${H}1000000000011` :
+  A extends `${infer H}0111111111100` ? `${H}1000000000100` :
+  A extends `${infer H}0111111111101` ? `${H}1000000000101` :
+  A extends `${infer H}0111111111110` ? `${H}1000000000110` :
+  A extends `${infer H}0111111111111` ? `${H}1000000000111` :
+  A extends `${infer H}01111111111000` ? `${H}10000000000000` :
+  A extends `${infer H}01111111111001` ? `${H}10000000000001` :
+  A extends `${infer H}01111111111010` ? `${H}10000000000010` :
+  A extends `${infer H}01111111111011` ? `${H}10000000000011` :
+  A extends `${infer H}01111111111100` ? `${H}10000000000100` :
+  A extends `${infer H}01111111111101` ? `${H}10000000000101` :
+  A extends `${infer H}01111111111110` ? `${H}10000000000110` :
+  A extends `${infer H}01111111111111` ? `${H}10000000000111` :
+  A extends `${infer H}011111111111000` ? `${H}100000000000000` :
+  A extends `${infer H}011111111111001` ? `${H}100000000000001` :
+  A extends `${infer H}011111111111010` ? `${H}100000000000010` :
+  A extends `${infer H}011111111111011` ? `${H}100000000000011` :
+  A extends `${infer H}011111111111100` ? `${H}100000000000100` :
+  A extends `${infer H}011111111111101` ? `${H}100000000000101` :
+  A extends `${infer H}011111111111110` ? `${H}100000000000110` :
+  A extends `${infer H}011111111111111` ? `${H}100000000000111` :
+  A extends `${infer H}0111111111111000` ? `${H}1000000000000000` :
+  A extends `${infer H}0111111111111001` ? `${H}1000000000000001` :
+  A extends `${infer H}0111111111111010` ? `${H}1000000000000010` :
+  A extends `${infer H}0111111111111011` ? `${H}1000000000000011` :
+  A extends `${infer H}0111111111111100` ? `${H}1000000000000100` :
+  A extends `${infer H}0111111111111101` ? `${H}1000000000000101` :
+  A extends `${infer H}0111111111111110` ? `${H}1000000000000110` :
+  A extends `${infer H}0111111111111111` ? `${H}1000000000000111` :
+  A extends `${infer H}01111111111111000` ? `${H}10000000000000000` :
+  A extends `${infer H}01111111111111001` ? `${H}10000000000000001` :
+  A extends `${infer H}01111111111111010` ? `${H}10000000000000010` :
+  A extends `${infer H}01111111111111011` ? `${H}10000000000000011` :
+  A extends `${infer H}01111111111111100` ? `${H}10000000000000100` :
+  A extends `${infer H}01111111111111101` ? `${H}10000000000000101` :
+  A extends `${infer H}01111111111111110` ? `${H}10000000000000110` :
+  A extends `${infer H}01111111111111111` ? `${H}10000000000000111` :
+  A extends `${infer H}011111111111111000` ? `${H}100000000000000000` :
+  A extends `${infer H}011111111111111001` ? `${H}100000000000000001` :
+  A extends `${infer H}011111111111111010` ? `${H}100000000000000010` :
+  A extends `${infer H}011111111111111011` ? `${H}100000000000000011` :
+  A extends `${infer H}011111111111111100` ? `${H}100000000000000100` :
+  A extends `${infer H}011111111111111101` ? `${H}100000000000000101` :
+  A extends `${infer H}011111111111111110` ? `${H}100000000000000110` :
+  A extends `${infer H}011111111111111111` ? `${H}100000000000000111` :
+  A extends `${infer H}0111111111111111000` ? `${H}1000000000000000000` :
+  A extends `${infer H}0111111111111111001` ? `${H}1000000000000000001` :
+  A extends `${infer H}0111111111111111010` ? `${H}1000000000000000010` :
+  A extends `${infer H}0111111111111111011` ? `${H}1000000000000000011` :
+  A extends `${infer H}0111111111111111100` ? `${H}1000000000000000100` :
+  A extends `${infer H}0111111111111111101` ? `${H}1000000000000000101` :
+  A extends `${infer H}0111111111111111110` ? `${H}1000000000000000110` :
+  A extends `${infer H}0111111111111111111` ? `${H}1000000000000000111` :
+  A extends `${infer H}01111111111111111000` ? `${H}10000000000000000000` :
+  A extends `${infer H}01111111111111111001` ? `${H}10000000000000000001` :
+  A extends `${infer H}01111111111111111010` ? `${H}10000000000000000010` :
+  A extends `${infer H}01111111111111111011` ? `${H}10000000000000000011` :
+  A extends `${infer H}01111111111111111100` ? `${H}10000000000000000100` :
+  A extends `${infer H}01111111111111111101` ? `${H}10000000000000000101` :
+  A extends `${infer H}01111111111111111110` ? `${H}10000000000000000110` :
+  A extends `${infer H}01111111111111111111` ? `${H}10000000000000000111` :
+  A extends `${infer H}011111111111111111000` ? `${H}100000000000000000000` :
+  A extends `${infer H}011111111111111111001` ? `${H}100000000000000000001` :
+  A extends `${infer H}011111111111111111010` ? `${H}100000000000000000010` :
+  A extends `${infer H}011111111111111111011` ? `${H}100000000000000000011` :
+  A extends `${infer H}011111111111111111100` ? `${H}100000000000000000100` :
+  A extends `${infer H}011111111111111111101` ? `${H}100000000000000000101` :
+  A extends `${infer H}011111111111111111110` ? `${H}100000000000000000110` :
+  A extends `${infer H}011111111111111111111` ? `${H}100000000000000000111` :
+  A extends `${infer H}0111111111111111111000` ? `${H}1000000000000000000000` :
+  A extends `${infer H}0111111111111111111001` ? `${H}1000000000000000000001` :
+  A extends `${infer H}0111111111111111111010` ? `${H}1000000000000000000010` :
+  A extends `${infer H}0111111111111111111011` ? `${H}1000000000000000000011` :
+  A extends `${infer H}0111111111111111111100` ? `${H}1000000000000000000100` :
+  A extends `${infer H}0111111111111111111101` ? `${H}1000000000000000000101` :
+  A extends `${infer H}0111111111111111111110` ? `${H}1000000000000000000110` :
+  A extends `${infer H}0111111111111111111111` ? `${H}1000000000000000000111` :
+  A extends `${infer H}01111111111111111111000` ? `${H}10000000000000000000000` :
+  A extends `${infer H}01111111111111111111001` ? `${H}10000000000000000000001` :
+  A extends `${infer H}01111111111111111111010` ? `${H}10000000000000000000010` :
+  A extends `${infer H}01111111111111111111011` ? `${H}10000000000000000000011` :
+  A extends `${infer H}01111111111111111111100` ? `${H}10000000000000000000100` :
+  A extends `${infer H}01111111111111111111101` ? `${H}10000000000000000000101` :
+  A extends `${infer H}01111111111111111111110` ? `${H}10000000000000000000110` :
+  A extends `${infer H}01111111111111111111111` ? `${H}10000000000000000000111` :
+  A extends `${infer H}011111111111111111111000` ? `${H}100000000000000000000000` :
+  A extends `${infer H}011111111111111111111001` ? `${H}100000000000000000000001` :
+  A extends `${infer H}011111111111111111111010` ? `${H}100000000000000000000010` :
+  A extends `${infer H}011111111111111111111011` ? `${H}100000000000000000000011` :
+  A extends `${infer H}011111111111111111111100` ? `${H}100000000000000000000100` :
+  A extends `${infer H}011111111111111111111101` ? `${H}100000000000000000000101` :
+  A extends `${infer H}011111111111111111111110` ? `${H}100000000000000000000110` :
+  A extends `${infer H}011111111111111111111111` ? `${H}100000000000000000000111` :
+  A extends `${infer H}0111111111111111111111000` ? `${H}1000000000000000000000000` :
+  A extends `${infer H}0111111111111111111111001` ? `${H}1000000000000000000000001` :
+  A extends `${infer H}0111111111111111111111010` ? `${H}1000000000000000000000010` :
+  A extends `${infer H}0111111111111111111111011` ? `${H}1000000000000000000000011` :
+  A extends `${infer H}0111111111111111111111100` ? `${H}1000000000000000000000100` :
+  A extends `${infer H}0111111111111111111111101` ? `${H}1000000000000000000000101` :
+  A extends `${infer H}0111111111111111111111110` ? `${H}1000000000000000000000110` :
+  A extends `${infer H}0111111111111111111111111` ? `${H}1000000000000000000000111` :
+  A extends `${infer H}01111111111111111111111000` ? `${H}10000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111001` ? `${H}10000000000000000000000001` :
+  A extends `${infer H}01111111111111111111111010` ? `${H}10000000000000000000000010` :
+  A extends `${infer H}01111111111111111111111011` ? `${H}10000000000000000000000011` :
+  A extends `${infer H}01111111111111111111111100` ? `${H}10000000000000000000000100` :
+  A extends `${infer H}01111111111111111111111101` ? `${H}10000000000000000000000101` :
+  A extends `${infer H}01111111111111111111111110` ? `${H}10000000000000000000000110` :
+  A extends `${infer H}01111111111111111111111111` ? `${H}10000000000000000000000111` :
+  A extends `${infer H}011111111111111111111111000` ? `${H}100000000000000000000000000` :
+  A extends `${infer H}011111111111111111111111001` ? `${H}100000000000000000000000001` :
+  A extends `${infer H}011111111111111111111111010` ? `${H}100000000000000000000000010` :
+  A extends `${infer H}011111111111111111111111011` ? `${H}100000000000000000000000011` :
+  A extends `${infer H}011111111111111111111111100` ? `${H}100000000000000000000000100` :
+  A extends `${infer H}011111111111111111111111101` ? `${H}100000000000000000000000101` :
+  A extends `${infer H}011111111111111111111111110` ? `${H}100000000000000000000000110` :
+  A extends `${infer H}011111111111111111111111111` ? `${H}100000000000000000000000111` :
+  A extends `${infer H}0111111111111111111111111000` ? `${H}1000000000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111001` ? `${H}1000000000000000000000000001` :
+  A extends `${infer H}0111111111111111111111111010` ? `${H}1000000000000000000000000010` :
+  A extends `${infer H}0111111111111111111111111011` ? `${H}1000000000000000000000000011` :
+  A extends `${infer H}0111111111111111111111111100` ? `${H}1000000000000000000000000100` :
+  A extends `${infer H}0111111111111111111111111101` ? `${H}1000000000000000000000000101` :
+  A extends `${infer H}0111111111111111111111111110` ? `${H}1000000000000000000000000110` :
+  A extends `${infer H}0111111111111111111111111111` ? `${H}1000000000000000000000000111` :
+  A extends `${infer H}01111111111111111111111111000` ? `${H}10000000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111001` ? `${H}10000000000000000000000000001` :
+  A extends `${infer H}01111111111111111111111111010` ? `${H}10000000000000000000000000010` :
+  A extends `${infer H}01111111111111111111111111011` ? `${H}10000000000000000000000000011` :
+  A extends `${infer H}01111111111111111111111111100` ? `${H}10000000000000000000000000100` :
+  A extends `${infer H}01111111111111111111111111101` ? `${H}10000000000000000000000000101` :
+  A extends `${infer H}01111111111111111111111111110` ? `${H}10000000000000000000000000110` :
+  A extends `${infer H}01111111111111111111111111111` ? `${H}10000000000000000000000000111` :
+  A extends `${infer H}011111111111111111111111111000` ? `${H}100000000000000000000000000000` :
+  A extends `${infer H}011111111111111111111111111001` ? `${H}100000000000000000000000000001` :
+  A extends `${infer H}011111111111111111111111111010` ? `${H}100000000000000000000000000010` :
+  A extends `${infer H}011111111111111111111111111011` ? `${H}100000000000000000000000000011` :
+  A extends `${infer H}011111111111111111111111111100` ? `${H}100000000000000000000000000100` :
+  A extends `${infer H}011111111111111111111111111101` ? `${H}100000000000000000000000000101` :
+  A extends `${infer H}011111111111111111111111111110` ? `${H}100000000000000000000000000110` :
+  A extends `${infer H}011111111111111111111111111111` ? `${H}100000000000000000000000000111` :
+  A extends `${infer H}0111111111111111111111111111000` ? `${H}1000000000000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111111001` ? `${H}1000000000000000000000000000001` :
+  A extends `${infer H}0111111111111111111111111111010` ? `${H}1000000000000000000000000000010` :
+  A extends `${infer H}0111111111111111111111111111011` ? `${H}1000000000000000000000000000011` :
+  A extends `${infer H}0111111111111111111111111111100` ? `${H}1000000000000000000000000000100` :
+  A extends `${infer H}0111111111111111111111111111101` ? `${H}1000000000000000000000000000101` :
+  A extends `${infer H}0111111111111111111111111111110` ? `${H}1000000000000000000000000000110` :
+  A extends `${infer H}0111111111111111111111111111111` ? `${H}1000000000000000000000000000111` :
+  A extends `${infer H}01111111111111111111111111111000` ? `${H}10000000000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111111001` ? `${H}10000000000000000000000000000001` :
+  A extends `${infer H}01111111111111111111111111111010` ? `${H}10000000000000000000000000000010` :
+  A extends `${infer H}01111111111111111111111111111011` ? `${H}10000000000000000000000000000011` :
+  A extends `${infer H}01111111111111111111111111111100` ? `${H}10000000000000000000000000000100` :
+  A extends `${infer H}01111111111111111111111111111101` ? `${H}10000000000000000000000000000101` :
+  A extends `${infer H}01111111111111111111111111111110` ? `${H}10000000000000000000000000000110` :
+  A extends `${infer H}01111111111111111111111111111111` ? `${H}10000000000000000000000000000111`
+  : `00000000000000000000000000000${$Low3<A>}`
+
+export type $Inc4<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer L}`
+    ? `${$IncTop28<`${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}${c27}`>}${L}`
+    : never
+
+export type $Inc5<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer L}`
+    ? `${$IncTop27<`${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}`>}${L}`
+    : never
+
+export type $Inc7<A extends string> =
+  A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer L}`
+    ? `${$IncTop25<`${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}`>}${L}`
+    : never
+
+export type $IncTop22<A extends string> =
+  A extends `${infer H}0` ? `${H}1` :
+  A extends `${infer H}01` ? `${H}10` :
+  A extends `${infer H}011` ? `${H}100` :
+  A extends `${infer H}0111` ? `${H}1000` :
+  A extends `${infer H}01111` ? `${H}10000` :
+  A extends `${infer H}011111` ? `${H}100000` :
+  A extends `${infer H}0111111` ? `${H}1000000` :
+  A extends `${infer H}01111111` ? `${H}10000000` :
+  A extends `${infer H}011111111` ? `${H}100000000` :
+  A extends `${infer H}0111111111` ? `${H}1000000000` :
+  A extends `${infer H}01111111111` ? `${H}10000000000` :
+  A extends `${infer H}011111111111` ? `${H}100000000000` :
+  A extends `${infer H}0111111111111` ? `${H}1000000000000` :
+  A extends `${infer H}01111111111111` ? `${H}10000000000000` :
+  A extends `${infer H}011111111111111` ? `${H}100000000000000` :
+  A extends `${infer H}0111111111111111` ? `${H}1000000000000000` :
+  A extends `${infer H}01111111111111111` ? `${H}10000000000000000` :
+  A extends `${infer H}011111111111111111` ? `${H}100000000000000000` :
+  A extends `${infer H}0111111111111111111` ? `${H}1000000000000000000` :
+  A extends `${infer H}01111111111111111111` ? `${H}10000000000000000000` :
+  A extends `${infer H}011111111111111111111` ? `${H}100000000000000000000` :
+  A extends `${infer H}0111111111111111111111` ? `${H}1000000000000000000000`
+  : '0000000000000000000000'
+
+export type $IncTop25<A extends string> =
+  A extends `${infer H}0` ? `${H}1` :
+  A extends `${infer H}01` ? `${H}10` :
+  A extends `${infer H}011` ? `${H}100` :
+  A extends `${infer H}0111` ? `${H}1000` :
+  A extends `${infer H}01111` ? `${H}10000` :
+  A extends `${infer H}011111` ? `${H}100000` :
+  A extends `${infer H}0111111` ? `${H}1000000` :
+  A extends `${infer H}01111111` ? `${H}10000000` :
+  A extends `${infer H}011111111` ? `${H}100000000` :
+  A extends `${infer H}0111111111` ? `${H}1000000000` :
+  A extends `${infer H}01111111111` ? `${H}10000000000` :
+  A extends `${infer H}011111111111` ? `${H}100000000000` :
+  A extends `${infer H}0111111111111` ? `${H}1000000000000` :
+  A extends `${infer H}01111111111111` ? `${H}10000000000000` :
+  A extends `${infer H}011111111111111` ? `${H}100000000000000` :
+  A extends `${infer H}0111111111111111` ? `${H}1000000000000000` :
+  A extends `${infer H}01111111111111111` ? `${H}10000000000000000` :
+  A extends `${infer H}011111111111111111` ? `${H}100000000000000000` :
+  A extends `${infer H}0111111111111111111` ? `${H}1000000000000000000` :
+  A extends `${infer H}01111111111111111111` ? `${H}10000000000000000000` :
+  A extends `${infer H}011111111111111111111` ? `${H}100000000000000000000` :
+  A extends `${infer H}0111111111111111111111` ? `${H}1000000000000000000000` :
+  A extends `${infer H}01111111111111111111111` ? `${H}10000000000000000000000` :
+  A extends `${infer H}011111111111111111111111` ? `${H}100000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111` ? `${H}1000000000000000000000000`
+  : '0000000000000000000000000'
+
+export type $IncTop27<A extends string> =
+  A extends `${infer H}0` ? `${H}1` :
+  A extends `${infer H}01` ? `${H}10` :
+  A extends `${infer H}011` ? `${H}100` :
+  A extends `${infer H}0111` ? `${H}1000` :
+  A extends `${infer H}01111` ? `${H}10000` :
+  A extends `${infer H}011111` ? `${H}100000` :
+  A extends `${infer H}0111111` ? `${H}1000000` :
+  A extends `${infer H}01111111` ? `${H}10000000` :
+  A extends `${infer H}011111111` ? `${H}100000000` :
+  A extends `${infer H}0111111111` ? `${H}1000000000` :
+  A extends `${infer H}01111111111` ? `${H}10000000000` :
+  A extends `${infer H}011111111111` ? `${H}100000000000` :
+  A extends `${infer H}0111111111111` ? `${H}1000000000000` :
+  A extends `${infer H}01111111111111` ? `${H}10000000000000` :
+  A extends `${infer H}011111111111111` ? `${H}100000000000000` :
+  A extends `${infer H}0111111111111111` ? `${H}1000000000000000` :
+  A extends `${infer H}01111111111111111` ? `${H}10000000000000000` :
+  A extends `${infer H}011111111111111111` ? `${H}100000000000000000` :
+  A extends `${infer H}0111111111111111111` ? `${H}1000000000000000000` :
+  A extends `${infer H}01111111111111111111` ? `${H}10000000000000000000` :
+  A extends `${infer H}011111111111111111111` ? `${H}100000000000000000000` :
+  A extends `${infer H}0111111111111111111111` ? `${H}1000000000000000000000` :
+  A extends `${infer H}01111111111111111111111` ? `${H}10000000000000000000000` :
+  A extends `${infer H}011111111111111111111111` ? `${H}100000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111` ? `${H}1000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111` ? `${H}10000000000000000000000000` :
+  A extends `${infer H}011111111111111111111111111` ? `${H}100000000000000000000000000`
+  : '000000000000000000000000000'
+
+export type $IncTop28<A extends string> =
+  A extends `${infer H}0` ? `${H}1` :
+  A extends `${infer H}01` ? `${H}10` :
+  A extends `${infer H}011` ? `${H}100` :
+  A extends `${infer H}0111` ? `${H}1000` :
+  A extends `${infer H}01111` ? `${H}10000` :
+  A extends `${infer H}011111` ? `${H}100000` :
+  A extends `${infer H}0111111` ? `${H}1000000` :
+  A extends `${infer H}01111111` ? `${H}10000000` :
+  A extends `${infer H}011111111` ? `${H}100000000` :
+  A extends `${infer H}0111111111` ? `${H}1000000000` :
+  A extends `${infer H}01111111111` ? `${H}10000000000` :
+  A extends `${infer H}011111111111` ? `${H}100000000000` :
+  A extends `${infer H}0111111111111` ? `${H}1000000000000` :
+  A extends `${infer H}01111111111111` ? `${H}10000000000000` :
+  A extends `${infer H}011111111111111` ? `${H}100000000000000` :
+  A extends `${infer H}0111111111111111` ? `${H}1000000000000000` :
+  A extends `${infer H}01111111111111111` ? `${H}10000000000000000` :
+  A extends `${infer H}011111111111111111` ? `${H}100000000000000000` :
+  A extends `${infer H}0111111111111111111` ? `${H}1000000000000000000` :
+  A extends `${infer H}01111111111111111111` ? `${H}10000000000000000000` :
+  A extends `${infer H}011111111111111111111` ? `${H}100000000000000000000` :
+  A extends `${infer H}0111111111111111111111` ? `${H}1000000000000000000000` :
+  A extends `${infer H}01111111111111111111111` ? `${H}10000000000000000000000` :
+  A extends `${infer H}011111111111111111111111` ? `${H}100000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111` ? `${H}1000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111` ? `${H}10000000000000000000000000` :
+  A extends `${infer H}011111111111111111111111111` ? `${H}100000000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111111` ? `${H}1000000000000000000000000000`
+  : '0000000000000000000000000000'
+
+export type $IncTop32<A extends string> =
+  A extends `${infer H}0` ? `${H}1` :
+  A extends `${infer H}01` ? `${H}10` :
+  A extends `${infer H}011` ? `${H}100` :
+  A extends `${infer H}0111` ? `${H}1000` :
+  A extends `${infer H}01111` ? `${H}10000` :
+  A extends `${infer H}011111` ? `${H}100000` :
+  A extends `${infer H}0111111` ? `${H}1000000` :
+  A extends `${infer H}01111111` ? `${H}10000000` :
+  A extends `${infer H}011111111` ? `${H}100000000` :
+  A extends `${infer H}0111111111` ? `${H}1000000000` :
+  A extends `${infer H}01111111111` ? `${H}10000000000` :
+  A extends `${infer H}011111111111` ? `${H}100000000000` :
+  A extends `${infer H}0111111111111` ? `${H}1000000000000` :
+  A extends `${infer H}01111111111111` ? `${H}10000000000000` :
+  A extends `${infer H}011111111111111` ? `${H}100000000000000` :
+  A extends `${infer H}0111111111111111` ? `${H}1000000000000000` :
+  A extends `${infer H}01111111111111111` ? `${H}10000000000000000` :
+  A extends `${infer H}011111111111111111` ? `${H}100000000000000000` :
+  A extends `${infer H}0111111111111111111` ? `${H}1000000000000000000` :
+  A extends `${infer H}01111111111111111111` ? `${H}10000000000000000000` :
+  A extends `${infer H}011111111111111111111` ? `${H}100000000000000000000` :
+  A extends `${infer H}0111111111111111111111` ? `${H}1000000000000000000000` :
+  A extends `${infer H}01111111111111111111111` ? `${H}10000000000000000000000` :
+  A extends `${infer H}011111111111111111111111` ? `${H}100000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111` ? `${H}1000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111` ? `${H}10000000000000000000000000` :
+  A extends `${infer H}011111111111111111111111111` ? `${H}100000000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111111` ? `${H}1000000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111111` ? `${H}10000000000000000000000000000` :
+  A extends `${infer H}011111111111111111111111111111` ? `${H}100000000000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111111111` ? `${H}1000000000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111111111` ? `${H}10000000000000000000000000000000`
+  : '00000000000000000000000000000000'
+
+export type $Low1<A extends string> = A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer L}` ? L : never
+
+export type $Low2<A extends string> = A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer L}` ? L : never
+
+export type $Low3<A extends string> = A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer L}` ? L : never
+
+export type $LtS00000000<A extends string> =
+  A extends `1${infer _r}` ? '00000000000000000000000000000001'
+  : '00000000000000000000000000000000'
+
+export type $LtS00000001<A extends string> =
+  A extends `1${infer _r}` ? '00000000000000000000000000000001' :
+  A extends `00000000000000000000000000000000${infer _r}` ? '00000000000000000000000000000001'
+  : '00000000000000000000000000000000'
+
+export type $LtS0000004F<A extends string> =
+  A extends `1${infer _r}` ? '00000000000000000000000000000001' :
+  A extends `00000000000000000000000000${infer _r}` ? '00000000000000000000000000000001' :
+  A extends `00000000000000000000000001000${infer _r}` ? '00000000000000000000000000000001' :
+  A extends `000000000000000000000000010010${infer _r}` ? '00000000000000000000000000000001' :
+  A extends `0000000000000000000000000100110${infer _r}` ? '00000000000000000000000000000001' :
+  A extends `00000000000000000000000001001110${infer _r}` ? '00000000000000000000000000000001'
+  : '00000000000000000000000000000000'
 
 export type $Shl3<A extends string> =
   A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer c31}`

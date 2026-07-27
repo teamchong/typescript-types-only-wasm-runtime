@@ -229,11 +229,9 @@ export type $b1_0<$F extends string, $M extends $Node, $l0 extends WasmValue, $l
 
 
 export type $u0_0<$M extends $Node, $l0 extends WasmValue, $l1 extends WasmValue> =
-  Wasm.I32GeS<$l1, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
+  $Not1<$LtS00000000<$l1>> extends '00000000000000000000000000000000'
     ? $u0_3<$M, $l0>
     : $u0_2<$M, $l0>
-    : never
 
 
 export type $u0_1<$M extends $Node, $k0 extends WasmValue, $k1 extends WasmValue> =
@@ -255,3 +253,11 @@ export type $call0<$M extends $Node, $p0 extends WasmValue, $p1 extends WasmValu
 
 export type $entry<$F extends string, $M extends $Node, $p0 extends WasmValue, $p1 extends WasmValue> =
   $b1_0<$F, $Buf<$M>, $p0, $p1>
+
+// Specialised for the constants this module uses: a shift by a known
+// amount is a character move, and a mask by a known constant is a
+// character-by-character choice. Neither needs an adder.
+export type $LtS00000000<A extends string> =
+  A extends `1${infer _r}` ? '00000000000000000000000000000001'
+  : '00000000000000000000000000000000'
+

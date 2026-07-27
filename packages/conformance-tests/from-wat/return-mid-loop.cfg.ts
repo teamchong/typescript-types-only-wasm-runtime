@@ -252,9 +252,7 @@ export type $u0_2<$M extends $Node, $l0 extends WasmValue, $l1 extends WasmValue
 
 export type $u0_3<$M extends $Node, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue> =
   $Store8<$M, $l3, $l4> extends infer $m0 extends $Node
-    ? Wasm.I32Add<$l2, '00000000000000000000000000000001'> extends infer $t1 extends WasmValue
-    ? $u0_2<$m0, $l0, $l1, $t1>
-    : never
+    ? $u0_2<$m0, $l0, $l1, $Inc0<$l2>>
     : never
 
 
@@ -301,9 +299,7 @@ export type $u0_10<$M extends $Node> =
 export type $u0_11<$M extends $Node, $l0 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue> =
   Wasm.I32Add<$l2, $l3> extends infer $t0 extends WasmValue
     ? $Store8<$M, $t0, '00000000000000000000000000000000'> extends infer $m1 extends $Node
-    ? Wasm.I32Add<$l2, '00000000000000000000000000000001'> extends infer $t2 extends WasmValue
-    ? $u0_9<$m1, $l0, $t2, $l3>
-    : never
+    ? $u0_9<$m1, $l0, $Inc0<$l2>, $l3>
     : never
     : never
 
@@ -317,3 +313,44 @@ export type $call0<$M extends $Node, $p0 extends WasmValue, $p1 extends WasmValu
 
 export type $entry<$F extends string, $M extends $Node, $p0 extends WasmValue, $p1 extends WasmValue> =
   $b1_0<$F, $Buf<$M>, $p0, $p1>
+
+// Specialised for the constants this module uses: a shift by a known
+// amount is a character move, and a mask by a known constant is a
+// character-by-character choice. Neither needs an adder.
+export type $Inc0<A extends string> = $IncTop32<A>
+
+export type $IncTop32<A extends string> =
+  A extends `${infer H}0` ? `${H}1` :
+  A extends `${infer H}01` ? `${H}10` :
+  A extends `${infer H}011` ? `${H}100` :
+  A extends `${infer H}0111` ? `${H}1000` :
+  A extends `${infer H}01111` ? `${H}10000` :
+  A extends `${infer H}011111` ? `${H}100000` :
+  A extends `${infer H}0111111` ? `${H}1000000` :
+  A extends `${infer H}01111111` ? `${H}10000000` :
+  A extends `${infer H}011111111` ? `${H}100000000` :
+  A extends `${infer H}0111111111` ? `${H}1000000000` :
+  A extends `${infer H}01111111111` ? `${H}10000000000` :
+  A extends `${infer H}011111111111` ? `${H}100000000000` :
+  A extends `${infer H}0111111111111` ? `${H}1000000000000` :
+  A extends `${infer H}01111111111111` ? `${H}10000000000000` :
+  A extends `${infer H}011111111111111` ? `${H}100000000000000` :
+  A extends `${infer H}0111111111111111` ? `${H}1000000000000000` :
+  A extends `${infer H}01111111111111111` ? `${H}10000000000000000` :
+  A extends `${infer H}011111111111111111` ? `${H}100000000000000000` :
+  A extends `${infer H}0111111111111111111` ? `${H}1000000000000000000` :
+  A extends `${infer H}01111111111111111111` ? `${H}10000000000000000000` :
+  A extends `${infer H}011111111111111111111` ? `${H}100000000000000000000` :
+  A extends `${infer H}0111111111111111111111` ? `${H}1000000000000000000000` :
+  A extends `${infer H}01111111111111111111111` ? `${H}10000000000000000000000` :
+  A extends `${infer H}011111111111111111111111` ? `${H}100000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111` ? `${H}1000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111` ? `${H}10000000000000000000000000` :
+  A extends `${infer H}011111111111111111111111111` ? `${H}100000000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111111` ? `${H}1000000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111111` ? `${H}10000000000000000000000000000` :
+  A extends `${infer H}011111111111111111111111111111` ? `${H}100000000000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111111111` ? `${H}1000000000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111111111` ? `${H}10000000000000000000000000000000`
+  : '00000000000000000000000000000000'
+

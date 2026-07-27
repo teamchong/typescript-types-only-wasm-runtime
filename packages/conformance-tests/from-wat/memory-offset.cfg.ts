@@ -230,12 +230,12 @@ export type $b1_0<$F extends string, $M extends $Node, $l0 extends WasmValue, $l
 
 export type $u0_0<$M extends $Node, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue> =
   $Store32<$M, '00000000000000000000000000000000', $l0> extends infer $m0 extends $Node
-    ? Wasm.I32Add<'00000000000000000000000000000000', '00000000000000000000000000000100'> extends infer $t1 extends WasmValue
-    ? $Store32<$m0, $t1, $l1> extends infer $m2 extends $Node
-    ? Wasm.I32Add<'00000000000000000000000000000000', '00000000000000000000000000001000'> extends infer $t3 extends WasmValue
-    ? $Store32<$m2, $t3, $l2> extends infer $m4 extends $Node
-    ? $Load32<$m4, $t3> extends infer $t5 extends WasmValue
-    ? $u0_1<$m4, '00000000000000000000000000000000', $t5>
+    ? $Store32<$m0, '00000000000000000000000000000100', $l1> extends infer $m1 extends $Node
+    ? $Store32<$m1, '00000000000000000000000000001000', $l2> extends infer $m2 extends $Node
+    ? $Load32<$m2, '00000000000000000000000000001000'> extends infer $t3 extends WasmValue
+    ? $Load32<$m2, '00000000000000000000000000000100'> extends infer $t4 extends WasmValue
+    ? $Load32<$m2, '00000000000000000000000000000000'> extends infer $t5 extends WasmValue
+    ? $u0_1<$m2, $t3, $t4, $t5>
     : never
     : never
     : never
@@ -244,16 +244,10 @@ export type $u0_0<$M extends $Node, $l0 extends WasmValue, $l1 extends WasmValue
     : never
 
 
-export type $u0_1<$M extends $Node, $l3 extends WasmValue, $k0 extends WasmValue> =
-  Wasm.I32Add<$l3, '00000000000000000000000000000100'> extends infer $t0 extends WasmValue
-    ? $Load32<$M, $t0> extends infer $t1 extends WasmValue
-    ? $Load32<$M, $l3> extends infer $t2 extends WasmValue
-    ? Wasm.I32Sub<$t1, $t2> extends infer $t3 extends WasmValue
-    ? Wasm.I32Add<$k0, $t3> extends infer $t4 extends WasmValue
-    ? ['r', $M, $t4]
-    : never
-    : never
-    : never
+export type $u0_1<$M extends $Node, $k0 extends WasmValue, $k1 extends WasmValue, $k2 extends WasmValue> =
+  Wasm.I32Sub<$k1, $k2> extends infer $t0 extends WasmValue
+    ? Wasm.I32Add<$k0, $t0> extends infer $t1 extends WasmValue
+    ? ['r', $M, $t1]
     : never
     : never
 

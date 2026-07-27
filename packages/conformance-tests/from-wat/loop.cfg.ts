@@ -237,14 +237,10 @@ export type $u0_1<$M extends $Node, $l2 extends WasmValue> =
 
 
 export type $u0_2<$M extends $Node, $l1 extends WasmValue, $l2 extends WasmValue> =
-  Wasm.I32Add<$l1, '00000000000000000000000000000001'> extends infer $t0 extends WasmValue
-    ? $Shl1<$l2> extends infer $t1 extends WasmValue
-    ? Wasm.I32LtS<$t0, '00000000000000000000000000000011'> extends infer $t2 extends WasmValue
-    ? $t2 extends '00000000000000000000000000000000'
-    ? $u0_3<$M, $t1>
-    : $u0_2<$M, $t0, $t1>
-    : never
-    : never
+  $Shl1<$l2> extends infer $t0 extends WasmValue
+    ? $LtS00000003<$Inc0<$l1>> extends '00000000000000000000000000000000'
+    ? $u0_3<$M, $t0>
+    : $u0_2<$M, $Inc0<$l1>, $t0>
     : never
 
 
@@ -261,6 +257,49 @@ export type $entry<$F extends string, $M extends $Node, $p0 extends WasmValue> =
 // Specialised for the constants this module uses: a shift by a known
 // amount is a character move, and a mask by a known constant is a
 // character-by-character choice. Neither needs an adder.
+export type $Inc0<A extends string> = $IncTop32<A>
+
+export type $IncTop32<A extends string> =
+  A extends `${infer H}0` ? `${H}1` :
+  A extends `${infer H}01` ? `${H}10` :
+  A extends `${infer H}011` ? `${H}100` :
+  A extends `${infer H}0111` ? `${H}1000` :
+  A extends `${infer H}01111` ? `${H}10000` :
+  A extends `${infer H}011111` ? `${H}100000` :
+  A extends `${infer H}0111111` ? `${H}1000000` :
+  A extends `${infer H}01111111` ? `${H}10000000` :
+  A extends `${infer H}011111111` ? `${H}100000000` :
+  A extends `${infer H}0111111111` ? `${H}1000000000` :
+  A extends `${infer H}01111111111` ? `${H}10000000000` :
+  A extends `${infer H}011111111111` ? `${H}100000000000` :
+  A extends `${infer H}0111111111111` ? `${H}1000000000000` :
+  A extends `${infer H}01111111111111` ? `${H}10000000000000` :
+  A extends `${infer H}011111111111111` ? `${H}100000000000000` :
+  A extends `${infer H}0111111111111111` ? `${H}1000000000000000` :
+  A extends `${infer H}01111111111111111` ? `${H}10000000000000000` :
+  A extends `${infer H}011111111111111111` ? `${H}100000000000000000` :
+  A extends `${infer H}0111111111111111111` ? `${H}1000000000000000000` :
+  A extends `${infer H}01111111111111111111` ? `${H}10000000000000000000` :
+  A extends `${infer H}011111111111111111111` ? `${H}100000000000000000000` :
+  A extends `${infer H}0111111111111111111111` ? `${H}1000000000000000000000` :
+  A extends `${infer H}01111111111111111111111` ? `${H}10000000000000000000000` :
+  A extends `${infer H}011111111111111111111111` ? `${H}100000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111` ? `${H}1000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111` ? `${H}10000000000000000000000000` :
+  A extends `${infer H}011111111111111111111111111` ? `${H}100000000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111111` ? `${H}1000000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111111` ? `${H}10000000000000000000000000000` :
+  A extends `${infer H}011111111111111111111111111111` ? `${H}100000000000000000000000000000` :
+  A extends `${infer H}0111111111111111111111111111111` ? `${H}1000000000000000000000000000000` :
+  A extends `${infer H}01111111111111111111111111111111` ? `${H}10000000000000000000000000000000`
+  : '00000000000000000000000000000000'
+
+export type $LtS00000003<A extends string> =
+  A extends `1${infer _r}` ? '00000000000000000000000000000001' :
+  A extends `0000000000000000000000000000000${infer _r}` ? '00000000000000000000000000000001' :
+  A extends `00000000000000000000000000000010${infer _r}` ? '00000000000000000000000000000001'
+  : '00000000000000000000000000000000'
+
 export type $Shl1<A extends string> =
   A extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer c16}${infer c17}${infer c18}${infer c19}${infer c20}${infer c21}${infer c22}${infer c23}${infer c24}${infer c25}${infer c26}${infer c27}${infer c28}${infer c29}${infer c30}${infer c31}`
     ? `${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}${c16}${c17}${c18}${c19}${c20}${c21}${c22}${c23}${c24}${c25}${c26}${c27}${c28}${c29}${c30}${c31}0`

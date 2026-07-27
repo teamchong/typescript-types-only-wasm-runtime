@@ -21,7 +21,7 @@
 //! through a shared continuation. Nothing is "skipped forward N ends".
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::rc::Rc;
 use wasmparser::{BlockType, FuncType, Operator, Parser, Payload, ValType};
 
@@ -1184,6 +1184,7 @@ impl<'a> FunctionCfg<'a> {
             reads: BTreeSet::new(),
             writes: BTreeSet::new(),
             computed: HashMap::new(),
+            shallow: HashSet::new(),
             next_temp: 0,
             stores: 0,
         };
@@ -1545,8 +1546,8 @@ impl<'a> FunctionCfg<'a> {
             }
 
             // arithmetic and comparison
-            I32Add => env.binary("Wasm.I32Add", Ok(Step::Continue)),
-            I32Sub => env.binary("Wasm.I32Sub", Ok(Step::Continue)),
+            I32Add => env.add_or_sub("Wasm.I32Add", false, Ok(Step::Continue)),
+            I32Sub => env.add_or_sub("Wasm.I32Sub", true, Ok(Step::Continue)),
             I32Mul => env.multiply(Ok(Step::Continue)),
             I32DivS => env.binary("Wasm.I32DivS", Ok(Step::Continue)),
             I32DivU => env.binary("Wasm.I32DivU", Ok(Step::Continue)),
@@ -1562,14 +1563,14 @@ impl<'a> FunctionCfg<'a> {
             I32Rotr => env.binary("Wasm.I32Rotr", Ok(Step::Continue)),
             I32Eq => env.binary("$Eq", Ok(Step::Continue)),
             I32Ne => env.binary("$Ne", Ok(Step::Continue)),
-            I32LtS => env.binary("Wasm.I32LtS", Ok(Step::Continue)),
-            I32LtU => env.binary("Wasm.I32LtU", Ok(Step::Continue)),
-            I32GtS => env.binary("Wasm.I32GtS", Ok(Step::Continue)),
-            I32GtU => env.binary("Wasm.I32GtU", Ok(Step::Continue)),
-            I32LeS => env.binary("Wasm.I32LeS", Ok(Step::Continue)),
-            I32LeU => env.binary("Wasm.I32LeU", Ok(Step::Continue)),
-            I32GeS => env.binary("Wasm.I32GeS", Ok(Step::Continue)),
-            I32GeU => env.binary("Wasm.I32GeU", Ok(Step::Continue)),
+            I32LtS => env.compare("Wasm.I32LtS", Compare::Lt, true, Ok(Step::Continue)),
+            I32LtU => env.compare("Wasm.I32LtU", Compare::Lt, false, Ok(Step::Continue)),
+            I32GtS => env.compare("Wasm.I32GtS", Compare::Gt, true, Ok(Step::Continue)),
+            I32GtU => env.compare("Wasm.I32GtU", Compare::Gt, false, Ok(Step::Continue)),
+            I32LeS => env.compare("Wasm.I32LeS", Compare::Le, true, Ok(Step::Continue)),
+            I32LeU => env.compare("Wasm.I32LeU", Compare::Le, false, Ok(Step::Continue)),
+            I32GeS => env.compare("Wasm.I32GeS", Compare::Ge, true, Ok(Step::Continue)),
+            I32GeU => env.compare("Wasm.I32GeU", Compare::Ge, false, Ok(Step::Continue)),
             I32Eqz => env.eqz(Ok(Step::Continue)),
             I32Clz => env.unary("Wasm.I32Clz", Ok(Step::Continue)),
             I32Ctz => env.unary("Wasm.I32Ctz", Ok(Step::Continue)),
@@ -1867,6 +1868,11 @@ struct BlockEnv {
     /// twice in one block is computed once. Pong recomputes screen addresses
     /// constantly: erase and draw hit the same cells.
     computed: HashMap<String, String>,
+    /// Expressions built only from the specialised helpers: a pattern match or
+    /// two deep, so they can be nested into whatever consumes them instead of
+    /// taking a pipeline slot of their own. SSA exists to keep ts-type-math's
+    /// ~32-level operators off one another, and these are not that.
+    shallow: HashSet<String>,
     next_temp: usize,
     stores: usize,
 }
@@ -1913,6 +1919,11 @@ impl BlockEnv {
     fn bind(&mut self, expr: &str, constraint: &str) -> String {
         // literals, parameters and already-named values need no binding
         if !expr.contains('<') && !expr.contains(" extends ") {
+            return expr.to_string();
+        }
+        // a shallow helper chain costs less inline than the pipeline step that
+        // would hold it; the length cap keeps a block's text from exploding
+        if self.shallow.contains(expr) && expr.len() < 400 {
             return expr.to_string();
         }
         if !SSA && expr.len() < 600 {
@@ -2052,6 +2063,249 @@ impl BlockEnv {
         self.register(&name, definition)
     }
 
+    /// Add or subtract 2^k without an adder.
+    ///
+    /// Incrementing a binary string is "flip the run of 1s at the bottom and
+    /// the 0 that stops it", which template patterns can do directly:
+    /// `${infer H}011` -> `${H}100`. The arms are mutually exclusive because
+    /// each anchors a different suffix, and the first one matches for half of
+    /// all values.
+    ///
+    /// Two things this must not do. The carry cannot be found with a pattern
+    /// like `${infer H}0${infer l0}${infer l1}` that leaves the low bits as
+    /// trailing placeholders - inference binds H at the *first* '0' in the
+    /// string, not the one the bit position asks for. And the run cannot be
+    /// walked by testing characters, because a character inferred from a
+    /// template is typed `string`, so `c extends '1'` is never true. So the low
+    /// bits are split off by width first, and the rest is incremented as a
+    /// shorter string of its own.
+    fn carry_helper(&mut self, width: usize, down: bool) -> String {
+        let name = format!("${}Top{width}", if down { "Dec" } else { "Inc" });
+        let (stop, run, new_stop, new_run) = if down { ('1', '0', '0', '1') } else { ('0', '1', '1', '0') };
+        let mut arms = Vec::new();
+        for m in 0..width {
+            let run_chars: String = std::iter::repeat(run).take(m).collect();
+            let new_run_chars: String = std::iter::repeat(new_run).take(m).collect();
+            arms.push(format!(
+                "  A extends `${{infer H}}{stop}{run_chars}` ? `${{H}}{new_stop}{new_run_chars}`"
+            ));
+        }
+        // every character was part of the run: the value wrapped
+        let wrapped: String = std::iter::repeat(new_run).take(width).collect();
+        let definition = format!(
+            "export type {name}<A extends string> =\n{}\n  : '{wrapped}'\n",
+            arms.join(" :\n")
+        );
+        self.register(&name, definition)
+    }
+
+    fn step_helper(&mut self, bit: u32, down: bool) -> String {
+        let name = format!("${}{bit}", if down { "Dec" } else { "Inc" });
+        let width = 32 - bit as usize;
+        if bit == 0 {
+            let top = self.carry_helper(width, down);
+            let definition = format!("export type {name}<A extends string> = {top}<A>\n");
+            return self.register(&name, definition);
+        }
+        let (stop, run, new_stop, new_run) = if down { ('1', '0', '0', '1') } else { ('0', '1', '1', '0') };
+        // Up to three low bits are cheaper to spell out than to split off: the
+        // arms stay anchored at the end, so inference cannot slide the carry to
+        // the wrong position, and an aligned address matches the first arm.
+        // Wider than that the arm count doubles per bit, so the low bits come
+        // off by width instead and the carry runs on the shorter string.
+        let definition = if bit <= 3 {
+            let mut arms = Vec::new();
+            for m in 0..width {
+                let run_chars: String = std::iter::repeat(run).take(m).collect();
+                let new_run_chars: String = std::iter::repeat(new_run).take(m).collect();
+                for low in 0..(1u32 << bit) {
+                    let low_chars: String = (0..bit).rev().map(|i| if (low >> i) & 1 == 1 { '1' } else { '0' }).collect();
+                    arms.push(format!(
+                        "  A extends `${{infer H}}{stop}{run_chars}{low_chars}` ? `${{H}}{new_stop}{new_run_chars}{low_chars}`"
+                    ));
+                }
+            }
+            let wrapped_high: String = std::iter::repeat(new_run).take(width).collect();
+            format!(
+                "export type {name}<A extends string> =\n{}\n  : `{wrapped_high}${{$Low{bit}<A>}}`\n",
+                arms.join(" :\n")
+            )
+        } else {
+            let top = self.carry_helper(width, down);
+            let pattern: String = (0..width).map(|i| format!("${{infer c{i}}}")).collect();
+            let high: String = (0..width).map(|i| format!("${{c{i}}}")).collect();
+            format!(
+                "export type {name}<A extends string> =\n  A extends `{pattern}${{infer L}}`\n    ? `${{{top}<`{high}`>}}${{L}}`\n    : never\n"
+            )
+        };
+        if bit <= 3 {
+            // only reached when the value wraps, so it can afford to be plain
+            let low_name = format!("$Low{bit}");
+            let pattern: String = (0..(32 - bit)).map(|i| format!("${{infer c{i}}}")).collect();
+            let low_definition = format!(
+                "export type {low_name}<A extends string> = A extends `{pattern}${{infer L}}` ? L : never\n"
+            );
+            self.register(&low_name, low_definition);
+        }
+        self.register(&name, definition)
+    }
+
+    /// A constant addend as a short list of +/- powers of two (non-adjacent
+    /// form), so `+31` is one step up and one step down rather than five
+    /// carries. Returns None when the constant would need too many steps to be
+    /// worth it and the general adder is cheaper.
+    fn steps_for(constant: u32, limit: u32) -> Option<Vec<(u32, bool)>> {
+        let mut steps = Vec::new();
+        let mut value = constant;
+        let mut bit = 0u32;
+        while value != 0 {
+            if bit >= 32 {
+                // the carry ran off the top: it wrapped, which costs nothing
+                break;
+            }
+            if value & 1 == 1 {
+                let down = value & 2 == 2;
+                if down {
+                    value = value.wrapping_add(1);
+                    steps.push((bit, true));
+                } else {
+                    steps.push((bit, false));
+                    value &= !1;
+                }
+            }
+            value >>= 1;
+            bit += 1;
+            if steps.len() as u32 > limit {
+                return None;
+            }
+        }
+        if steps.is_empty() { None } else { Some(steps) }
+    }
+
+    /// `x + c` for a known c: a few bit steps instead of a 32-bit adder.
+    /// Measured on gfx's own values: 13 instantiations against 245.
+    fn add_or_sub(&mut self, op: &str, negate: bool, ret: Result<Step, String>) -> Result<Step, String> {
+        let b = self.pop();
+        let a = self.pop();
+        if let (Some(x), Some(y)) = (Self::literal(&a), Self::literal(&b)) {
+            if let Some(folded) = fold(op, x, y) {
+                self.push(format!("'{}'", bits32(folded as i32)));
+                return ret;
+            }
+        }
+        // only the right side can be constant-folded this way for a subtract:
+        // `c - x` is not `x - c`
+        let constant = Self::literal(&b).map(|k| if negate { 0u32.wrapping_sub(k) } else { k });
+        let variable = a.clone();
+        let plain = Self::literal(&a)
+            .filter(|_| !negate)
+            .map(|k| (k, b.clone()));
+        let (constant, variable) = match (constant, plain) {
+            (Some(k), _) => (Some(k), variable),
+            (None, Some((k, other))) => (Some(k), other),
+            _ => (None, variable),
+        };
+        if let Some(constant) = constant {
+            if let Some(steps) = Self::steps_for(constant, 4) {
+                let mut value = variable;
+                for (bit, down) in steps {
+                    let helper = self.step_helper(bit, down);
+                    value = format!("{helper}<{value}>");
+                    self.shallow.insert(value.clone());
+                }
+                self.push(value);
+                return ret;
+            }
+        }
+        let value = format!("{op}<{a}, {b}>");
+        let named = self.bind(&value, "WasmValue");
+        self.push(named);
+        ret
+    }
+
+    /// `x < C` for a known C: the answer is decided by a prefix. Wherever C has
+    /// a 1 and x has a 0 with the bits above matching, x is smaller - so the
+    /// test is a handful of anchored patterns, one per set bit, instead of a
+    /// bit-by-bit comparison. Measured: 16 instantiations against 491.
+    ///
+    /// Signed compares are the same question about `x ^ 0x80000000`, which only
+    /// changes the first character of every pattern.
+    fn less_helper(&mut self, constant: u32, signed: bool) -> String {
+        let mapped = if signed { constant ^ 0x8000_0000 } else { constant };
+        let name = format!("$Lt{}{:08X}", if signed { "S" } else { "U" }, constant);
+        let bits: Vec<char> = format!("{mapped:032b}").chars().collect();
+        let mut arms = Vec::new();
+        for i in 0..32 {
+            if bits[i] != '1' {
+                continue;
+            }
+            let mut prefix: String = bits[..i].iter().collect();
+            prefix.push('0');
+            if signed {
+                // the pattern is about x ^ 0x80000000, so the sign character flips
+                let mut chars: Vec<char> = prefix.chars().collect();
+                chars[0] = if chars[0] == '0' { '1' } else { '0' };
+                prefix = chars.into_iter().collect();
+            }
+            arms.push(format!("  A extends `{prefix}${{infer _r}}` ? '{}'", bits32(1)));
+        }
+        let definition = if arms.is_empty() {
+            // nothing is below the smallest value
+            format!("export type {name}<A extends string> = '{}'\n", zero())
+        } else {
+            format!(
+                "export type {name}<A extends string> =\n{}\n  : '{}'\n",
+                arms.join(" :\n"),
+                zero()
+            )
+        };
+        self.register(&name, definition)
+    }
+
+    /// A comparison against a constant, in whichever form the program wrote it.
+    fn compare(
+        &mut self,
+        fallback: &str,
+        kind: Compare,
+        signed: bool,
+        ret: Result<Step, String>,
+    ) -> Result<Step, String> {
+        let b = self.pop();
+        let a = self.pop();
+        if let (Some(x), Some(y)) = (Self::literal(&a), Self::literal(&b)) {
+            if let Some(folded) = fold(fallback, x, y) {
+                self.push(format!("'{}'", bits32(folded as i32)));
+                return ret;
+            }
+        }
+        // `a OP b` with one side constant becomes `variable < constant`,
+        // possibly negated: x > c is not (x < c+1), x >= c is not (x < c)
+        let plan = match (Self::literal(&b), Self::literal(&a)) {
+            (Some(c), _) => Some((a.clone(), c, kind)),
+            (None, Some(c)) => Some((b.clone(), c, kind.flipped())),
+            _ => None,
+        };
+        if let Some((variable, constant, kind)) = plan {
+            if let Some((bound, negate)) = kind.as_less_than(constant, signed) {
+                let helper = self.less_helper(bound, signed);
+                let value = format!("{helper}<{variable}>");
+                let value = if negate { format!("$Not1<{value}>") } else { value };
+                self.shallow.insert(value.clone());
+                self.push(value);
+                return ret;
+            }
+            // the bound ran off the end of the range: the answer is a constant
+            if let Some(answer) = kind.saturated(constant, signed) {
+                self.push(format!("'{}'", if answer { bits32(1) } else { zero() }));
+                return ret;
+            }
+        }
+        let value = format!("{fallback}<{a}, {b}>");
+        let named = self.bind(&value, "WasmValue");
+        self.push(named);
+        ret
+    }
+
     /// `a > b` is `b < a`
     fn binary_swapped(&mut self, op: &str, ret: Result<Step, String>) -> Result<Step, String> {
         let b = self.pop();
@@ -2104,7 +2358,9 @@ impl BlockEnv {
                     ShiftKind::RightSigned => self.shr_helper(amount, true),
                 };
                 // cheap enough to leave inline: one conditional, no adder
-                self.push(format!("{helper}<{a}>"));
+                let value = format!("{helper}<{a}>");
+                self.shallow.insert(value.clone());
+                self.push(value);
                 return ret;
             }
             None => format!("{fallback}<{a}, {b}>"),
@@ -2128,11 +2384,15 @@ impl BlockEnv {
         let flips = |constant: u32| op == "Xor" && constant != 0;
         let value = if let Some(constant) = Self::literal(&b).filter(|k| !flips(*k)) {
             let helper = self.mask_helper(op, constant);
-            self.push(format!("{helper}<{a}>"));
+            let value = format!("{helper}<{a}>");
+            self.shallow.insert(value.clone());
+            self.push(value);
             return ret;
         } else if let Some(constant) = Self::literal(&a).filter(|k| !flips(*k)) {
             let helper = self.mask_helper(op, constant);
-            self.push(format!("{helper}<{b}>"));
+            let value = format!("{helper}<{b}>");
+            self.shallow.insert(value.clone());
+            self.push(value);
             return ret;
         } else {
             format!("{fallback}<{a}, {b}>")
@@ -2193,10 +2453,26 @@ impl BlockEnv {
         ret
     }
 
+    /// `base + static offset` is the most common add in any compiled program -
+    /// every load and store has one - so it takes the same bit-step helpers as
+    /// an ordinary constant add rather than a full adder.
     fn address(&mut self, offset: u64) -> String {
         let base = self.pop();
         if offset == 0 {
             return base;
+        }
+        let constant = offset as u32;
+        if let Some(folded) = Self::literal(&base).map(|k| k.wrapping_add(constant)) {
+            return format!("'{}'", bits32(folded as i32));
+        }
+        if let Some(steps) = Self::steps_for(constant, 4) {
+            let mut value = base;
+            for (bit, down) in steps {
+                let helper = self.step_helper(bit, down);
+                value = format!("{helper}<{value}>");
+                self.shallow.insert(value.clone());
+            }
+            return value;
         }
         let sum = format!("Wasm.I32Add<{base}, '{}'>", bits32(offset as i32));
         self.bind(&sum, "WasmValue")
@@ -2445,6 +2721,59 @@ mod tests {
                 error.contains("i64") || error.contains("I64"),
                 "expected an i64 complaint, got {error}"
             );
+        }
+    }
+}
+
+/// Which way a comparison points, so a constant operand can be turned into the
+/// one form there is a helper for: `variable < bound`.
+#[derive(Clone, Copy, PartialEq)]
+enum Compare {
+    Lt,
+    Le,
+    Gt,
+    Ge,
+}
+
+impl Compare {
+    /// the same question asked from the other side, for `constant OP variable`
+    fn flipped(self) -> Self {
+        match self {
+            Compare::Lt => Compare::Gt,
+            Compare::Gt => Compare::Lt,
+            Compare::Le => Compare::Ge,
+            Compare::Ge => Compare::Le,
+        }
+    }
+
+    /// `(bound, negated)` for `variable < bound`, or None when the bound would
+    /// have to be one past the end of the range
+    fn as_less_than(self, constant: u32, signed: bool) -> Option<(u32, bool)> {
+        let highest = if signed { 0x7fff_ffffu32 } else { 0xffff_ffff };
+        match self {
+            Compare::Lt => Some((constant, false)),
+            Compare::Ge => Some((constant, true)),
+            Compare::Le | Compare::Gt => {
+                if constant == highest {
+                    None
+                } else {
+                    Some((constant.wrapping_add(1), self == Compare::Gt))
+                }
+            }
+        }
+    }
+
+    /// the answer when the bound is out of range: nothing is above the largest
+    /// value, and everything is at or below it
+    fn saturated(self, constant: u32, signed: bool) -> Option<bool> {
+        let highest = if signed { 0x7fff_ffffu32 } else { 0xffff_ffff };
+        if constant != highest {
+            return None;
+        }
+        match self {
+            Compare::Gt => Some(false),
+            Compare::Le => Some(true),
+            _ => None,
         }
     }
 }
