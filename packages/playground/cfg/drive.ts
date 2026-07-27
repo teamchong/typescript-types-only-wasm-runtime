@@ -154,30 +154,33 @@ const TRUNCATED = /\bany\b/;
 export const readState = async (
   read: (name: string) => Promise<string>,
   fanout: number,
-  // Once a memory has grown past what the printer will emit it does not shrink
-  // back, and asking for the whole thing again costs a full print - the most
-  // expensive read in the chunk - to learn what we already know. So the caller
-  // remembers, and after the first truncation we go straight to the branches.
-  splitAlready = false,
-): Promise<{ state: string; split: boolean }> => {
-  if (!splitAlready) {
-    const whole = await read("$Out_Mem");
-    if (!TRUNCATED.test(whole) || fanout === 0) return { state: whole, split: false };
-  }
-  const branches: string[] = [];
-  for (let i = 0; i < fanout; i++) {
-    const branch = await read(`$Out_Mem_${i}`);
-    if (!TRUNCATED.test(branch)) {
-      branches.push(branch);
-      continue;
+  // Which readers have already come back truncated. A memory that has outgrown
+  // the printer once does not shrink back, and asking again costs a full print -
+  // the most expensive read in the chunk - to learn what we already know.
+  split: Set<string>,
+): Promise<string> => {
+  const readOr = async (name: string, children: () => Promise<string>): Promise<string> => {
+    if (!split.has(name)) {
+      const whole = await read(name);
+      if (!TRUNCATED.test(whole)) return whole;
+      split.add(name);
     }
-    const inner: string[] = [];
-    for (let j = 0; j < fanout; j++) {
-      inner.push(await read(`$Out_Mem_${i}_${j}`));
+    return children();
+  };
+  if (fanout === 0) return read("$Out_Mem");
+  return readOr("$Out_Mem", async () => {
+    const branches: string[] = [];
+    for (let i = 0; i < fanout; i++) {
+      branches.push(
+        await readOr(`$Out_Mem_${i}`, async () => {
+          const inner: string[] = [];
+          for (let j = 0; j < fanout; j++) inner.push(await read(`$Out_Mem_${i}_${j}`));
+          return `[${inner.join(", ")}]`;
+        }),
+      );
     }
-    branches.push(`[${inner.join(", ")}]`);
-  }
-  return { state: `[${branches.join(", ")}]`, split: true };
+    return `[${branches.join(", ")}]`;
+  });
 };
 
 /// Everything needed to pick a run up again: where it was, what it was holding,
@@ -189,7 +192,7 @@ export interface Checkpoint {
   globals: string[];
   chunks: number;
   evalMs: number;
-  split: boolean;
+  split: string[];
 }
 
 export interface RunResult {
@@ -261,13 +264,17 @@ export const run = async (
   // the frames below the block currently running, innermost first: what the
   // host has to hand back to when a call returns after a suspension
   let frames: Frame[] = [];
-  // has the memory already outgrown the printer once?
-  let split = false;
+  // which memory readers have already outgrown the printer
+  let split = new Set<string>(options.resume?.split ?? []);
+  // Chunks since the last backoff. A block deep enough to need less fuel is
+  // usually a few blocks, not the rest of the run, so the fuel climbs back:
+  // staying at half throughput after one awkward block costs more than the
+  // occasional retry does.
+  let settled = 0;
   if (options.resume) {
     call = options.resume.call;
     memory = options.resume.memory;
     frames = options.resume.frames;
-    split = options.resume.split;
     carried = options.resume.chunks;
   }
   let backoffs = 0;
@@ -316,9 +323,7 @@ ${splitReaders}
     let globals: string;
     try {
       tag = await read("$Out_Tag");
-      const read_ = await readState(read, fanout, split);
-      state = read_.state;
-      split = read_.split;
+      state = await readState(read, fanout, split);
       // the frames double as the live-value list for the checks below: every
       // value inside them has to be a word, whichever frame it belongs to
       live = tag === '"s"' ? await read("$Out_Frames") : "[]";
@@ -330,6 +335,7 @@ ${splitReaders}
       // back an approximation: same remedy, less fuel.
       if (/excessively deep/.test(message) && fuel > minFuel) {
         backoffs++;
+        settled = 0;
         fuel = Math.max(minFuel, Math.floor(fuel / 2));
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: too deep; fuel -> ${fuel}    \n`);
         continue;
@@ -339,6 +345,12 @@ ${splitReaders}
     }
     evalMs += performance.now() - e0;
     chunks++;
+    const ceiling = options.fuel ?? 64;
+    if (fuel < ceiling && ++settled >= 20) {
+      settled = 0;
+      fuel = Math.min(ceiling, fuel * 2);
+      if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: settled; fuel -> ${fuel}    \n`);
+    }
 
     const bad = degraded(tag, state, live, value, globals);
     if (bad) {
@@ -346,6 +358,7 @@ ${splitReaders}
       // suspends earlier. This is the checker's real limit, measured.
       if (fuel > minFuel) {
         backoffs++;
+        settled = 0;
         fuel = Math.max(minFuel, Math.floor(fuel / 2));
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: ${bad}; fuel -> ${fuel}    \n`);
         continue;
@@ -371,7 +384,7 @@ ${splitReaders}
         globals: globalValues,
         chunks: carried + chunks,
         evalMs,
-        split,
+        split: [...split],
       };
       writeFileSync(options.save, JSON.stringify(point));
     };
