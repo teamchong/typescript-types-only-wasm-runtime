@@ -42,6 +42,91 @@ export const splitTop = (text: string): string[] => {
 /// a printed type ("..." / [..]) turned back into source we can paste
 const toSource = (printed: string) => printed.replace(/"/g, "'");
 
+/// A word, `u` for a subtree nothing has written, a `$name` the compiler prints
+/// as an alias, or a branch. A one element tuple is a leaf standing for every
+/// word below it, which is how a whole subtree of one value stays one token.
+type Trie = string | Trie[];
+const ABSENT = "u";
+
+const parseTrie = (src: string): Trie => {
+  let at = 0;
+  const skip = () => {
+    while (at < src.length && (src[at] === "," || /\s/.test(src[at]!))) at++;
+  };
+  const node = (): Trie => {
+    skip();
+    if (src[at] === "[") {
+      at++;
+      const kids: Trie[] = [];
+      for (;;) {
+        skip();
+        if (src[at] === "]") {
+          at++;
+          break;
+        }
+        kids.push(node());
+      }
+      return kids.length === 1 ? kids[0]! : kids;
+    }
+    if (src[at] === "'" || src[at] === '"') {
+      const quote = src[at++];
+      const start = at;
+      while (at < src.length && src[at] !== quote) at++;
+      return src.slice(start, at++);
+    }
+    const start = at;
+    while (at < src.length && !/[\s,\]]/.test(src[at]!)) at++;
+    const token = src.slice(start, at);
+    return token === "$Zero" ? "0".repeat(32) : token === "$Absent" ? ABSENT : token;
+  };
+  return node();
+};
+
+const printTrie = (node: Trie): string =>
+  Array.isArray(node)
+    ? `[${node.map(printTrie).join(", ")}]`
+    : node === ABSENT
+      ? "$Absent"
+      : node.startsWith("$")
+        ? node
+        : `['${node}']`;
+
+/// A store that writes a word back at the value the module already holds leaves
+/// a word in the state that reads exactly like reading through to
+/// $InitialMemory would. Dropping it costs the next chunk nothing and the state
+/// is 93% words: measured on doom at chunk 765, 37423 words down to 20048.
+/// The host reads the memory two levels down and $Kid<M> is a tuple match, so
+/// it gives never for a leaf. The top two levels stay branches - 72 nodes, and
+/// a leaf that lands there gets split back out into its eight copies.
+const SPLIT_DEPTH = 2;
+
+const prune = (node: Trie, base: Trie, depth = 0): Trie => {
+  const kid = (index: number) => (Array.isArray(base) ? base[index]! : base);
+  if (depth < SPLIT_DEPTH && !(typeof node === "string" && node !== ABSENT && node.startsWith("$"))) {
+    return Array.from({ length: 8 }, (_unused, index) =>
+      prune(Array.isArray(node) ? node[index]! : node, kid(index), depth + 1),
+    );
+  }
+  if (Array.isArray(node)) {
+    const kids = node.map((child, index) => prune(child, kid(index), depth + 1));
+    if (kids.every((child) => child === ABSENT)) return ABSENT;
+    const first = kids[0]!;
+    if (typeof first === "string" && first !== ABSENT && kids.every((child) => child === first)) return first;
+    return kids;
+  }
+  if (node === ABSENT || node.startsWith("$")) return node;
+  return !Array.isArray(base) && base === node ? ABSENT : node;
+};
+
+/// The module's own initial memory, as the host sees it.
+const initialMemory = (moduleText: string): Trie => {
+  const marker = "type $InitialMemory = ";
+  const at = moduleText.indexOf(marker);
+  if (at < 0) return ABSENT;
+  const end = moduleText.indexOf("\n", at);
+  return parseTrie(moduleText.slice(at + marker.length, end < 0 ? undefined : end));
+};
+
 /// Did the checker actually finish, or did it hand back an approximation?
 ///
 /// Running past a limit does not reliably raise an error. The checker can
@@ -277,6 +362,7 @@ export const run = async (
     // the chunk file inlines the module, so its imports must resolve from here
     .replace(/^export type/gm, "type");
   const fanout = (moduleText.match(/^type \$Kid\d+</gm) ?? []).length;
+  const base = initialMemory(moduleText);
   // Readers for the memory a branch at a time, two levels down. They cost
   // nothing until one is asked for: a type alias is only instantiated when
   // something reads it, and the whole point is that almost always only the
@@ -311,7 +397,8 @@ export const run = async (
   let settled = 0;
   if (options.resume) {
     call = options.resume.call;
-    memory = options.resume.memory;
+    // a state saved before the split levels were kept can hold a leaf up top
+    memory = printTrie(prune(parseTrie(options.resume.memory), base));
     frames = options.resume.frames;
     carried = options.resume.chunks;
   }
@@ -472,7 +559,7 @@ ${splitReaders}
       if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: settled; fuel -> ${fuel}    \n`);
     }
 
-    memory = toSource(state);
+    memory = printTrie(prune(parseTrie(state), base));
     const globalValues = splitTop(globals.slice(1, globals.lastIndexOf("]")))
       .filter((v) => v.length > 0)
       .map(toSource);

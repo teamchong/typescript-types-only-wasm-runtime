@@ -999,7 +999,10 @@ export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> 
                 .map(|j| if i == j { format!("infer $c{j}") } else { "unknown".to_string() })
                 .collect();
             kids.push_str(&format!(
-                "export type $Kid{i}<$M> = $M extends [{}] ? $c{i} : never\n",
+                // a leaf stands for every word below it, so its children are itself:
+                // the host slices the memory two levels down to print it, and a
+                // subtree nothing has written to is one $Absent leaf up top
+                "export type $Kid{i}<$M> = $M extends [{}] ? $c{i} : $M\n",
                 slots.join(", ")
             ));
         }
@@ -2537,6 +2540,39 @@ impl BlockEnv {
             ),
         );
 
+        // doom's FixedMul sign-extends an i32, and the general 32x32 multiply is
+        // 32 reversed-string adds deep - deep enough that the product came back
+        // never once a chain of blocks had already spent the depth budget
+        // getting there. Every operand $Mul3264 hands a multiply is a 16 bit
+        // half, so walking just those 16 bits is the same product, half the
+        // steps, and a plain tail call the checker does not charge for nesting.
+        let shl1 = self.shl_helper(1);
+        self.register(
+            "$Tail16",
+            format!(
+                "export type $Tail16<A extends string> =\n  A extends `{p16}${{infer rest}}` ? rest : never\n",
+                p16 = (0..16).map(|i| format!("${{infer c{i}}}")).collect::<String>()
+            ),
+        );
+        self.register(
+            "$Mul16Loop",
+            format!(
+                concat!(
+                    "export type $Mul16Loop<A extends string, B extends string, Acc extends string> =\n",
+                    "  B extends `${{infer bit}}${{infer rest}}`\n",
+                    "    ? $Mul16Loop<A, rest, bit extends '1' ? Wasm.I32Add<{shl1}<Acc>, A> : {shl1}<Acc>>\n",
+                    "    : Acc\n"
+                ),
+                shl1 = shl1
+            ),
+        );
+        self.register(
+            "$Mul16",
+            format!(
+                "export type $Mul16<A extends string, B extends string> =\n  $Mul16Loop<A, $Tail16<B>, '{z32}'>\n"
+            ),
+        );
+
         // add: the low halves carry into the high ones. The carry is exactly
         // "the sum came out below what we started with", which is one unsigned
         // compare - no bit walking.
@@ -2572,11 +2608,22 @@ impl BlockEnv {
         self.register(
             "$Mul3264",
             concat!(
+                // Every part is bound with `infer` rather than nested inline:
+                // the checker charges nesting against one instantiation depth
+                // budget, and doom multiplies a sign-extended i32, which arrives
+                // already several levels deep and used to tip the whole
+                // expression over into never.
                 "export type $Mul3264<A extends string, B extends string> =\n",
-                "  $Add64<\n",
-                "    $Add64<$Zx64<Wasm.I32Mul<$Lo16<A>, $Lo16<B>>>, $Shl64_32<$Zx64<Wasm.I32Mul<$Hi16<A>, $Hi16<B>>>>>,\n",
-                "    $Shl64_16<$Add64<$Zx64<Wasm.I32Mul<$Lo16<A>, $Hi16<B>>>, $Zx64<Wasm.I32Mul<$Hi16<A>, $Lo16<B>>>>>\n",
-                "  >\n"
+                "  $Mul16<$Lo16<A>, $Lo16<B>> extends infer $p00 extends string\n",
+                "  ? $Mul16<$Hi16<A>, $Hi16<B>> extends infer $p11 extends string\n",
+                "  ? $Mul16<$Lo16<A>, $Hi16<B>> extends infer $p01 extends string\n",
+                "  ? $Mul16<$Hi16<A>, $Lo16<B>> extends infer $p10 extends string\n",
+                "  ? $Add64<$Zx64<$p01>, $Zx64<$p10>> extends infer $mid extends string\n",
+                "  ? $Shl64_16<$mid> extends infer $mids extends string\n",
+                "  ? $Shl64_32<$Zx64<$p11>> extends infer $high extends string\n",
+                "  ? $Add64<$Zx64<$p00>, $high> extends infer $ends extends string\n",
+                "  ? $Add64<$ends, $mids>\n",
+                "  : never\n  : never\n  : never\n  : never\n  : never\n  : never\n  : never\n  : never\n"
             )
             .to_string(),
         );
@@ -2588,12 +2635,12 @@ impl BlockEnv {
             concat!(
                 "export type $Mul64<A extends string, B extends string> =\n",
                 "  $Mul3264<$Lo64<A>, $Lo64<B>> extends infer $m extends string\n",
-                "  ? Wasm.I32Add<\n",
-                "      $Hi64<$m>,\n",
-                "      Wasm.I32Add<Wasm.I32Mul<$Hi64<A>, $Lo64<B>>, Wasm.I32Mul<$Lo64<A>, $Hi64<B>>>\n",
-                "    > extends infer $hi extends WasmValue\n",
+                "  ? Wasm.I32Mul<$Hi64<A>, $Lo64<B>> extends infer $ahbl extends WasmValue\n",
+                "  ? Wasm.I32Mul<$Lo64<A>, $Hi64<B>> extends infer $albh extends WasmValue\n",
+                "  ? Wasm.I32Add<$ahbl, $albh> extends infer $cross extends WasmValue\n",
+                "  ? Wasm.I32Add<$Hi64<$m>, $cross> extends infer $hi extends WasmValue\n",
                 "  ? `${$hi}${$Lo64<$m>}`\n",
-                "  : never\n",
+                "  : never\n  : never\n  : never\n  : never\n",
                 "  : never\n"
             )
             .to_string(),
