@@ -264,7 +264,18 @@ export const enter = (
 /// though the first chunk is too deep for it and has to back off once:
 ///
 ///     1024 x 32 chunks -> 6.78s      2048 x 16 chunks -> 5.01s
-const DEFAULT_FUEL = 2048;
+// Measured on doom, 30 chunks from the same checkpoint, ms per unit of fuel
+// retired (lower is better):
+//
+//   640  0.350   768  0.302   896  0.326   960  0.327   2048  0.343+
+//
+// Above ~800 the checker starts handing back approximations, and every one of
+// those costs a compiler replacement (2.8s per 30 chunks) plus a run of
+// halvings before the fuel settles back down. At 768 none of that happens:
+// zero degraded chunks and zero replacements across the same work. The old
+// 2048 never actually ran at 2048 - it halved its way down to about 512 and
+// paid for the trip every time a compiler was replaced.
+const DEFAULT_FUEL = 768;
 
 const TRUNCATED = /\bany\b/;
 
@@ -431,6 +442,9 @@ export const run = async (
   let backoffs = 0;
   let evalMs = 0;
   let trieMs = 0;
+  let trieParseMs = 0;
+  let triePruneMs = 0;
+  let triePrintMs = 0;
   let fileMs = 0;
   let saveMs = 0;
   let recycles = 0;
@@ -633,8 +647,16 @@ ${splitReaders}
     }
 
     const r0 = performance.now();
-    memory = printTrie(prune(parseTrie(state), base));
-    trieMs += performance.now() - r0;
+    const parsedTrie = parseTrie(state);
+    const r1 = performance.now();
+    const prunedTrie = prune(parsedTrie, base);
+    const r2 = performance.now();
+    memory = printTrie(prunedTrie);
+    const r3 = performance.now();
+    trieParseMs += r1 - r0;
+    triePruneMs += r2 - r1;
+    triePrintMs += r3 - r2;
+    trieMs += r3 - r0;
     mark("trie");
     const g0 = performance.now();
     const globalValues = splitTop(globals.slice(1, globals.lastIndexOf("]")))
@@ -707,6 +729,7 @@ ${splitReaders}
           .sort((a, b) => b[1] - a[1])
           .map(([name, ms]) => `${name} ${ms.toFixed(0)}ms`)
           .join(" ") +
+        ` | trie parse ${trieParseMs.toFixed(0)}ms prune ${triePruneMs.toFixed(0)}ms print ${triePrintMs.toFixed(0)}ms` +
         ` | recycle ${recycleMs.toFixed(0)}ms in ${recycles} ${JSON.stringify(why)}` +
         ` lifetimes ${JSON.stringify(lifetimes)} of ${totalMs.toFixed(0)}ms\n`,
     );
