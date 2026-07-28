@@ -361,6 +361,32 @@ export const run = async (
   const moduleText = readFileSync(modulePath, "utf8")
     // the chunk file inlines the module, so its imports must resolve from here
     .replace(/^export type/gm, "type");
+  // The module and the incoming state go in `.d.ts` files, and `skipLibCheck`
+  // means the checker never checks a declaration file: an alias in there is
+  // instantiated only where the chunk actually reads it. Inlined into the
+  // chunk instead, every one of the module's ~2200 declarations is resolved
+  // before the chunk runs a single step. Measured on doom chunk-0000, a chunk
+  // with its evaluation stubbed out to a constant:
+  //
+  //     inlined     2,768,896 instantiations   0.650s
+  //     .d.ts       2,002,187 instantiations   0.285s
+  //
+  // The evaluation itself is 11,461 instantiations, 0.4% of either number.
+  // A declaration file with no top-level import or export is global, so the
+  // chunk sees every name in it without importing anything - hence rewriting
+  // the one import to inline `import('ts-type-math').X` types.
+  const globalModuleText = (() => {
+    const found = /^import type \{([^}]*)\} from ['"]ts-type-math['"];?\n/m.exec(moduleText);
+    if (!found) return moduleText;
+    let text = moduleText.slice(0, found.index) + moduleText.slice(found.index + found[0].length);
+    for (const raw of found[1].split(",")) {
+      const name = raw.trim();
+      if (!name) continue;
+      // not `Convert.WasmValue.ToTSNumber`: only the head of a qualified name
+      text = text.replace(new RegExp(`(?<![.\\w$])${name}\\b`, "g"), `import('ts-type-math').${name}`);
+    }
+    return text;
+  })();
   const fanout = (moduleText.match(/^type \$Kid\d+</gm) ?? []).length;
   const base = initialMemory(moduleText);
   // Readers for the memory a branch at a time, two levels down. They cost
@@ -404,6 +430,25 @@ export const run = async (
   }
   let backoffs = 0;
   let evalMs = 0;
+  let trieMs = 0;
+  let fileMs = 0;
+  let saveMs = 0;
+  let recycles = 0;
+  const why: Record<string, number> = {};
+  const lifetimes: number[] = [];
+  let recycleMs = 0;
+  let degMs = 0;
+  let globMs = 0;
+  // Every millisecond of the loop lands in exactly one bucket: `mark` closes
+  // the span since the previous mark, and the first mark of an iteration
+  // closes the tail of the one before it, including the `continue` paths.
+  const spans: Record<string, number> = {};
+  let last = performance.now();
+  const mark = (name: string) => {
+    const now = performance.now();
+    spans[name] = (spans[name] ?? 0) + (now - last);
+    last = now;
+  };
   let value_: string | undefined;
   let failed: string | undefined;
   const t0 = performance.now();
@@ -415,13 +460,22 @@ export const run = async (
   // So a failure that survives all the way down to the minimum fuel is treated
   // as the instance being worn out rather than the work being too big.
   let { env, path } = session;
-  const recycle = () => {
+  const modulePathDts = join(__dirname, `module-${process.pid}.d.ts`);
+  const statePathDts = join(__dirname, `state-${process.pid}.d.ts`);
+  // The module text never changes, so it is written once per compiler instance.
+  env.createFile(modulePathDts, globalModuleText);
+  const recycle = (reason: string) => {
+    const c0 = performance.now();
     env.close();
     const fresh = createSession();
     session.env = fresh.env;
     session.path = fresh.path;
     env = fresh.env;
     path = fresh.path;
+    env.createFile(modulePathDts, globalModuleText);
+    recycles++;
+    why[reason] = (why[reason] ?? 0) + 1;
+    recycleMs += performance.now() - c0;
   };
   let recycled = 0;
   // Chunks the current compiler has done, and how many the last one managed
@@ -437,14 +491,15 @@ export const run = async (
   let worked = 0;
 
   while (chunks < max) {
+    mark("tail");
     // The state is printed as its own top-level type, never nested inside the
     // result tuple. Measured reason: the printer elides deeply nested parts as
     // `any` once they sit a couple of levels down inside a bigger type, and
     // that `any` pasted back into the next chunk corrupts memory silently. The
     // *type* is correct either way - only the printout was lossy.
-    const file = `${moduleText}
-type $FUEL = ${fuelType(fuel)}
-type $IN = ${memory}
+    const f0 = performance.now();
+    env.createFile(statePathDts, `type $IN = ${memory}\n`);
+    const file = `type $FUEL = ${fuelType(fuel)}
 type $Result = ${call}
 export type $Out_Tag = $Tag<$Result>
 export type $Out_Frames = $Frames<$Result>
@@ -454,10 +509,17 @@ export type $Out_Mem = $MemOf<$Result>
 ${splitReaders}
 `;
     env.createFile(path, file);
+    fileMs += performance.now() - f0;
+    mark("file");
     // A chunk dumped to disk can be re-checked by tsc standalone, which reports
     // Instantiations - a deterministic cost number, unlike wall time.
     if (process.env.DUMP_CHUNKS) {
-      writeFileSync(`${process.env.DUMP_CHUNKS}/chunk-${String(chunks).padStart(4, "0")}.ts`, file);
+      const stem = `${process.env.DUMP_CHUNKS}/chunk-${String(chunks).padStart(4, "0")}`;
+      // the module and state live in sibling declaration files now, so a dump
+      // is only re-checkable standalone if all three land next to each other
+      writeFileSync(`${stem}.ts`, file);
+      writeFileSync(`${stem}.state.d.ts`, `type $IN = ${memory}\n`);
+      writeFileSync(`${process.env.DUMP_CHUNKS}/module.d.ts`, globalModuleText);
     }
     const e0 = performance.now();
     const read = async (name: string) => {
@@ -501,7 +563,7 @@ ${splitReaders}
         lifetime = Math.max(1, worked - 1);
         since = 0;
         worked = 0;
-        recycle();
+        recycle("worn");
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: worn out; new compiler every ${lifetime}    \n`);
         continue;
       }
@@ -509,6 +571,7 @@ ${splitReaders}
       break;
     }
     evalMs += performance.now() - e0;
+    mark("eval");
 
     // The chunk counter only advances on a chunk that was accepted. Counting a
     // retry as a chunk moves `chunks` out from under the `recycled !== chunks`
@@ -516,7 +579,10 @@ ${splitReaders}
     // the driver replaces the compiler forever and never reaches the fuel
     // halving. That reads as progress in the log - the chunk numbers climb -
     // while the state stays byte for byte identical.
+    const d0 = performance.now();
     const bad = degraded(tag, state, live, value, globals);
+    degMs += performance.now() - d0;
+    mark("degraded");
     if (bad) {
       // An approximation handed back quietly is not a fuel problem: the same
       // chunk that came back never at fuel 1024 still came back never at fuel
@@ -527,7 +593,7 @@ ${splitReaders}
         lifetime = Math.max(1, worked - 1);
         since = 0;
         worked = 0;
-        recycle();
+        recycle("bad");
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: ${bad}; new compiler every ${lifetime}    \n`);
         continue;
       }
@@ -549,8 +615,15 @@ ${splitReaders}
     // full run of halvings, once per replacement.
     worked++;
     if (++since >= lifetime) {
-      recycle();
+      lifetimes.push(lifetime);
+      recycle("wear");
       since = 0;
+      // A compiler that used up its whole allowance without ever handing back
+      // an approximation says the allowance is too small, and nothing else
+      // ever raises it: one bad chunk early in the run used to pin `lifetime`
+      // at 2 for good, paying a 700ms replacement every second chunk. Climb
+      // the same way the fuel does, and let the next bad chunk set it back.
+      lifetime = lifetime * 2;
     }
     const ceiling = options.fuel ?? DEFAULT_FUEL;
     if (fuel < ceiling && ++settled >= 20) {
@@ -559,10 +632,16 @@ ${splitReaders}
       if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: settled; fuel -> ${fuel}    \n`);
     }
 
+    const r0 = performance.now();
     memory = printTrie(prune(parseTrie(state), base));
+    trieMs += performance.now() - r0;
+    mark("trie");
+    const g0 = performance.now();
     const globalValues = splitTop(globals.slice(1, globals.lastIndexOf("]")))
       .filter((v) => v.length > 0)
       .map(toSource);
+    globMs += performance.now() - g0;
+    mark("globals");
 
     const checkpoint = (next: string) => {
       if (!options.save) return;
@@ -576,7 +655,9 @@ ${splitReaders}
         evalMs,
         split: [...split],
       };
+      const s0 = performance.now();
       writeFileSync(options.save, JSON.stringify(point));
+      saveMs += performance.now() - s0;
     };
 
     if (tag === '"r"') {
@@ -593,6 +674,7 @@ ${splitReaders}
       frames = rest;
       call = enter(resume, rest, globalValues, toSource(value));
       checkpoint(call);
+      mark("frames");
       if (!options.quiet) {
         process.stdout.write(`\r  chunk ${chunks}: returned into ${resume.block}, ${rest.length} frames left   `);
       }
@@ -610,12 +692,25 @@ ${splitReaders}
     frames = outer;
     call = enter(innermost, outer, globalValues);
     checkpoint(call);
+    mark("frames");
     if (!options.quiet) {
       process.stdout.write(`\r  chunk ${chunks}: suspended in ${innermost.block}, ${outer.length} frames, state ${memory.length} chars   `);
     }
   }
   if (!options.session) env.close();
   if (!options.quiet) process.stdout.write("\n");
+  if (process.env.TIME_READS) {
+    const totalMs = performance.now() - t0;
+    process.stderr.write(
+      `  split: ` +
+        Object.entries(spans)
+          .sort((a, b) => b[1] - a[1])
+          .map(([name, ms]) => `${name} ${ms.toFixed(0)}ms`)
+          .join(" ") +
+        ` | recycle ${recycleMs.toFixed(0)}ms in ${recycles} ${JSON.stringify(why)}` +
+        ` lifetimes ${JSON.stringify(lifetimes)} of ${totalMs.toFixed(0)}ms\n`,
+    );
+  }
   return { value: value_, memory, chunks: carried + chunks, backoffs, fuel, evalMs, totalMs: performance.now() - t0, failed };
 };
 
