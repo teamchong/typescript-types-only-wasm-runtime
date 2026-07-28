@@ -830,7 +830,7 @@ export type $Absent = ['u']
 /// decides whether a chunk fits inside TypeScript's instantiation budget.
 export type $Fetch<T, P extends string> =
   $Get<T, P> extends infer W extends string
-    ? W extends 'u' ? $Get<$InitialMemory, P> : W
+    ? W extends 'u' ? (P extends keyof $InitialMap ? $InitialMap[P] : '00000000000000000000000000000000') : W
     : never
 
 export type $Read<M extends $Node, A extends WasmValue> =
@@ -1038,7 +1038,30 @@ export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> 
         let mut sorted: Vec<(u32, u32)> = words.into_iter().filter(|(_, v)| *v != 0).collect();
         sorted.sort_by_key(|(addr, _)| *addr);
         let literal = self.trie_literal(&sorted);
-        format!("\nexport type $InitialMemory = {literal}\n")
+        // A read of a word nothing has stored to falls through to initial
+        // memory, and on a doom frame that is nearly every read: walking the
+        // trie for it was 85% of a chunk's instantiations. Keyed by the same
+        // path string $Get would have walked, the fallback is one property
+        // lookup instead of {levels} nested $Sel instantiations over big tuples.
+        // The trie literal stays because the host parses it to decode state.
+        // $Slice keeps the low trie_bits bits of the word address, and the trie
+        // buckets collisions to the lowest address of the bucket, so the map has
+        // to alias and tie-break the same way or a read would disagree with the
+        // literal the host decodes.
+        let bits = self.trie_bits;
+        let mask: u32 = if bits >= 32 { u32::MAX } else { (1u32 << bits) - 1 };
+        let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        let mut map = String::from("\nexport type $InitialMap = {\n");
+        for (addr, value) in &sorted {
+            let path_bits = (addr >> 2) & mask;
+            if !seen.insert(path_bits) {
+                continue;
+            }
+            let path = format!("{path_bits:0width$b}", width = bits);
+            map.push_str(&format!("  '{path}': '{value:032b}',\n"));
+        }
+        map.push_str("}\n");
+        format!("\nexport type $InitialMemory = {literal}\n{map}")
     }
 
     /// Build the nested-tuple literal for a set of word writes, sharing the
