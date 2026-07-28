@@ -101,9 +101,25 @@ server.on("upgrade", (req, socket: Socket) => {
 let last: Buffer | undefined;
 let lastStatus = "";
 let lastChunk = -1;
+let lastAt = 0;
+/// A frame took 3224 chunks to render, measured end to end. Chunk count is set
+/// by where the program suspends - calls and block edges - so it barely moves
+/// with the fuel setting: 3293 chunks at fuel 1024, 3224 at 16384.
+const CHUNKS_PER_FRAME = 3224;
+/// chunks a second, smoothed: a single chunk's time swings with how much of the
+/// state it touches
+let rate = 0;
+/// The checkpoint counts the time the checker spent, not the time the run took:
+/// the host spends the rest printing and re-parsing the state. Watching both
+/// clocks tick gives the share without hardcoding it, and evalMs / share is
+/// then the wall time of the whole run, including the part before we attached.
+/// Seeded from two full frames - 680s of checker in 1103s, 648s in 1134s - so a
+/// checkpoint that has stopped moving still reports, and refined from there.
+let share = 0.6;
+let lastEvalMs = 0;
 
 const poll = () => {
-  let checkpoint: { memory: string; chunks: number };
+  let checkpoint: { memory: string; chunks: number; evalMs: number };
   try {
     // the driver rewrites this file while we read it
     checkpoint = JSON.parse(readFileSync(checkpointPath, "utf8"));
@@ -111,14 +127,30 @@ const poll = () => {
     return;
   }
   if (checkpoint.chunks === lastChunk) return;
+  const now = performance.now();
+  if (lastAt) {
+    const sample = ((checkpoint.chunks - lastChunk) / (now - lastAt)) * 1000;
+    rate = rate ? rate * 0.8 + sample * 0.2 : sample;
+    const evalShare = (checkpoint.evalMs - lastEvalMs) / (now - lastAt);
+    if (evalShare > 0 && evalShare <= 1) {
+      share = share ? share * 0.8 + evalShare * 0.2 : evalShare;
+    }
+  }
+  lastAt = now;
+  lastEvalMs = checkpoint.evalMs;
   lastChunk = checkpoint.chunks;
   const started = performance.now();
   const { rgb, painted } = frameFrom(checkpoint.memory, initial);
   last = encodePng(rgb, WIDTH, HEIGHT);
   const percent = ((painted / (WIDTH * HEIGHT)) * 100).toFixed(1);
-  lastStatus =
-    `chunk ${checkpoint.chunks} - ${painted}/${WIDTH * HEIGHT} pixels (${percent}%)` +
-    ` - decoded in ${Math.round(performance.now() - started)}ms`;
+  // wall time of the run so far, including whatever ran before we attached
+  const wall = share ? checkpoint.evalMs / share : 0;
+  const fps = wall ? checkpoint.chunks / CHUNKS_PER_FRAME / (wall / 1000) : 0;
+  lastStatus = !fps
+    ? `chunk ${checkpoint.chunks} - measuring`
+    : `${fps.toFixed(5)} fps (1 frame ~ ${(1 / fps / 60).toFixed(1)} min) - ` +
+      `${rate.toFixed(1)} chunks/s, chunk ${checkpoint.chunks} of ~${CHUNKS_PER_FRAME} - ` +
+      `${painted}/${WIDTH * HEIGHT} pixels (${percent}%)`;
   for (const socket of clients) {
     socket.write(wsFrame(last));
     socket.write(wsFrame(Buffer.from(lastStatus), 0x1));
