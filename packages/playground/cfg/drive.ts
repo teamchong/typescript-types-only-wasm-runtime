@@ -536,10 +536,31 @@ ${splitReaders}
       writeFileSync(`${process.env.DUMP_CHUNKS}/module.d.ts`, globalModuleText);
     }
     const e0 = performance.now();
+    // One program per chunk, not one per read. `getProgram()` re-synchronises
+    // the language service against the file system, and this chunk asks for 77
+    // types: the state file gets re-parsed and re-bound 76 times for nothing.
+    const p0 = performance.now();
+    const chunkProgram = env.languageService.getProgram()!;
+    const syncMs = performance.now() - p0;
+    if (process.env.TIME_READS) process.stderr.write(`    getProgram: ${syncMs.toFixed(0)}ms\n`);
+    // Where the forcing read actually goes: resolving the type, or printing it.
+    if (process.env.TIME_SPLIT) {
+      const sf = chunkProgram.getSourceFile(path)!;
+      const alias = [...sf.statements].find(
+        (n) => (n as { name?: { text?: string } }).name?.text === "$Out_Tag",
+      ) as unknown as { type: Parameters<ReturnType<typeof chunkProgram.getTypeChecker>["getTypeFromTypeNode"]>[0] };
+      const checker = chunkProgram.getTypeChecker();
+      const a0 = performance.now();
+      const resolved = checker.getTypeFromTypeNode(alias.type);
+      const a1 = performance.now();
+      checker.typeToString(resolved, undefined, 1 << 0);
+      const a2 = performance.now();
+      process.stderr.write(`    $Out_Tag resolve ${(a1 - a0).toFixed(0)}ms print ${(a2 - a1).toFixed(0)}ms\n`);
+    }
     const read = async (name: string) => {
       const t = performance.now();
       const out = (
-        await evaluateType(env, path, env.languageService.getProgram()!, undefined, name, true)
+        await evaluateType(env, path, chunkProgram, undefined, name, true)
       ).typeString.trim();
       if (process.env.TIME_READS) process.stderr.write(`    read ${name}: ${(performance.now() - t).toFixed(0)}ms\n`);
       return out;
