@@ -625,6 +625,14 @@ impl CfgCompiler {
         let high: String = (0..skip).map(|i| format!("${{infer _h{i}}}")).collect();
         let mid: String = (0..bits).map(|i| format!("${{infer b{i}}}")).collect();
         let path: String = (0..bits).map(|i| format!("${{b{i}}}")).collect();
+        // The bits $Slice throws away are constants for every address the
+        // program actually forms: the high ones are zero because memory is
+        // smaller than the address space, the low two because a word load is
+        // aligned. Matching them as literals costs one infer instead of
+        // {skip} + 2 of them, so the slow body stays behind as a fallback for
+        // an address that is neither.
+        let high_zeros: String = "0".repeat(skip);
+        let low_zeros: String = "0".repeat(2);
 
         // one digit of the path, as a template pattern and as a value
         let digit_pattern: String = (0..digit).map(|i| format!("${{infer d{i}}}")).collect();
@@ -722,6 +730,10 @@ export type $Fuel = string
 
 /// the addressing bits of an address: drop the two byte-offset bits, keep {bits}
 export type $Slice<A extends string> =
+  A extends `{high_zeros}${{infer B extends string}}{low_zeros}`
+    ? B
+    : $SliceWide<A>
+export type $SliceWide<A extends string> =
   A extends `{high}{mid}${{infer _l0}}${{infer _l1}}`
     ? `{path}`
     : never
@@ -790,6 +802,10 @@ export type $Node8<T> = T extends [{node_unknowns}]
 /// The address split the way the write buffer wants it: the key of the bottom
 /// branch (everything but the last digit), that key as digits, and the digit.
 export type $Split<A extends string> =
+  A extends `{high_zeros}{mid}{low_zeros}`
+    ? [`{buf_key}`, [{buf_digits}], `{last_digit}`]
+    : $SplitWide<A>
+export type $SplitWide<A extends string> =
   A extends `{high}{mid}${{infer _l0}}${{infer _l1}}`
     ? [`{buf_key}`, [{buf_digits}], `{last_digit}`]
     : never
@@ -915,6 +931,8 @@ export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> 
             twentyfour = bits32(24),
             thirtytwo = bits32(32),
             ff = bits32(0xff),
+            high_zeros = high_zeros,
+            low_zeros = low_zeros,
             high = high,
             mid = mid,
             path = path,
