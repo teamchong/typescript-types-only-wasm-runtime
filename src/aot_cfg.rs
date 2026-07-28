@@ -629,10 +629,6 @@ impl CfgCompiler {
         // one digit of the path, as a template pattern and as a value
         let digit_pattern: String = (0..digit).map(|i| format!("${{infer d{i}}}")).collect();
         let digit_value: String = (0..digit).map(|i| format!("${{d{i}}}")).collect();
-        let node_pattern: String = (0..fanout)
-            .map(|i| format!("infer c{i}"))
-            .collect::<Vec<_>>()
-            .join(", ");
 
         // $Sel / $Set: pick and replace one child of a branch node
         let sel_arms: String = (0..fanout)
@@ -659,10 +655,12 @@ impl CfgCompiler {
             })
             .collect();
         let all_same: String = (0..fanout).map(|_| "T").collect::<Vec<_>>().join(", ");
-        let node_pattern_names: String = (0..fanout)
-            .map(|i| format!("c{i}"))
-            .collect::<Vec<_>>()
-            .join(", ");
+        // Checking a node's arity does not need its children named: `[unknown,
+        // ...]` is an assignability test, while `[infer c0, ...]` infers eight
+        // subtree types and the callers then rebuilt a tuple out of them just to
+        // index it. $Sel and $Set already work by indexed access, so they can
+        // take T straight.
+        let node_unknowns: String = (0..fanout).map(|_| "unknown").collect::<Vec<_>>().join(", ");
 
         // the write buffer holds one bottom branch: the key is every digit above
         // it, so a store that stays inside the branch is a slot swap
@@ -740,8 +738,8 @@ export type $Set<T extends unknown[], D extends string, X> =
 
 export type $Get<T, B extends string> =
   B extends `{digit_pattern}${{infer Rest}}`
-    ? T extends [{node_pattern}]
-      ? $Get<$Sel<[{node_pattern_names}], `{digit_value}`>, Rest>
+    ? T extends [{node_unknowns}]
+      ? $Get<$Sel<T, `{digit_value}`>, Rest>
       : $Word<T>
     : $Word<T>
 
@@ -750,8 +748,8 @@ export type $Get<T, B extends string> =
 /// holds this", which is how all-zero subtrees stay shared and cheap.
 export type $Put<T, B extends string, V extends string> =
   B extends `{digit_pattern}${{infer Rest}}`
-    ? T extends [{node_pattern}]
-      ? $Set<[{node_pattern_names}], `{digit_value}`, $Put<$Sel<[{node_pattern_names}], `{digit_value}`>, Rest, V>>
+    ? T extends [{node_unknowns}]
+      ? $Set<T, `{digit_value}`, $Put<$Sel<T, `{digit_value}`>, Rest, V>>
       : $Set<[{all_same}], `{digit_value}`, $Put<T, Rest, V>>
     : [V]
 
@@ -786,8 +784,8 @@ export type $SetByte<W extends string, O extends string, V extends string> =
 export type $ByteOffset<A extends WasmValue> = Wasm.I32And<A, '{three}'>
 
 /// A branch node, expanding a shared leaf into {fanout} copies of itself.
-export type $Node8<T> = T extends [{node_pattern}]
-  ? [{node_pattern_names}] : [{all_same}]
+export type $Node8<T> = T extends [{node_unknowns}]
+  ? T : [{all_same}]
 
 /// The address split the way the write buffer wants it: the key of the bottom
 /// branch (everything but the last digit), that key as digits, and the digit.
@@ -940,8 +938,7 @@ export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> 
             vbyte0 = (24..32).map(|i| format!("${{v{i}}}")).collect::<String>(),
             digit_pattern = digit_pattern,
             digit_value = digit_value,
-            node_pattern = node_pattern,
-            node_pattern_names = node_pattern_names,
+            node_unknowns = node_unknowns,
             buf_key = buf_key,
             buf_digits = buf_digits,
             last_digit = last_digit,
