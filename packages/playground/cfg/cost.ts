@@ -20,12 +20,11 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import getExePath from "typescript/lib/getExePath.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "../../..");
 const scratch = join(root, "packages/playground/probes/measure");
-const tsc = getExePath();
+const tsc = join(root, "node_modules/typescript/lib/tsc.js");
 const ZERO = `'${"0".repeat(32)}'`;
 
 mkdirSync(scratch, { recursive: true });
@@ -34,16 +33,25 @@ writeFileSync(
   JSON.stringify({
     extends: "../../../../tsconfig.json",
     compilerOptions: { incremental: false, tsBuildInfoFile: null },
-    include: ["./one.ts"],
+    include: ["./one.ts", "./module.d.ts", "./state.d.ts"],
   }),
 );
 
 const instantiations = (text: string) => {
   writeFileSync(join(scratch, "one.ts"), text);
-  const out = execFileSync(tsc, ["--noEmit", "--extendedDiagnostics", "-p", scratch], {
-    encoding: "utf8",
-    maxBuffer: 1 << 28,
-  });
+  // tsc exits nonzero whenever the chunk has an error, but the count is still
+  // on stdout and still the number we came for
+  const run = () =>
+    execFileSync(process.execPath, [tsc, "--noEmit", "--extendedDiagnostics", "-p", scratch], {
+      encoding: "utf8",
+      maxBuffer: 1 << 28,
+    });
+  let out: string;
+  try {
+    out = run();
+  } catch (e) {
+    out = (e as { stdout?: string }).stdout ?? "";
+  }
   return Number(/Instantiations:\s+(\d+)/.exec(out)?.[1] ?? NaN);
 };
 
@@ -56,6 +64,9 @@ const idle = (text: string) =>
 
 let total = 0;
 for (const path of process.argv.slice(2)) {
+  // the dump splits one program across three files; the chunk alone has no $Buf
+  writeFileSync(join(scratch, "module.d.ts"), readFileSync(join(dirname(path), "module.d.ts"), "utf8"));
+  writeFileSync(join(scratch, "state.d.ts"), readFileSync(path.replace(/\.ts$/, ".state.d.ts"), "utf8"));
   const text = readFileSync(path, "utf8");
   const work = instantiations(text) - instantiations(idle(text));
   total += work;

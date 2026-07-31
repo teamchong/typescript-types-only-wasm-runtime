@@ -180,13 +180,21 @@ impl CfgCompiler {
     pub fn new() -> Self {
         Self {
             bits_override: None,
-            // address bits per trie level. 3 is an 8-way trie, five levels deep
-            // for a 15-bit address space; TRIE_DIGIT_BITS sweeps it.
+            // Address bits per trie level; TRIE_DIGIT_BITS sweeps it. 6 is a
+            // 64-way trie, four levels deep for doom's 24-bit space. Levels cost
+            // more than fanout does: a store instantiates one node type per
+            // level, and past a budget the checker stops instantiating and hands
+            // back `any` for a leaf word, which fails the state at every fuel.
+            // Measured on doom, from a cold start to `entry` returning:
+            //   8-way,  6 levels,   16 pages: frame 1, then frame 2 has no heap
+            //   8-way,  7 levels,  128 pages: `any` at chunk 2607
+            //   16-way, 6 levels, 1024 pages: `any` at chunk 2363
+            //   64-way, 4 levels, 1024 pages: frame 1 in 2861 chunks, frame 2 runs
             digit_bits: std::env::var("TRIE_DIGIT_BITS")
                 .ok()
                 .and_then(|value| value.parse().ok())
                 .filter(|bits| (1..=6).contains(bits))
-                .unwrap_or(3),
+                .unwrap_or(6),
             func_types: Vec::new(),
             func_type_indices: Vec::new(),
             data: Vec::new(),
@@ -313,7 +321,22 @@ impl CfgCompiler {
             .bits_override
             .unwrap_or_else(|| (64 - (words - 1).leading_zeros()).max(1) as usize);
         // round up so the address splits into whole digits
-        let levels = (needed + self.digit_bits - 1) / self.digit_bits;
+        let mut levels = (needed + self.digit_bits - 1) / self.digit_bits;
+        // A trie sized to the declared pages leaves no room for `memory.grow`,
+        // and doom's allocator does not treat a refused grow as fatal: Z_ZoneBase
+        // returns 0, Z_Init stores that as mainzone, and Z_Malloc then walks a
+        // block list rooted at null forever - chunks tick, no store lands, the
+        // screen freezes. Measured: doom declares 11 pages and reaches 14 by the
+        // end of frame 1, so an 18-bit trie (16 pages) renders frame 1 and wedges
+        // on frame 2's Z_Init. 8MB of headroom costs 22% a chunk (600 chunks in
+        // 113.77s against 93.39s) and is the difference between one frame and a
+        // running game.
+        if self.bits_override.is_none() {
+            const HEADROOM_PAGES: u64 = 128;
+            while ((1u64 << (levels * self.digit_bits)) * 4) / 65536 < HEADROOM_PAGES {
+                levels += 1;
+            }
+        }
         self.trie_bits = levels * self.digit_bits;
         // rounding the address up to whole digits usually buys extra pages; a
         // grow can use them, and one past them has to fail rather than wrap
@@ -326,7 +349,18 @@ impl CfgCompiler {
         // allocator, a loop that never ends. It rides along as one more global,
         // so it is already threaded through blocks, frames and suspends.
         self.pages_global = self.globals.len();
-        self.globals.push(self.memory_pages as i64);
+        // `memory.size` answers this, and doom lays its screens and zone out from
+        // the top of memory, so the number decides where those pointers land. The
+        // import's declared minimum is a floor for the host, not what a host
+        // gives: browsers and node hand doom 256 pages, and doom needs them.
+        // Measured natively from the same state: 256 pages returns frame 2 and
+        // four more after it, 6 pages traps in frame 2. Reporting the declared 6
+        // put every top-of-memory pointer 250 pages low, which only looked
+        // survivable here because an out-of-range $Read answers 0 instead of
+        // trapping - until frame 3, where malloc's own consistency check finds
+        // the damage and lands on `unreachable`.
+        let host_pages = self.memory_pages.max(256).min(self.capacity_pages);
+        self.globals.push(host_pages as i64);
 
         let mut out = String::new();
         out.push_str(&self.emit_prelude());
@@ -770,7 +804,11 @@ export type $AlignAddr<A extends WasmValue> = Wasm.I32And<A, '111111111111111111
 /// The two low bits of an address, as characters. A byte offset is the last two
 /// characters of the address string - no arithmetic needed to find it.
 export type $Off<A extends string> =
-  A extends `{addr_pattern}` ? `${{a30}}${{a31}}` : never
+  A extends `${{string}}00` ? '00'
+    : A extends `${{string}}01` ? '01'
+    : A extends `${{string}}10` ? '10'
+    : A extends `${{string}}11` ? '11'
+    : never
 
 /// Read one byte out of a word by slicing characters, not by shifting bits.
 /// Words are little-endian, so byte 0 is the *last* eight characters.
@@ -876,14 +914,14 @@ export type $Store8<M extends $Node, A extends WasmValue, V extends WasmValue> =
 /// 32-bit access: aligned is a plain trie read or write; unaligned falls back to
 /// the bit arithmetic, which pong never needs
 export type $Load32<M extends $Node, A extends WasmValue> =
-  $Off<A> extends '00'
+  A extends `${{string}}00`
     ? $Read<M, A>
     : Wasm.I32Or<
         Wasm.I32ShrU<$Read<M, A>, Wasm.I32Shl<$ByteOffset<A>, '{three}'>>,
         Wasm.I32Shl<$Read<M, Wasm.I32Add<$AlignAddr<A>, '{four}'>>, Wasm.I32Sub<'{thirtytwo}', Wasm.I32Shl<$ByteOffset<A>, '{three}'>>>
       >
 export type $Store32<M extends $Node, A extends WasmValue, V extends WasmValue> =
-  $Off<A> extends '00'
+  A extends `${{string}}00`
     ? $Write<M, A, V>
     : $Store16<$Store16<M, A, V>, Wasm.I32Add<A, '{two}'>, Wasm.I32ShrU<V, '{sixteen}'>>
 
@@ -936,9 +974,6 @@ export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> 
             high = high,
             mid = mid,
             path = path,
-            addr_pattern = (0..32)
-                .map(|i| format!("${{infer a{i}}}"))
-                .collect::<String>(),
             word_pattern = (0..32)
                 .map(|i| format!("${{infer w{i}}}"))
                 .collect::<String>(),

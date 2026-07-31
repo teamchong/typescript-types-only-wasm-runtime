@@ -7,14 +7,20 @@
 // handshake is a sha1 of one header, and a binary frame is two bytes plus the
 // payload.
 //
+// The browser is a remote control and nothing more: it captures key and mouse
+// state, draws it so a recording shows what was pressed, and sends it here.
+// Every input lands in <checkpoint>.input as a revision counter plus the held
+// buttons, which is the handoff the type-level frame runner reads. No input is
+// interpreted here - a key is not a ticcmd until the checker turns it into one.
+//
 // Usage: node --import tsx stream.ts <checkpoint.json> [port]
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Socket } from "node:net";
-import { encodePng, frameFrom, initialMemoryLiteral } from "./render-frame";
+import { encodePng, frameFrom, initialMemoryLiteral, screenOf } from "./render-frame";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WIDTH = 320;
@@ -23,30 +29,215 @@ const HEIGHT = 200;
 const checkpointPath = process.argv[2];
 const port = Number(process.argv[3] ?? 8787);
 if (!checkpointPath) throw new Error("usage: stream.ts <checkpoint.json> [port]");
+/// where the browser's buttons wait for the checker to pick them up
+const inputPath = `${checkpointPath}.input`;
+
+/// The keys doom actually reads, in the order they are drawn. Codes are
+/// KeyboardEvent.code so the layout is physical, not what the OS maps.
+const KEYS: Array<[string, string]> = [
+  ["KeyW", "W"],
+  ["KeyA", "A"],
+  ["KeyS", "S"],
+  ["KeyD", "D"],
+  ["ArrowLeft", "left"],
+  ["ArrowRight", "right"],
+  ["ArrowUp", "fwd"],
+  ["ArrowDown", "back"],
+  ["ControlLeft", "fire"],
+  ["Space", "use"],
+  ["ShiftLeft", "run"],
+  ["AltLeft", "strafe"],
+  ["Escape", "esc"],
+  ["Enter", "enter"],
+  ["Digit1", "1"],
+  ["Digit2", "2"],
+  ["Digit3", "3"],
+  ["Digit4", "4"],
+];
 
 const page = `<!doctype html>
 <title>doom, by the type checker</title>
 <style>
   body { background: #111; color: #ccc; font: 13px ui-monospace, monospace;
-         display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 24px }
+         display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 20px }
+  #stage { display: flex; gap: 16px; align-items: flex-start }
   canvas { width: ${WIDTH * 3}px; height: ${HEIGHT * 3}px; image-rendering: pixelated;
-           background: #000 }
+           background: #000; cursor: crosshair }
+  #pad { width: 260px; display: flex; flex-direction: column; gap: 10px }
+  h2 { font: 600 11px ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase;
+       color: #777; margin: 0 0 6px }
+  #keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px }
+  .key { border: 1px solid #333; border-radius: 3px; padding: 6px 0; text-align: center;
+         font-size: 11px; color: #666; background: #171717 }
+  .key.on { background: #3ddc84; border-color: #3ddc84; color: #04180c; font-weight: 700 }
+  .btns { display: flex; gap: 4px }
+  .btn { flex: 1; border: 1px solid #333; border-radius: 3px; padding: 6px 0; text-align: center;
+         font-size: 11px; color: #666; background: #171717 }
+  .btn.on { background: #ffd166; border-color: #ffd166; color: #201600; font-weight: 700 }
+  #aim { height: 54px; border: 1px solid #333; border-radius: 3px; position: relative;
+         background: #171717; overflow: hidden }
+  #dot { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #6cf;
+         left: 50%; top: 50%; transform: translate(-50%, -50%) }
+  #log { height: 190px; overflow: hidden; border: 1px solid #262626; border-radius: 3px;
+         background: #0d0d0d; padding: 6px; font-size: 11px; line-height: 1.5; color: #8a8a8a }
+  #log b { color: #3ddc84; font-weight: 600 }
+  #log i { color: #ff7b72; font-style: normal }
+  .meta { color: #666; font-size: 11px }
+  .meta span { color: #ccc }
+  #status { min-height: 18px }
 </style>
-<canvas id=screen width=${WIDTH} height=${HEIGHT}></canvas>
-<div id=status>waiting for the checker</div>
+<div id=stage>
+  <canvas id=screen width=${WIDTH} height=${HEIGHT}></canvas>
+  <div id=pad>
+    <div><h2>keys</h2><div id=keys></div></div>
+    <div><h2>mouse</h2><div id=aim><div id=dot></div></div>
+      <div class=btns style="margin-top:4px">
+        <div class=btn id=m0>fire</div><div class=btn id=m1>mid</div><div class=btn id=m2>alt</div>
+      </div>
+      <div class=meta style="margin-top:4px">dx <span id=dx>0</span> dy <span id=dy>0</span></div>
+    </div>
+    <div><h2>sent to checker</h2>
+      <div class=meta>rev <span id=rev>0</span> acked <span id=ack>0</span></div>
+      <div class=meta>queued at chunk <span id=qchunk>-</span></div>
+    </div>
+    <div><h2>events</h2><div id=log></div></div>
+  </div>
+</div>
+<div id=status>connecting to the stream server</div>
+<div class=meta>fps <span id=fps>-</span> | frame time <span id=ftime>-</span> | chunk time
+  <span id=ctime>-</span> | next frame in <span id=eta>-</span> | this frame
+  <span id=inframe>-</span> | painted <span id=painted>-</span></div>
 <script>
-  const ctx = document.getElementById("screen").getContext("2d");
-  const status = document.getElementById("status");
-  const ws = new WebSocket("ws://" + location.host);
-  ws.binaryType = "blob";
-  let painted = 0;
-  ws.onmessage = async (e) => {
-    if (typeof e.data === "string") { status.textContent = e.data; return; }
-    const bitmap = await createImageBitmap(e.data);
+  var ctx = document.getElementById("screen").getContext("2d");
+  var canvas = document.getElementById("screen");
+  var status = document.getElementById("status");
+  var logEl = document.getElementById("log");
+  var keysEl = document.getElementById("keys");
+  var dot = document.getElementById("dot");
+  var KEYS = ${JSON.stringify(KEYS)};
+  var cells = {};
+  for (var i = 0; i < KEYS.length; i++) {
+    var cell = document.createElement("div");
+    cell.className = "key";
+    cell.textContent = KEYS[i][1];
+    keysEl.appendChild(cell);
+    cells[KEYS[i][0]] = cell;
+  }
+  var held = {};
+  var buttons = {};
+  var rev = 0;
+  var dx = 0;
+  var dy = 0;
+  var lines = [];
+  var ws = new WebSocket("ws://" + location.host);
+
+  var log = function (mark, what) {
+    lines.unshift("<" + (mark === "down" ? "b" : "i") + ">" +
+      (mark === "down" ? "\\u25bc" : "\\u25b3") + "</" + (mark === "down" ? "b" : "i") + "> " +
+      what + " <span style=color:#555>+" + Math.round(performance.now()) + "ms</span>");
+    lines = lines.slice(0, 12);
+    logEl.innerHTML = lines.join("<br>");
+  };
+
+  /// one shape for every input change: the checker gets state, not events
+  var send = function () {
+    if (ws.readyState !== 1) return;
+    rev++;
+    document.getElementById("rev").textContent = rev;
+    var down = [];
+    for (var k in held) if (held[k]) down.push(k);
+    var mb = [];
+    for (var b in buttons) if (buttons[b]) mb.push(Number(b));
+    ws.send(JSON.stringify({ rev: rev, keys: down, mouse: { dx: dx, dy: dy, buttons: mb } }));
+    dx = 0;
+    dy = 0;
+  };
+
+  window.addEventListener("keydown", function (e) {
+    if (cells[e.code]) e.preventDefault();
+    if (held[e.code]) return;
+    held[e.code] = true;
+    if (cells[e.code]) cells[e.code].classList.add("on");
+    log("down", e.code);
+    send();
+  });
+  window.addEventListener("keyup", function (e) {
+    if (cells[e.code]) e.preventDefault();
+    held[e.code] = false;
+    if (cells[e.code]) cells[e.code].classList.remove("on");
+    log("up", e.code);
+    send();
+  });
+  canvas.addEventListener("click", function () { canvas.requestPointerLock(); });
+  window.addEventListener("mousemove", function (e) {
+    if (document.pointerLockElement !== canvas) return;
+    dx += e.movementX;
+    dy += e.movementY;
+    document.getElementById("dx").textContent = dx;
+    document.getElementById("dy").textContent = dy;
+    var x = Math.max(-1, Math.min(1, dx / 200));
+    var y = Math.max(-1, Math.min(1, dy / 200));
+    dot.style.left = (50 + x * 46) + "%";
+    dot.style.top = (50 + y * 40) + "%";
+    send();
+  });
+  window.addEventListener("mousedown", function (e) {
+    if (document.pointerLockElement !== canvas) return;
+    e.preventDefault();
+    buttons[e.button] = true;
+    var el = document.getElementById("m" + e.button);
+    if (el) el.classList.add("on");
+    log("down", "mouse" + e.button);
+    send();
+  });
+  window.addEventListener("mouseup", function (e) {
+    buttons[e.button] = false;
+    var el = document.getElementById("m" + e.button);
+    if (el) el.classList.remove("on");
+    log("up", "mouse" + e.button);
+    send();
+  });
+
+  var painted = 0;
+  var onMessage = async function (e) {
+    if (typeof e.data === "string") {
+      var msg = JSON.parse(e.data);
+      if (msg.rev !== undefined) {
+        document.getElementById("ack").textContent = msg.rev;
+        document.getElementById("qchunk").textContent = msg.chunk;
+        return;
+      }
+      status.textContent = msg.state;
+      // metrics outlive the state line: an idle tick says nothing about rate,
+      // so leave the last measured numbers standing instead of blanking them
+      if (msg.fps === undefined) return;
+      var set = function (id, text) { document.getElementById(id).textContent = text; };
+      set("fps", msg.fps);
+      set("ftime", msg.frameTime);
+      set("ctime", msg.chunkTime);
+      set("eta", msg.eta);
+      set("inframe", msg.inFrame);
+      set("painted", msg.painted);
+      return;
+    }
+    var bitmap = await createImageBitmap(e.data);
     ctx.drawImage(bitmap, 0, 0);
     painted++;
   };
-  ws.onclose = () => { status.textContent = "disconnected"; };
+  /// The server dies with the driver, and this run restarts the driver often.
+  /// A tab that only reports "disconnected" stays black forever even after the
+  /// server is back, which reads as "doom is broken" when it is just a dead
+  /// socket, so hold the last frame on the canvas and keep dialling.
+  var wire = function (sock) {
+    ws = sock;
+    sock.binaryType = "blob";
+    sock.onmessage = onMessage;
+    sock.onclose = function () {
+      status.textContent = "stream server is gone, redialling every 1s";
+      setTimeout(function () { wire(new WebSocket("ws://" + location.host)); }, 1000);
+    };
+  };
+  wire(ws);
 </script>`;
 
 /// binary frame, server to client: no mask, three length encodings
@@ -69,6 +260,37 @@ const wsFrame = (payload: Buffer, opcode = 0x2) => {
   return Buffer.concat([header, payload]);
 };
 
+/// Client frames are masked. Pull whole frames out of the stream and hand back
+/// the text ones; a partial frame stays in the buffer until the rest lands.
+const readFrames = (buffered: Buffer): { rest: Buffer; texts: string[] } => {
+  const texts: string[] = [];
+  let buf = buffered;
+  for (;;) {
+    if (buf.length < 2) break;
+    const opcode = buf[0] & 0x0f;
+    const masked = (buf[1] & 0x80) !== 0;
+    let length = buf[1] & 0x7f;
+    let offset = 2;
+    if (length === 126) {
+      if (buf.length < 4) break;
+      length = buf.readUInt16BE(2);
+      offset = 4;
+    } else if (length === 127) {
+      if (buf.length < 10) break;
+      length = Number(buf.readBigUInt64BE(2));
+      offset = 10;
+    }
+    const mask = masked ? offset : -1;
+    if (masked) offset += 4;
+    if (buf.length < offset + length) break;
+    const body = Buffer.from(buf.subarray(offset, offset + length));
+    if (masked) for (let i = 0; i < body.length; i++) body[i] ^= buf[mask + (i % 4)];
+    if (opcode === 0x1) texts.push(body.toString("utf8"));
+    buf = buf.subarray(offset + length);
+  }
+  return { rest: buf, texts };
+};
+
 const clients = new Set<Socket>();
 const initial = initialMemoryLiteral(join(__dirname, "doom.cfg.ts"));
 
@@ -76,6 +298,34 @@ const server = createServer((_req, res) => {
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
   res.end(page);
 });
+
+/// Mouse deltas arrive per event and have to add up between frames, so the
+/// snapshot accumulates them and the held sets are last-writer-wins.
+let inputRev = 0;
+let pending = { keys: [] as string[], dx: 0, dy: 0, buttons: [] as number[] };
+
+const acceptInput = (text: string) => {
+  let message: { rev: number; keys: string[]; mouse: { dx: number; dy: number; buttons: number[] } };
+  try {
+    message = JSON.parse(text);
+  } catch {
+    return;
+  }
+  if (!Array.isArray(message.keys)) return;
+  inputRev++;
+  pending = {
+    keys: message.keys,
+    dx: pending.dx + (message.mouse?.dx ?? 0),
+    dy: pending.dy + (message.mouse?.dy ?? 0),
+    buttons: message.mouse?.buttons ?? [],
+  };
+  writeFileSync(
+    inputPath,
+    JSON.stringify({ rev: inputRev, chunk: lastChunk, ...pending }),
+  );
+  const ack = Buffer.from(JSON.stringify({ rev: inputRev, chunk: lastChunk }));
+  for (const socket of clients) socket.write(wsFrame(ack, 0x1));
+};
 
 server.on("upgrade", (req, socket: Socket) => {
   const key = req.headers["sec-websocket-key"];
@@ -89,9 +339,13 @@ server.on("upgrade", (req, socket: Socket) => {
       `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
   );
   clients.add(socket);
-  // client frames are masked and we want none of them, but reading has to be
-  // drained or the socket stalls
-  socket.on("data", () => {});
+  let buffered = Buffer.alloc(0);
+  socket.on("data", (chunk) => {
+    buffered = Buffer.concat([buffered, chunk]);
+    const { rest, texts } = readFrames(buffered);
+    buffered = rest;
+    for (const text of texts) acceptInput(text);
+  });
   socket.on("close", () => clients.delete(socket));
   socket.on("error", () => clients.delete(socket));
   if (last) socket.write(wsFrame(last));
@@ -105,7 +359,30 @@ let lastAt = 0;
 /// A frame took 3224 chunks to render, measured end to end. Chunk count is set
 /// by where the program suspends - calls and block edges - so it barely moves
 /// with the fuel setting: 3293 chunks at fuel 1024, 3224 at 16384.
-const CHUNKS_PER_FRAME = 3224;
+// A frame is one `entry` call, and the driver counts chunks per call, so the
+// chunk number dropping is the frame boundary. Frame length is not a constant to
+// hardcode: the cold start pays doom's whole init (measured 2861 chunks) and
+// every frame after it re-enters on a warm heap, so the length is measured here
+// and reported as unknown until one boundary has been seen.
+// The measurement outlives this process: restarting the stream throws away a
+// frame length that cost 19 minutes to measure, and then fps reads `-` for a
+// whole frame again even though the driver never stopped.
+const framePath = `${checkpointPath}.frame`;
+let frameChunks = 0;
+let frameSecondsSaved = 0;
+let framesFrom = "";
+try {
+  const saved = JSON.parse(readFileSync(framePath, "utf8"));
+  frameChunks = saved.frameChunks;
+  frameSecondsSaved = saved.frameSeconds;
+  framesFrom = " (measured before this stream started)";
+} catch {
+  // no measurement yet: report unknown rather than a guess
+}
+let lastEntry = -1;
+// per-call counts going backwards while memory stands still: two drivers
+let entryRewinds = 0;
+let frameStartedAt = performance.now();
 /// chunks a second, smoothed: a single chunk's time swings with how much of the
 /// state it touches
 let rate = 0;
@@ -117,16 +394,96 @@ let rate = 0;
 /// checkpoint that has stopped moving still reports, and refined from there.
 let share = 0.6;
 let lastEvalMs = 0;
+/// last painted share, so an idle tick can still say what is on screen
+let lastPaintedPercent = "";
+/// Chunks that advanced without a single word of memory changing. doom's
+/// Z_Malloc walks the zone block list with no stores until it finds a block, so
+/// a zone pointer of 0 - Z_ZoneBase after a grow failure - is an endless walk
+/// over null: chunks tick, the screen cannot change, and the run is dead. A
+/// frozen memory catches that and every other storeless loop.
+let lastMemory = "";
+let frozenChunks = 0;
+
+/// Every status the page can show names the state it is in. A placeholder that
+/// never changes cannot tell "no checkpoint yet" from "the driver died" from
+/// "a chunk takes half a second", and those want three different actions.
+const say = (text: string) => {
+  lastStatus = JSON.stringify({ state: text });
+  for (const socket of clients) socket.write(wsFrame(Buffer.from(lastStatus), 0x1));
+};
 
 const poll = () => {
-  let checkpoint: { memory: string; chunks: number; evalMs: number };
+  let checkpoint: { memory: string; chunks: number; entryChunks?: number; evalMs: number; done?: boolean };
   try {
     // the driver rewrites this file while we read it
     checkpoint = JSON.parse(readFileSync(checkpointPath, "utf8"));
   } catch {
+    // half-written JSON is normal and clears on the next tick; a missing file
+    // means nothing is driving this checkpoint at all
+    say(
+      existsSync(checkpointPath)
+        ? `checkpoint ${basename(checkpointPath)} is mid-write, reading again in 1s`
+        : `no checkpoint at ${checkpointPath} - start the driver: pnpm run play`,
+    );
     return;
   }
-  if (checkpoint.chunks === lastChunk) return;
+  if (checkpoint.chunks === lastChunk) {
+    // the driver saves every chunk, so silence is the chunk still running
+    const idle = ((performance.now() - lastAt) / 1000).toFixed(0);
+    say(
+      `chunk ${checkpoint.chunks}, no save for ${idle}s - ` +
+        (Number(idle) > 120 ? "driver looks stopped" : "chunk in progress") +
+        (lastPaintedPercent ? `, screen ${lastPaintedPercent}% painted` : ""),
+    );
+    return;
+  }
+  // A chunk count that jumps backwards is two drivers saving to one file, not
+  // progress: each tick then sees a 13000 chunk delta and the rate is fiction.
+  // Report it instead of averaging it in - the fix is killing one driver.
+  if (checkpoint.chunks < lastChunk) {
+    say(
+      `checkpoint went backwards, ${lastChunk} -> ${checkpoint.chunks}: two ` +
+        `drivers are writing ${basename(checkpointPath)}, kill one`,
+    );
+    lastChunk = checkpoint.chunks;
+    lastEvalMs = checkpoint.evalMs;
+    lastAt = performance.now();
+    rate = 0;
+    return;
+  }
+  if (checkpoint.memory === lastMemory) frozenChunks += checkpoint.chunks - lastChunk;
+  else {
+    frozenChunks = 0;
+    entryRewinds = 0;
+  }
+  lastMemory = checkpoint.memory;
+  // A frame is 3224 chunks, so a couple of hundred storeless chunks is already
+  // far past any real loop in the renderer.
+  if (frozenChunks > 200) {
+    // Two causes, and they need opposite fixes. Two drivers on one checkpoint
+    // rewind each other, so the file's memory never moves while its chunk count
+    // climbs, and each driver's own per-call count keeps jumping backwards -
+    // that is the signature to test, and killing one driver fixes it. A single
+    // driver whose stores have stopped is the real wedge. Measured: a run
+    // reported as wedged three times over sat at the identical memory hash
+    // a9058f06 with two `cfg/drive.ts` processes, and a fresh single-driver run
+    // from the same seed advanced normally.
+    say(
+      entryRewinds > 1
+        ? `two drivers are writing ${basename(checkpointPath)}: ${frozenChunks} ` +
+            `chunks with no memory write and ${entryRewinds} restarts of the ` +
+            `per-call count, so they are rewinding each other. Kill all but one: ` +
+            `pkill -f 'node.*cfg/drive.ts', then run pnpm run play once.`
+        : `wedged: ${frozenChunks} chunks with no memory write from a single ` +
+            `driver, so the screen cannot change (doom's zone pointer is 0 - ` +
+            `Z_Init found no heap after a restart on used memory). Kill the ` +
+            `driver, rm ${basename(checkpointPath)}, and run pnpm run play again.`,
+    );
+    lastChunk = checkpoint.chunks;
+    lastEvalMs = checkpoint.evalMs;
+    lastAt = performance.now();
+    return;
+  }
   const now = performance.now();
   if (lastAt) {
     const sample = ((checkpoint.chunks - lastChunk) / (now - lastAt)) * 1000;
@@ -136,21 +493,58 @@ const poll = () => {
       share = share ? share * 0.8 + evalShare * 0.2 : evalShare;
     }
   }
+  // A frame is one `entry` call, and only `done` says that call returned, so
+  // that is the one thing a frame length can be measured between. The per-call
+  // count restarting does not mean a frame landed: the play loop restarts the
+  // driver on takeover too, and treating that as a boundary reported a 2.4
+  // second frame - `fps 0.41750, frame time 0.0m` - next to a 15 minute eta.
+  const entry = checkpoint.entryChunks;
+  if (checkpoint.done) {
+    frameChunks = entry ?? lastEntry;
+    frameSecondsSaved = (now - frameStartedAt) / 1000;
+    frameStartedAt = now;
+    framesFrom = "";
+    writeFileSync(framePath, JSON.stringify({ frameChunks, frameSeconds: frameSecondsSaved }));
+  } else if (entry !== undefined && entry < lastEntry) {
+    entryRewinds++;
+    // a restart mid-frame: this frame's elapsed time starts again here, and the
+    // last completed frame's length stays the best thing to project from
+    frameStartedAt = now;
+  }
+  if (entry !== undefined) lastEntry = entry;
   lastAt = now;
   lastEvalMs = checkpoint.evalMs;
   lastChunk = checkpoint.chunks;
   const started = performance.now();
-  const { rgb, painted } = frameFrom(checkpoint.memory, initial);
+  const { rgb, painted } = frameFrom(checkpoint.memory, initial, screenOf(checkpoint));
   last = encodePng(rgb, WIDTH, HEIGHT);
   const percent = ((painted / (WIDTH * HEIGHT)) * 100).toFixed(1);
-  // wall time of the run so far, including whatever ran before we attached
-  const wall = share ? checkpoint.evalMs / share : 0;
-  const fps = wall ? checkpoint.chunks / CHUNKS_PER_FRAME / (wall / 1000) : 0;
-  lastStatus = !fps
-    ? `chunk ${checkpoint.chunks} - measuring`
-    : `${fps.toFixed(5)} fps (1 frame ~ ${(1 / fps / 60).toFixed(1)} min) - ` +
-      `${rate.toFixed(1)} chunks/s, chunk ${checkpoint.chunks} of ~${CHUNKS_PER_FRAME} - ` +
-      `${painted}/${WIDTH * HEIGHT} pixels (${percent}%)`;
+  // fps from the measured save rate, not from evalMs / share: share is a ratio
+  // of two clocks sampled a second apart, and one tick where the checker's
+  // clock barely moves flips the reported frame time between 17m and 1.4m.
+  // rate is chunks a second, smoothed, and already drives the eta below.
+  lastPaintedPercent = percent;
+  const inFrame = checkpoint.entryChunks ?? checkpoint.chunks;
+  // fps from the last completed frame, not from the chunk rate over a guessed
+  // frame length: the two disagree by more than 2x between the cold start and a
+  // re-entry, and a guess that reads as a measurement is worse than a dash
+  const frameSeconds = frameSecondsSaved;
+  const fps = frameSeconds > 0 ? 1 / frameSeconds : 0;
+  const left = frameChunks - inFrame;
+  const etaMin = rate > 0 && left > 0 ? left / rate / 60 : 0;
+  lastStatus = JSON.stringify({
+    state: frameChunks
+      ? `chunk ${inFrame} of this frame, last frame took ${frameChunks} chunks${framesFrom}`
+      : `chunk ${inFrame} of the first frame - its length is measured when it lands`,
+    // undefined fields drop out of JSON, so the page keeps its last numbers
+    // until two saves have been timed rather than showing a made up rate
+    fps: fps ? fps.toFixed(5) : undefined,
+    frameTime: fps ? `${(frameSeconds / 60).toFixed(1)}m` : undefined,
+    chunkTime: rate > 0 ? `${(1 / rate).toFixed(2)}s` : undefined,
+    eta: etaMin > 0 ? `${etaMin.toFixed(0)}m` : undefined,
+    inFrame: frameChunks ? `${inFrame}/${frameChunks}` : `${inFrame}/?`,
+    painted: `${painted}/${WIDTH * HEIGHT} (${percent}%)`,
+  });
   for (const socket of clients) {
     socket.write(wsFrame(last));
     socket.write(wsFrame(Buffer.from(lastStatus), 0x1));
@@ -158,4 +552,23 @@ const poll = () => {
 };
 
 setInterval(poll, 1000);
-server.listen(port, () => console.log(`http://localhost:${port}`));
+// The first poll is a second away, and a hardcoded "wait 2s" was wrong every
+// time the driver was still starting: a warm resume needs 2s to load a 3.2MB
+// checkpoint and finish its first chunk, a cold one longer. Report the file's
+// age instead, which is a fact the server already has.
+const sayStartup = () => {
+  if (!existsSync(checkpointPath)) {
+    say(`no checkpoint at ${checkpointPath} - start the driver: pnpm run play`);
+    return;
+  }
+  const age = ((Date.now() - statSync(checkpointPath).mtimeMs) / 1000).toFixed(0);
+  say(
+    `checkpoint ${basename(checkpointPath)} last written ${age}s ago, ` +
+      `waiting for the driver's next save`,
+  );
+};
+
+server.listen(port, () => {
+  sayStartup();
+  console.log(`http://localhost:${port}`);
+});

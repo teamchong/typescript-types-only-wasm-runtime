@@ -8,9 +8,19 @@
 //
 // Usage: tsx drive.ts <module.cfg.ts> <entry> [args...] [--fuel N] [--max N]
 import { basename, dirname, join } from "node:path";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createEnv, evaluateType } from "../evaluate/ts";
+
+/// A kill between open and close leaves a truncated checkpoint behind, and the
+/// play script reads a file that does not end in `}` as a dead run and starts
+/// over: every run this session died that way, each time throwing away frames
+/// that took 20 minutes each. rename() is atomic, so a reader gets the whole
+/// old checkpoint or the whole new one, never a prefix.
+const saveCheckpoint = (path: string, text: string): void => {
+  writeFileSync(`${path}.writing`, text);
+  renameSync(`${path}.writing`, path);
+};
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const bin = (n: number) => (n >>> 0).toString(2).padStart(32, "0");
@@ -47,8 +57,14 @@ const toSource = (printed: string) => printed.replace(/"/g, "'");
 /// word below it, which is how a whole subtree of one value stays one token.
 type Trie = string | Trie[];
 const ABSENT = "u";
+const ZERO_WORD = "0".repeat(32);
 
-const parseTrie = (src: string): Trie => {
+/// `prev` is what the alias `$IN` stands for. A chunk is called as
+/// `$entry<$FUEL, $IN, ...>`, so every subtree the chunk did not write prints
+/// back as `$IN` rather than as its contents. Resolving it to the trie the host
+/// already holds keeps the state small; pasting the name back would make the
+/// next state file define `$IN` in terms of itself.
+const parseTrie = (src: string, prev: Trie = ABSENT, aliases: Map<string, string> = new Map()): Trie => {
   let at = 0;
   const skip = () => {
     while (at < src.length && (src[at] === "," || /\s/.test(src[at]!))) at++;
@@ -77,7 +93,10 @@ const parseTrie = (src: string): Trie => {
     const start = at;
     while (at < src.length && !/[\s,\]]/.test(src[at]!)) at++;
     const token = src.slice(start, at);
-    return token === "$Zero" ? "0".repeat(32) : token === "$Absent" ? ABSENT : token;
+    if (token === "$IN") return prev;
+    const alias = aliases.get(token);
+    if (alias !== undefined) return alias;
+    return token === "$Zero" ? ZERO_WORD : token === "$Absent" ? ABSENT : token;
   };
   return node();
 };
@@ -89,7 +108,57 @@ const printTrie = (node: Trie): string =>
       ? "$Absent"
       : node.startsWith("$")
         ? node
-        : `['${node}']`;
+        : node === ZERO_WORD
+          ? // The module already declares `$Zero = ['<32 zeros>']`, so this is the
+            // same leaf spelled in 5 characters instead of 35, and the parser
+            // above already reads it back as the word. A zero stored over a
+            // nonzero initial word cannot become $Absent - $Fetch would read the
+            // module's data back through it - so this is what those words cost.
+            // Measured on doom at frame 2, chunk 1270: 21539 of 77343 stored
+            // words are that zero.
+            "$Zero"
+          : `['${node}']`;
+
+/// The state text is 82% word literals - measured on doom at frame 2: 63627 of
+/// them, 2.23MB of the 2.73MB - and a word costs 35 characters every chunk
+/// however often it repeats. The checker re-parses the whole state on each
+/// chunk, so the repeats are what to attack: 10012 of those words are the
+/// all-ones word alone. Declaring the common ones as aliases in the state file
+/// makes each use 3 characters. 64 is where the measured curve flattens: top-8
+/// saves 15% of the text, top-64 saves 25%, top-256 saves 34% but the extra 192
+/// declarations are 192 more types for the checker to bind per chunk.
+///
+/// Before: [['11111111111111111111111111111111'], ['11111111111111111111111111111111']]
+/// After:  type $A0 = ['11111111111111111111111111111111']
+///         [$A0, $A0]
+const ALIAS_TOP = 64;
+
+const aliasWordsOf = (node: Trie): string[] => {
+  const seen = new Map<string, number>();
+  const count = (n: Trie): void => {
+    if (Array.isArray(n)) {
+      for (const kid of n) count(kid);
+      return;
+    }
+    if (n === ABSENT || n.startsWith("$")) return;
+    seen.set(n, (seen.get(n) ?? 0) + 1);
+  };
+  count(node);
+  return [...seen]
+    .filter(([, hits]) => hits > 1)
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, ALIAS_TOP)
+    .map(([word]) => word);
+};
+
+const printAliased = (node: Trie, names: Map<string, string>): string =>
+  Array.isArray(node)
+    ? `[${node.map((kid) => printAliased(kid, names)).join(", ")}]`
+    : node === ABSENT
+      ? "$Absent"
+      : node.startsWith("$")
+        ? node
+        : (names.get(node) ?? (node === ZERO_WORD ? "$Zero" : `['${node}']`));
 
 /// A store that writes a word back at the value the module already holds leaves
 /// a word in the state that reads exactly like reading through to
@@ -100,15 +169,45 @@ const printTrie = (node: Trie): string =>
 /// a leaf that lands there gets split back out into its eight copies.
 const SPLIT_DEPTH = 2;
 
-const prune = (node: Trie, base: Trie, depth = 0): Trie => {
+/// The buffer a finished frame returned is dead once the next call allocates
+/// its own, and every frame leaks one: doom's sbrk only bumps, so frame 3's
+/// state carried frames 1 and 2's screens as stored words and the chunk cost
+/// went 0.17 -> 0.37 -> 0.47s with the state, 1.70MB -> 2.30MB. Native says
+/// dropping it changes nothing: zeroing the previous screen after each return
+/// gives the same four frames, 4262db231b 6f44692aa8 a2a8ce9d5b a2a8ce9d5b.
+/// 320x200 is doom's frame; a wider span would clobber the zone the previous
+/// frame allocated right behind it, which is still live.
+const DEAD_FRAME_BYTES = 320 * 200;
+
+/// Writes one word, splitting any leaf that stands for a whole subtree on the
+/// way down. `prune` puts back whatever this leaves collapsible.
+const setWord = (node: Trie, word: number, value: string, fanout: number, levels: number): Trie => {
+  if (levels === 0) return value;
+  const bits = Math.log2(fanout);
+  const index = (word >>> ((levels - 1) * bits)) & (fanout - 1);
+  const kids: Trie[] = Array.isArray(node) ? node.slice() : Array.from({ length: fanout }, () => node);
+  kids[index] = setWord(kids[index]!, word, value, fanout, levels - 1);
+  return kids;
+};
+
+const clearRange = (node: Trie, from: number, bytes: number, fanout: number): Trie => {
+  // the path $Slice hands $Get: the address without its low two bits, six bits
+  // per level
+  const levels = Math.ceil(24 / Math.log2(fanout));
+  let out = node;
+  for (let at = from; at < from + bytes; at += 4) out = setWord(out, at >>> 2, ZERO_WORD, fanout, levels);
+  return out;
+};
+
+const prune = (node: Trie, base: Trie, fanout: number, depth = 0): Trie => {
   const kid = (index: number) => (Array.isArray(base) ? base[index]! : base);
   if (depth < SPLIT_DEPTH && !(typeof node === "string" && node !== ABSENT && node.startsWith("$"))) {
-    return Array.from({ length: 8 }, (_unused, index) =>
-      prune(Array.isArray(node) ? node[index]! : node, kid(index), depth + 1),
+    return Array.from({ length: fanout }, (_unused, index) =>
+      prune(Array.isArray(node) ? node[index]! : node, kid(index), fanout, depth + 1),
     );
   }
   if (Array.isArray(node)) {
-    const kids = node.map((child, index) => prune(child, kid(index), depth + 1));
+    const kids = node.map((child, index) => prune(child, kid(index), fanout, depth + 1));
     if (kids.every((child) => child === ABSENT)) return ABSENT;
     const first = kids[0]!;
     if (typeof first === "string" && first !== ABSENT && kids.every((child) => child === first)) return first;
@@ -146,7 +245,9 @@ const BLOCK = /^"?\d+_\d+"?$/;
 // the module's initial memory, so the state only carries what was stored.
 // Words that came out of $InitialMemory print with the quotes that file uses,
 // so both styles are words. Either one pastes back into the next chunk as is.
-const TOKEN = `(?:[[\\],\\s]|\\$Zero|\\$Absent|\\$InitialMemory|["']u["']|"[01]{32}"|'[01]{32}')`;
+// `$IN` is the alias the chunk was called with: subtrees it never wrote print
+// under that name, and the parser resolves them against the incoming trie.
+const TOKEN = `(?:[[\\],\\s]|\\$Zero|\\$Absent|\\$IN|\\$InitialMemory|\\$A\\d+|["']u["']|"[01]{32}"|'[01]{32}')`;
 const STATE = new RegExp(`^${TOKEN}+$`);
 
 /// The first offset the state stops being a state at. This has to walk the same
@@ -320,11 +421,27 @@ export const readState = async (
 /// Everything needed to pick a run up again: where it was, what it was holding,
 /// and how much of it has already been paid for.
 export interface Checkpoint {
+  /// The run reached a top-level return: `call` is an answer, not a
+  /// continuation. Both print as $Exit<..>, so only the driver can tell them
+  /// apart, and a resumer that guesses either re-reports an old answer or
+  /// throws away a suspended frame.
+  done?: boolean;
   call: string;
   memory: string;
   frames: Frame[];
   globals: string[];
   chunks: number;
+  /// The address the finished call returned: the screen it drew into.
+  result?: string;
+  /// The screen the frame *before* this one returned. The renderer draws
+  /// `result`, so that buffer has to stay readable; this is the one that is
+  /// safe to drop.
+  prevResult?: string;
+  /// Chunks this `entry` call has done, where `chunks` counts every chunk since
+  /// the seed. A frame is one `entry` call, so this is what a reader watches to
+  /// see a frame boundary: `chunks` only ever climbs, including across the
+  /// re-entry the play loop does for the next frame.
+  entryChunks: number;
   evalMs: number;
   split: string[];
 }
@@ -398,7 +515,10 @@ export const run = async (
     }
     return text;
   })();
-  const fanout = (moduleText.match(/^type \$Kid\d+</gm) ?? []).length;
+  // the emitter writes these with an `export` in front; a pattern that misses
+  // them silently reports a flat memory, and the host then reads `$Out_Mem`
+  // whole instead of the split readers and never sees a write land
+  const fanout = (moduleText.match(/^(?:export )?type \$Kid\d+</gm) ?? []).length;
   const base = initialMemory(moduleText);
   // Readers for the memory a branch at a time, two levels down. They cost
   // nothing until one is asked for: a type alias is only instantiated when
@@ -416,12 +536,66 @@ export const run = async (
   })();
   // one '1' per unit of work; taking a prefix off a string is free, unlike
   // re-slicing a tuple on every hop
+  /// Where a finished frame's successor comes from.
+///
+/// Calling a spent `entry` again traps: doom's init runs sbrk, and sbrk's bump
+/// pointer already moved, so memset runs off the end of memory. Native wasm
+/// says so directly - "memory access out of bounds", every memory size from 16
+/// to 256 pages - and this runtime turns the same fault into a silent spin,
+/// because an out-of-range `$Read` answers 0 instead of trapping.
+///
+/// Zero that one word and re-entry works. Measured natively, six calls:
+///
+///   frame 1 ptr 393480  hash 4262db231b
+///   frame 2 ptr 655624  hash 6f44692aa8
+///   frame 3 ptr 852232  hash a2a8ce9d5b   (title screen, static until the demo)
+///
+/// The picture advances and each call returns the buffer it drew into, so the
+/// frame after this one is `entry` again over the same memory with sbrk reset.
+/// Restoring the rest of the allocator's words instead traps in func 12: init
+/// wants a virgin zone, and the heap it would re-init is still live.
+///
+/// sbrk is the function that loads and stores one constant address and calls
+/// memset, so the address comes out of the module rather than a constant here.
+function sbrkWord(moduleText: string) {
+  const funcs = new Map<string, string>();
+  for (const m of moduleText.matchAll(/type \$b(\d+)_\d+<[^=]*=([\s\S]*?)(?=(?:export )?type \$)/g))
+    funcs.set(m[1]!, (funcs.get(m[1]!) ?? "") + m[2]!);
+  for (const [, body] of funcs) {
+    const loads = new Set([...body.matchAll(/\$Load32<\$M, '([01]{32})'>/g)].map((m) => m[1]!));
+    const stores = new Set([...body.matchAll(/\$Store32<\$[mM]\d*, '([01]{32})'/g)].map((m) => m[1]!));
+    const both = [...loads].filter((a) => stores.has(a));
+    const calls = new Set([...body.matchAll(/\$call(\d+)</g)].map((m) => m[1]!));
+    if (both.length === 1 && calls.size === 1) return both[0]!;
+  }
+  return undefined;
+}
+
+  const entryShape =
+    /(?:export )?type \$entry<[^=]*=\s*\$Exit<\$b(\d+)_(\d+)<\$F, \[\], \$Buf<\$M>((?:,\s*'[01]+')*)\s*>>/.exec(moduleText);
+  const entryFunc = entryShape?.[1] ?? "";
+
   const fuelType = (n: number) => `'${"1".repeat(n)}'`;
+  // A block whose fuel check asks for a leading `0` is a frame boundary: an
+  // ordinary all-ones string cannot match it, so control arriving there suspends
+  // and its record reports the loop head's locals. Resuming it needs the one
+  // fuel string that gets past the check.
+  const boundaryBlocks = new Set(
+    [...moduleText.matchAll(/type \$b(\d+_\d+)<[^=]*=\s*\$F extends `0/g)].map((m) => m[1]!),
+  );
+  const fuelFor = (call: string, n: number) => {
+    const at = /\$b(\d+_\d+)</.exec(call)?.[1];
+    return at && boundaryBlocks.has(at) ? `'0${"1".repeat(Math.max(n - 1, 0))}'` : fuelType(n);
+  };
 
   let call = `$${entry}<$FUEL, $IN${args.length ? ", " + args.join(", ") : ""}>`;
   let memory = options.memory ?? "$Absent";
+  let memoryTrie: Trie = parseTrie(memory);
+  // the table the current chunk's state file declares, to read its result back
+  let aliasBack = new Map<string, string>();
   let chunks = 0;
   let carried = 0;
+  let lastGlobals: string[] = [];
   // the frames below the block currently running, innermost first: what the
   // host has to hand back to when a call returns after a suspension
   let frames: Frame[] = [];
@@ -433,10 +607,48 @@ export const run = async (
   // occasional retry does.
   let settled = 0;
   if (options.resume) {
-    call = options.resume.call;
+    // A checkpoint saved after the run finished holds a terminal call, $Exit<..>.
+    // Resuming that re-reports the same answer without running anything, so the
+    // frame never advances. Start a fresh call instead: doom keeps the whole
+    // game in linear memory, so resumed memory plus a new `entry` is the next
+    // frame. Only a suspended call is worth picking up where it left off.
+    if (!options.resume.done) {
+      call = options.resume.call;
+      frames = options.resume.frames;
+    } else {
+      // $entry bakes the module-initial globals into its own call, so calling it
+      // again rewinds the stack pointer while memory keeps a heap grown past it:
+      // A fresh call, with sbrk reset so init can run again (see sbrkWord).
+      // The globals are $entry's own baked ones, not the ones the last return
+      // left: native re-entry is a fresh call, and that is what animates.
+      const shape =
+        // `moduleText` has already had its `export ` prefixes stripped
+        /(?:export )?type \$entry<[^=]*=\s*\$Exit<\$b(\d+_\d+)<\$F, \[\], \$Buf<\$M>((?:,\s*'[01]+')*)\s*>>/.exec(
+          moduleText,
+        );
+      if (!shape) throw new Error("cannot find $entry's call in the module: nothing to restart");
+      const baked = shape[2]!.match(/'[01]+'/g) ?? [];
+      const sbrk = sbrkWord(moduleText);
+      if (!sbrk) throw new Error("cannot find sbrk's bump pointer in the module: re-entry would trap in init");
+      const zero = `'${"0".repeat(32)}'`;
+      call =
+        `$Exit<$b${shape[1]}<$FUEL, [], $Store32<$Buf<$IN>, '${sbrk}', ${zero}>` +
+        `${baked.map((g) => `, ${g}`).join("")}>>`;
+    }
     // a state saved before the split levels were kept can hold a leaf up top
-    memory = printTrie(prune(parseTrie(options.resume.memory), base));
-    frames = options.resume.frames;
+    memoryTrie = prune(parseTrie(options.resume.memory), base, fanout);
+    if (options.resume.done && options.resume.prevResult) {
+      // The screen from two frames back. Dropping the one this checkpoint just
+      // returned instead blanked the page: the renderer draws `result`, and it
+      // read back 0 painted pixels the moment the next frame started.
+      const dead = parseInt(options.resume.prevResult, 2) >>> 0;
+      const before = printTrie(memoryTrie).length;
+      memoryTrie = prune(clearRange(memoryTrie, dead, DEAD_FRAME_BYTES, fanout), base, fanout);
+      console.log(
+        `dropped the spent frame at ${dead}: state ${before} -> ${printTrie(memoryTrie).length} chars`,
+      );
+    }
+    memory = printTrie(memoryTrie);
     carried = options.resume.chunks;
   }
   let backoffs = 0;
@@ -512,7 +724,15 @@ export const run = async (
     // that `any` pasted back into the next chunk corrupts memory silently. The
     // *type* is correct either way - only the printout was lossy.
     const f0 = performance.now();
-    env.createFile(statePathDts, `type $IN = ${memory}\n`);
+    const aliasWords = aliasWordsOf(memoryTrie);
+    const aliasNames = new Map(aliasWords.map((word, index) => [word, `$A${index}`]));
+    aliasBack = new Map(aliasWords.map((word, index) => [`$A${index}`, word]));
+    mark("alias");
+    const stateText = `${aliasWords
+      .map((word, index) => `type $A${index} = ['${word}']`)
+      .join("\n")}\ntype $IN = ${printAliased(memoryTrie, aliasNames)}\n`;
+    mark("print");
+    env.createFile(statePathDts, stateText);
     const file = `type $FUEL = ${fuelType(fuel)}
 type $Result = ${call}
 export type $Out_Tag = $Tag<$Result>
@@ -532,7 +752,7 @@ ${splitReaders}
       // the module and state live in sibling declaration files now, so a dump
       // is only re-checkable standalone if all three land next to each other
       writeFileSync(`${stem}.ts`, file);
-      writeFileSync(`${stem}.state.d.ts`, `type $IN = ${memory}\n`);
+      writeFileSync(`${stem}.state.d.ts`, stateText);
       writeFileSync(`${process.env.DUMP_CHUNKS}/module.d.ts`, globalModuleText);
     }
     const e0 = performance.now();
@@ -668,10 +888,11 @@ ${splitReaders}
     }
 
     const r0 = performance.now();
-    const parsedTrie = parseTrie(state);
+    const parsedTrie = parseTrie(state, memoryTrie, aliasBack);
     const r1 = performance.now();
-    const prunedTrie = prune(parsedTrie, base);
+    const prunedTrie = prune(parsedTrie, base, fanout);
     const r2 = performance.now();
+    memoryTrie = prunedTrie;
     memory = printTrie(prunedTrie);
     const r3 = performance.now();
     trieParseMs += r1 - r0;
@@ -683,23 +904,55 @@ ${splitReaders}
     const globalValues = splitTop(globals.slice(1, globals.lastIndexOf("]")))
       .filter((v) => v.length > 0)
       .map(toSource);
+    lastGlobals = globalValues;
     globMs += performance.now() - g0;
     mark("globals");
 
-    const checkpoint = (next: string) => {
+    // Chunk count is the only progress bar there is - at half a second a chunk
+    // the frame is half an hour, and printing the chunk without the rate hides
+    // that - but the frame's length is not a constant. This line used to divide
+    // by 3224 and the frame it was describing ran past 3595 chunks without
+    // returning, so the bar read `frame 821/3224, ETA 16m` while the real
+    // remainder was unknown. The length comes from a frame that actually landed:
+    // the stream writes one next to the checkpoint when `entry` returns.
+    const framePath = options.save ? `${options.save}.frame` : "";
+    let frameChunks = 0;
+    try {
+      frameChunks = JSON.parse(readFileSync(framePath, "utf8")).frameChunks ?? 0;
+    } catch {
+      // no frame has landed yet: report the rate and no total
+    }
+    const eta = () => {
+      const spc = (performance.now() - t0) / 1000 / Math.max(chunks, 1);
+      const left = frameChunks - chunks;
+      if (!frameChunks) return `${spc.toFixed(2)}s/chunk, frame chunk ${chunks}, length unknown until it lands`;
+      return (
+        `${spc.toFixed(2)}s/chunk` +
+        (left > 0 ? `, frame ${chunks}/${frameChunks}, ETA ${((left * spc) / 60).toFixed(0)}m` : `, frame past the last one's ${frameChunks}`)
+      );
+    };
+
+    const checkpoint = (next: string, done = false) => {
       if (!options.save) return;
-      if (chunks % (options.every ?? 100) !== 0) return;
+      // the last state of a frame is worth saving whatever the interval says
+      if (!done && chunks % (options.every ?? 100) !== 0) return;
       const point: Checkpoint = {
+        done,
         call: next,
         memory,
         frames,
         globals: globalValues,
         chunks: carried + chunks,
+        entryChunks: chunks,
         evalMs,
         split: [...split],
+        // each `entry` call allocates its own screen and returns it, so a fixed
+        // address reads the frame before this one
+        result: done ? value_ : options.resume?.result,
+        prevResult: done ? options.resume?.result : options.resume?.prevResult,
       };
       const s0 = performance.now();
-      writeFileSync(options.save, JSON.stringify(point));
+      saveCheckpoint(options.save, JSON.stringify(point));
       saveMs += performance.now() - s0;
     };
 
@@ -711,6 +964,7 @@ ${splitReaders}
       // of a suspension.
       if (frames.length === 0) {
         value_ = value === '"void"' ? undefined : value.replace(/"/g, "");
+        checkpoint(call, true);
         break;
       }
       const [resume, ...rest] = frames;
@@ -719,7 +973,9 @@ ${splitReaders}
       checkpoint(call);
       mark("frames");
       if (!options.quiet) {
-        process.stdout.write(`\r  chunk ${chunks}: returned into ${resume.block}, ${rest.length} frames left   `);
+        process.stdout.write(
+          `\r  chunk ${chunks}: returned into ${resume.block}, ${rest.length} frames left, ${eta()}   `,
+        );
       }
       continue;
     }
@@ -732,13 +988,40 @@ ${splitReaders}
       break;
     }
     const [innermost, ...outer] = parsed;
+    // A back edge in the entry's own function is the start of the next frame:
+    // record it while the locals are in hand, because once `entry` returns they
+    // are gone and re-calling `entry` re-runs init (see backEdgeReentry).
     frames = outer;
     call = enter(innermost, outer, globalValues);
     checkpoint(call);
     mark("frames");
     if (!options.quiet) {
-      process.stdout.write(`\r  chunk ${chunks}: suspended in ${innermost.block}, ${outer.length} frames, state ${memory.length} chars   `);
+      process.stdout.write(
+        `\r  chunk ${chunks}: suspended in ${innermost.block}, ${outer.length} frames, ` +
+          `state ${memory.length} chars, ${eta()}   `,
+      );
     }
+  }
+  // The `every` modulo means the last state a run reaches is usually not the
+  // one on disk, and a return breaks out before the next multiple: re-entering
+  // the entry point needs the memory as it stood *after* the call came back,
+  // because a snapshot from the middle of one catches the heap mid-mutation and
+  // a walk over a half-linked list follows a garbage pointer.
+  if (options.save && value_ !== undefined) {
+    const point: Checkpoint = {
+      call: `$${entry}<$FUEL, $IN>`,
+      memory,
+      frames: [],
+      // wasm globals persist across exported calls, but `$entry` bakes in their
+      // module-initial values, so a second call silently rewinds them. Record
+      // what they actually were at the return to make that visible.
+      globals: [...lastGlobals],
+      chunks: 0,
+      entryChunks: 0,
+      evalMs,
+      split: [...split],
+    };
+    saveCheckpoint(`${options.save}.final`, JSON.stringify(point));
   }
   if (!options.session) env.close();
   if (!options.quiet) process.stdout.write("\n");
@@ -751,6 +1034,7 @@ ${splitReaders}
           .map(([name, ms]) => `${name} ${ms.toFixed(0)}ms`)
           .join(" ") +
         ` | trie parse ${trieParseMs.toFixed(0)}ms prune ${triePruneMs.toFixed(0)}ms print ${triePrintMs.toFixed(0)}ms` +
+        ` | save ${saveMs.toFixed(0)}ms` +
         ` | recycle ${recycleMs.toFixed(0)}ms in ${recycles} ${JSON.stringify(why)}` +
         ` lifetimes ${JSON.stringify(lifetimes)} of ${totalMs.toFixed(0)}ms\n`,
     );
@@ -781,7 +1065,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const [modulePath, entry, ...rest] = positional;
   const args = rest.map((a) => (/^-?\d+$/.test(a) ? `'${bin(Number(a))}'` : a));
   const result = await run(modulePath, entry, args, options);
-  if (result.failed) console.log(`FAILED ${result.failed}`);
+  // exit nonzero: a caller in a per-frame loop reads a zero exit as "that frame
+  // is done, start the next one" and re-resumes the same wedged state forever.
+  // Measured: the 2.3MB frame-3 state failed at chunk 0 and the play loop
+  // reran it four times a minute until it was killed.
+  if (result.failed) {
+    console.log(`FAILED ${result.failed}`);
+    process.exitCode = 1;
+  }
   console.log(
     `${basename(modulePath)} ${entry}: ${result.chunks} chunks in ${(result.totalMs / 1000).toFixed(2)}s` +
       (result.value === undefined ? "" : ` -> ${result.value} (${parseInt(result.value, 2) | 0})`),

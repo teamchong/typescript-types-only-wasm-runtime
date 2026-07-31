@@ -15,25 +15,54 @@ export type I32MultiplyBinary<
   b extends Wasm.I32False ? Wasm.I32False :
   a extends Wasm.I32True ? b :
   b extends Wasm.I32True ? a :
-  Ensure.I32<
-    _MultiplyBinary<
-      ReverseString8Segments<a>,
-      ReverseString8Segments<b>,
-      '',
-      ''
-    >
-  >
+  Ensure.I32<_MultiplyI32<a, b>>
 >
 
-type _Magnitude64<a extends string, b extends string> =
-  Ensure.I64<
-    _MultiplyBinary<
-      ReverseString8Segments<a>,
-      ReverseString8Segments<b>,
-      '',
-      ''
+/// The loop runs once per digit of the multiplier up to its highest one bit, so
+/// the multiplier's significant width, not the product, decides whether it
+/// finishes. Multiplication commutes, so the narrower operand can always be the
+/// one driving it. Measured: 255 * 393480 with 393480 driving is
+/// "excessively deep" and comes back an error type; the same product with 255
+/// driving compiles clean and correct.
+type _Significant<s extends string> = s extends `0${infer rest}` ? _Significant<rest> : s
+
+/// True when `a` is no wider than `b`. Consuming both a character at a time
+/// compares widths without counting either.
+type _NoWider<a extends string, b extends string> =
+  a extends `${string}${infer aRest}`
+  ? b extends `${string}${infer bRest}`
+    ? _NoWider<aRest, bRest>
+    : false
+  : true
+
+type _MultiplyNarrowest<a extends string, b extends string> =
+  _NoWider<_Significant<b>, _Significant<a>> extends true
+  ? _MultiplyBinary<ReverseString8Segments<a>, ReverseString8Segments<b>, '', ''>
+  : _MultiplyBinary<ReverseString8Segments<b>, ReverseString8Segments<a>, '', ''>
+
+/// Swapping is not enough when both operands are wide: 65536 * 393480 has no
+/// narrow side and still comes back an error type. A 16-bit multiplier always
+/// finishes, so split the multiplier instead of hoping one side is small.
+///
+///   a * b = a*bLo + ((a*bHi) << 16)
+///
+/// Only the low 32 bits survive, so a*bHi needs no more than its low 16 bits
+/// and the shifted-out half costs nothing.
+type _Halves<s extends string> =
+  s extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer lo}`
+  ? [`0000000000000000${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}`, `0000000000000000${lo}`]
+  : never
+
+type _MultiplyI32<a extends string, b extends string> =
+  _Halves<b> extends [infer hi extends string, infer lo extends string]
+  ? Wasm.I32Add<
+      Ensure.I32<_MultiplyNarrowest<a, lo>>,
+      Wasm.I32Shl<Ensure.I32<_MultiplyNarrowest<a, hi>>, '00000000000000000000000000010000'>
     >
-  >
+  : never
+
+type _Magnitude64<a extends string, b extends string> =
+  Ensure.I64<_MultiplyNarrowest<a, b>>
 
 /// A zero bit costs the partial-product loop nothing, but a one bit costs an add
 /// over the whole accumulator - and a sign-extended negative i32 carries 32
@@ -58,6 +87,21 @@ export type I64MultiplyBinary<
       : _Magnitude64<a, b>
 >
 
+/// Once the remaining multiplier digits are all zero every further step is a
+/// no-op that still costs a recursion carrying the whole accumulator. The
+/// reversed multiplier puts the high bits last, so a small multiplier - a
+/// constant, a fixed-point fraction - spends most of the loop there. Stopping
+/// at the last one bit gives the same accumulator for less work.
+type _MulStep<
+  a extends string,
+  tail extends string,
+  _Place extends string,
+  _Acc extends string
+> =
+  tail extends `${string}1${string}`
+  ? _MultiplyBinary<a, tail, _Place, _Acc>
+  : ReverseStringTheWorstWayPossible<_Acc>
+
 export type _MultiplyBinary<
   a extends string,
   revB extends string,
@@ -68,7 +112,7 @@ export type _MultiplyBinary<
   revB extends `${infer digit}${infer tail}`
   ? digit extends "0"
     ? // there's no point in doing any "work", so we can just move on to the next digit
-      _MultiplyBinary<
+      _MulStep<
         a,
         tail,
         `0${_Place}`,
@@ -76,7 +120,7 @@ export type _MultiplyBinary<
       >
 
     : // we have a digit to multiply
-      _MultiplyBinary<
+      _MulStep<
         a,
         tail,
         `0${_Place}`,

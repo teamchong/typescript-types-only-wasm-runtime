@@ -111,6 +111,15 @@ type ToNegativeBinary<N> =
 type ToNegativeProperties<O extends object, P extends keyof O> =
   { [K in keyof O]: K extends P ? ToNegativeBinary<O[K]> : O[K] };
 
+/// Restoring division costs one step per dividend bit, and a leading zero bit
+/// only rotates a zero through the accumulator.  Drop the leading zeros, divide
+/// the significant bits, then pad the quotient back out.  Doom's operands are
+/// screen coordinates and scales, so this is usually 8-16 steps, not 32.
+type _StripLeading<S extends string, Pad extends string = ''> =
+  S extends `0${infer Rest}`
+    ? Rest extends '' ? { bits: S, pad: Pad } : _StripLeading<Rest, `${Pad}0`>
+    : { bits: S, pad: Pad };
+
 export type DivideUnsignedBinary32<
   dividend extends string,
   divisor extends string
@@ -119,11 +128,12 @@ export type DivideUnsignedBinary32<
   [dividend] extends [divisor] ? { quotient: Wasm.I32True, remainder: Wasm.I32False } : // if equal return 1
   [divisor] extends [Wasm.I32True] ? { quotient: dividend, remainder: Wasm.I32False } : // if divide by 1 return dividend
 
-  _DivideBinaryArbitrary<
-    dividend,
-    divisor,
-    Wasm.I32False
-  >;
+  _StripLeading<dividend> extends { bits: infer Bits extends string, pad: infer Pad extends string }
+    ? _DivideBinaryArbitrary<Bits, divisor, Wasm.I32False> extends
+        { quotient: infer Q extends string, remainder: infer R extends string }
+      ? { quotient: `${Pad}${Q}`, remainder: R }
+      : never
+    : never;
 
 export type DivideSignedBinary32<
   dividend extends string,
