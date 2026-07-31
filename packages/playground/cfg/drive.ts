@@ -451,6 +451,7 @@ export interface RunResult {
   memory: string;
   chunks: number;
   backoffs: number;
+  units: number;
   fuel: number;
   evalMs: number;
   totalMs: number;
@@ -652,6 +653,14 @@ function sbrkWord(moduleText: string) {
     carried = options.resume.chunks;
   }
   let backoffs = 0;
+  // The fuel that lands is a cliff, not a slope: measured on one real chunk in
+  // the session, 640/720/800/960 all come back with a tag and cost the same
+  // (852/814/799/803ms), 1120 and 1280 come back never. Cost per chunk barely
+  // moves with fuel, so the instructions covered per chunk is set by how close
+  // the fuel sits to that edge, and doubling past it wastes a whole evaluation.
+  let capFail = Infinity;
+  let lastGood = 0;
+  let units = 0;
   let evalMs = 0;
   let trieMs = 0;
   let trieParseMs = 0;
@@ -808,7 +817,8 @@ ${splitReaders}
       if (/excessively deep/.test(message) && fuel > minFuel) {
         backoffs++;
         settled = 0;
-        fuel = Math.max(minFuel, Math.floor(fuel / 2));
+        capFail = Math.min(capFail, fuel);
+        fuel = lastGood || Math.max(minFuel, Math.floor(fuel / 2));
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: too deep; fuel -> ${fuel}    \n`);
         continue;
       }
@@ -855,7 +865,8 @@ ${splitReaders}
       if (fuel > minFuel) {
         backoffs++;
         settled = 0;
-        fuel = Math.max(minFuel, Math.floor(fuel / 2));
+        capFail = Math.min(capFail, fuel);
+        fuel = lastGood || Math.max(minFuel, Math.floor(fuel / 2));
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: ${bad}; fuel -> ${fuel}    \n`);
         continue;
       }
@@ -865,6 +876,8 @@ ${splitReaders}
       break;
     }
     chunks++;
+    lastGood = fuel;
+    units += fuel;
     // A fresh compiler does not make the work smaller, so the fuel that was
     // fitting before still fits. Raising it back to the ceiling here costs a
     // full run of halvings, once per replacement.
@@ -881,10 +894,24 @@ ${splitReaders}
       lifetime = lifetime * 2;
     }
     const ceiling = options.fuel ?? DEFAULT_FUEL;
-    if (fuel < ceiling && ++settled >= 20) {
+    if (fuel < ceiling && ++settled >= 5) {
       settled = 0;
-      fuel = Math.min(ceiling, fuel * 2);
-      if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: settled; fuel -> ${fuel}    \n`);
+      // Doubling is only right while nothing has failed yet. Once a fuel is
+      // known to be over the edge, the useful next try is between the two:
+      // doubling from 640 asks for 1280, which fails and costs the chunk,
+      // where the midpoint 960 lands and covers 1.5x the instructions for the
+      // same 0.68s (1086 -> 1625 units/s over 25 chunks).
+      const next = capFail === Infinity
+        ? fuel * 2
+        : Math.floor((fuel + Math.min(capFail, ceiling + 1)) / 2);
+      // Stop once the edge is bracketed closely. Every probe that fails costs a
+      // whole chunk, and re-probing 1120 then 1040 every five chunks cost more
+      // than sitting at 960 won: 1154 units/s against 1625 pinned at 960.
+      const converged = capFail !== Infinity && (capFail - fuel) / fuel < 0.15;
+      if (next > fuel && next < capFail && !converged) {
+        fuel = Math.min(ceiling, next);
+        if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: settled; fuel -> ${fuel}    \n`);
+      }
     }
 
     const r0 = performance.now();
@@ -1039,7 +1066,7 @@ ${splitReaders}
         ` lifetimes ${JSON.stringify(lifetimes)} of ${totalMs.toFixed(0)}ms\n`,
     );
   }
-  return { value: value_, memory, chunks: carried + chunks, backoffs, fuel, evalMs, totalMs: performance.now() - t0, failed };
+  return { value: value_, memory, chunks: carried + chunks, backoffs, units, fuel, evalMs, totalMs: performance.now() - t0, failed };
 };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -1075,6 +1102,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
   console.log(
     `${basename(modulePath)} ${entry}: ${result.chunks} chunks in ${(result.totalMs / 1000).toFixed(2)}s` +
+      ` (${result.units} fuel units, ${(result.units / (result.totalMs / 1000)).toFixed(0)} units/s, fuel ${result.fuel})` +
       (result.value === undefined ? "" : ` -> ${result.value} (${parseInt(result.value, 2) | 0})`),
   );
 }
