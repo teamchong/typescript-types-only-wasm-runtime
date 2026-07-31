@@ -390,10 +390,25 @@ export const enter = (
 /// bailing out of init. The baseline is still initializing at 382,720 fuel
 /// (13_7, 4 frames, 64,982 chars) and goes on to render.
 ///
-/// The table pairs each block id with the saved locals its parameter list
-/// implies, which is where I would look first: a frame that wants a returned
-/// value carries one fewer saved local than its block declares parameters.
-const SEGMENTS = 1;
+/// Measured since: it is not the frames, it is the memory. `$Flush` returns the
+/// overlay and drops the base it sat on, because the host is supposed to hold
+/// that base. Inside a chunk there is no host, so every segment boundary throws
+/// the previous segment's stores away:
+///
+///   type M2 = $Store32<$Buf<$Absent>, 174672, 393480>   // pending
+///   $Load32<M2, 174672>              -> 393480
+///   $Load32<$Buf<M2>, 174672>        -> 0    // what $Resume re-enters with
+///   $Load32<$Buf<$Flush<M2>>, 174672> -> 393480
+///
+/// A read falls through a base with `$Fetch`, which expects a trie: `$Get` on a
+/// five-slot buffer answers 'u', so the read skips the overlay under it and
+/// lands on the module's initial memory. Cold init died on exactly this - main
+/// stores the screen it just allocated at 174672, the next segment dropped the
+/// store, Z_Init read 0 back as mainzone, and func 13 walked a null block list
+/// forever (172821 chunks in 13_7, locals `0 1 -4 0 24` never moving).
+///
+/// So a chunk is one segment until `$Resume` can thread the base through.
+const SEGMENTS = 0;
 
 const DEFAULT_FUEL = 1280;
 

@@ -349,17 +349,24 @@ impl CfgCompiler {
         // allocator, a loop that never ends. It rides along as one more global,
         // so it is already threaded through blocks, frames and suspends.
         self.pages_global = self.globals.len();
-        // `memory.size` answers this, and doom lays its screens and zone out from
-        // the top of memory, so the number decides where those pointers land. The
-        // import's declared minimum is a floor for the host, not what a host
-        // gives: browsers and node hand doom 256 pages, and doom needs them.
-        // Measured natively from the same state: 256 pages returns frame 2 and
-        // four more after it, 6 pages traps in frame 2. Reporting the declared 6
-        // put every top-of-memory pointer 250 pages low, which only looked
-        // survivable here because an out-of-range $Read answers 0 instead of
-        // trapping - until frame 3, where malloc's own consistency check finds
-        // the damage and lands on `unreachable`.
-        let host_pages = self.memory_pages.max(256).min(self.capacity_pages);
+        // `memory.size` answers this, and doom's allocator grows the heap from
+        // wherever memory currently ends, so this number decides where the zone
+        // lands. It has to be the declared minimum, because that is what doom
+        // links against: natively, from a 6-page import, sbrk grows 6 -> 11 and
+        // the zone lands at 459016, just past the screen at 393480.
+        //
+        // Reporting 256 instead put the zone 250 pages up, and the allocation
+        // that Z_Init makes from it never came back:
+        //
+        //   at the first call to func 13   pages   M[174552] (mainzone)
+        //   native                            11             459016
+        //   256-page report                  256                  0
+        //
+        // Z_Malloc then walks a block list rooted at null, which is the 13_7
+        // livelock: 172821 chunks, locals `0 1 -4 0 24` never moving. An earlier
+        // note here claimed 6 pages traps in frame 2, measured before
+        // `memory.grow` worked - grow now has 1024 pages of capacity to give.
+        let host_pages = self.memory_pages.min(self.capacity_pages);
         self.globals.push(host_pages as i64);
 
         let mut out = String::new();
