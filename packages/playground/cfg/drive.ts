@@ -818,7 +818,13 @@ ${splitReaders}
         backoffs++;
         settled = 0;
         capFail = Math.min(capFail, fuel);
-        fuel = lastGood || Math.max(minFuel, Math.floor(fuel / 2));
+        // Strictly below the fuel that just failed, or the run livelocks: a
+        // chunk that lands at 1280 sets lastGood there, and a later chunk that
+        // fails at 1280 asks for 1280 again forever (seen at chunk 186).
+        fuel = lastGood > 0 && lastGood < fuel
+          ? lastGood
+          : Math.max(minFuel, Math.floor(fuel / 2));
+        if (lastGood >= fuel) lastGood = 0;
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: too deep; fuel -> ${fuel}    \n`);
         continue;
       }
@@ -866,7 +872,13 @@ ${splitReaders}
         backoffs++;
         settled = 0;
         capFail = Math.min(capFail, fuel);
-        fuel = lastGood || Math.max(minFuel, Math.floor(fuel / 2));
+        // Strictly below the fuel that just failed, or the run livelocks: a
+        // chunk that lands at 1280 sets lastGood there, and a later chunk that
+        // fails at 1280 asks for 1280 again forever (seen at chunk 186).
+        fuel = lastGood > 0 && lastGood < fuel
+          ? lastGood
+          : Math.max(minFuel, Math.floor(fuel / 2));
+        if (lastGood >= fuel) lastGood = 0;
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: ${bad}; fuel -> ${fuel}    \n`);
         continue;
       }
