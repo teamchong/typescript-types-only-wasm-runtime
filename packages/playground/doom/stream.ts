@@ -110,7 +110,13 @@ const page = `<!doctype html>
 <script>
   var ctx = document.getElementById("screen").getContext("2d");
   var canvas = document.getElementById("screen");
-  var status = document.getElementById("status");
+  // Named statusEl, not status: a top-level var status in a page script
+  // assigns to window.status, a legacy DOM property that coerces its value to a
+  // string, so the element reference turns into "[object HTMLDivElement]" and
+  // every textContent write on it is silently dropped. The metrics line kept
+  // updating because it goes through document.getElementById, which is why the
+  // page sat on "connecting to the stream server" while frames were painting.
+  var statusEl = document.getElementById("status");
   var logEl = document.getElementById("log");
   var keysEl = document.getElementById("keys");
   var dot = document.getElementById("dot");
@@ -207,7 +213,7 @@ const page = `<!doctype html>
         document.getElementById("qchunk").textContent = msg.chunk;
         return;
       }
-      status.textContent = msg.state;
+      statusEl.textContent = msg.state;
       // metrics outlive the state line: an idle tick says nothing about rate,
       // so leave the last measured numbers standing instead of blanking them
       if (msg.fps === undefined) return;
@@ -233,7 +239,7 @@ const page = `<!doctype html>
     sock.binaryType = "blob";
     sock.onmessage = onMessage;
     sock.onclose = function () {
-      status.textContent = "stream server is gone, redialling every 1s";
+      statusEl.textContent = "stream server is gone, redialling every 1s";
       setTimeout(function () { wire(new WebSocket("ws://" + location.host)); }, 1000);
     };
   };
