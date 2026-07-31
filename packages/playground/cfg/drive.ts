@@ -169,15 +169,6 @@ const printAliased = (node: Trie, names: Map<string, string>): string =>
 /// a leaf that lands there gets split back out into its eight copies.
 const SPLIT_DEPTH = 2;
 
-/// The buffer a finished frame returned is dead once the next call allocates
-/// its own, and every frame leaks one: doom's sbrk only bumps, so frame 3's
-/// state carried frames 1 and 2's screens as stored words and the chunk cost
-/// went 0.17 -> 0.37 -> 0.47s with the state, 1.70MB -> 2.30MB. Native says
-/// dropping it changes nothing: zeroing the previous screen after each return
-/// gives the same four frames, 4262db231b 6f44692aa8 a2a8ce9d5b a2a8ce9d5b.
-/// 320x200 is doom's frame; a wider span would clobber the zone the previous
-/// frame allocated right behind it, which is still live.
-const DEAD_FRAME_BYTES = 320 * 200;
 
 /// Writes one word, splitting any leaf that stands for a whole subtree on the
 /// way down. `prune` puts back whatever this leaves collapsible.
@@ -190,14 +181,6 @@ const setWord = (node: Trie, word: number, value: string, fanout: number, levels
   return kids;
 };
 
-const clearRange = (node: Trie, from: number, bytes: number, fanout: number): Trie => {
-  // the path $Slice hands $Get: the address without its low two bits, six bits
-  // per level
-  const levels = Math.ceil(24 / Math.log2(fanout));
-  let out = node;
-  for (let at = from; at < from + bytes; at += 4) out = setWord(out, at >>> 2, ZERO_WORD, fanout, levels);
-  return out;
-};
 
 /// The chunk hands back its overlay, not the whole of memory: every word it
 /// wrote, and `u` everywhere it did not. Folding that into the trie the host
@@ -625,17 +608,6 @@ export const run = async (
     }
     // a state saved before the split levels were kept can hold a leaf up top
     memoryTrie = prune(parseTrie(options.resume.memory), base, fanout);
-    if (options.resume.done && options.resume.prevResult) {
-      // The screen from two frames back. Dropping the one this checkpoint just
-      // returned instead blanked the page: the renderer draws `result`, and it
-      // read back 0 painted pixels the moment the next frame started.
-      const dead = parseInt(options.resume.prevResult, 2) >>> 0;
-      const before = printTrie(memoryTrie).length;
-      memoryTrie = prune(clearRange(memoryTrie, dead, DEAD_FRAME_BYTES, fanout), base, fanout);
-      console.log(
-        `dropped the spent frame at ${dead}: state ${before} -> ${printTrie(memoryTrie).length} chars`,
-      );
-    }
     memory = printTrie(memoryTrie);
     carried = options.resume.chunks;
   }
