@@ -129,9 +129,9 @@ export type DivideUnsignedBinary32<
   [divisor] extends [Wasm.I32True] ? { quotient: dividend, remainder: Wasm.I32False } : // if divide by 1 return dividend
 
   _StripLeading<dividend> extends { bits: infer Bits extends string, pad: infer Pad extends string }
-    ? _DivideBinaryArbitrary<Bits, divisor, Wasm.I32False> extends
-        { quotient: infer Q extends string, remainder: infer R extends string }
-      ? { quotient: `${Pad}${Q}`, remainder: R }
+    ? _DivideNarrow<Bits, `00${divisor}`, `00${Wasm.I32False}`> extends
+        [infer Q extends string, infer A extends string]
+      ? { quotient: `${Pad}${Q}`, remainder: _Low32<A> }
       : never
     : never;
 
