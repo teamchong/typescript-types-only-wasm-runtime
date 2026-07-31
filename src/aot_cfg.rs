@@ -860,11 +860,25 @@ export type $MergeAt<T, B extends unknown[], S extends unknown[]> =
       ? [{merge_slots}]
       : never
 
-/// Memory as the host sees it: a plain trie, with nothing pending.
-export type $Flush<M> = M extends [infer T, infer K, infer B extends unknown[], infer S extends unknown[]]
+/// What the host reads back: the overlay alone, with its write buffer folded
+/// in. The base trie never travels - the host already holds it, and pasting it
+/// back is what used to make a store cost the size of the state.
+export type $Flush<M> = M extends [infer T, infer K, infer B extends unknown[], infer S extends unknown[], unknown]
   ? K extends '{buf_none}' ? T : $MergeAt<T, B, S>
   : M
-export type $Buf<T> = [T, '{buf_none}', [], $Empty]
+
+/// Memory is an overlay over the trie the chunk started with, not the trie
+/// itself. Measured on doom's real state (5.4MB) with 128 consecutive stores:
+///
+///     writing into the state trie   3661 instantiations per word
+///     writing into a fresh overlay   385 instantiations per word
+///
+/// The cost of a write scales with the size of the trie it rebuilds, so a
+/// chunk that writes into an empty overlay pays for what it wrote instead of
+/// for what memory holds. Reads cost 238 against 216: one extra probe that
+/// misses, then the same fetch as before. The host merges the overlay into its
+/// own copy between chunks, where it is a native array write.
+export type $Buf<T> = [$Absent, '{buf_none}', [], $Empty, T]
 
 /// Stores go into a one-branch write buffer instead of straight into the trie.
 /// Measured on a real frame: consecutive words - which is what pixel loops and
@@ -885,22 +899,29 @@ export type $Fetch<T, P extends string> =
     ? W extends 'u' ? (P extends keyof $InitialMap ? $InitialMap[P] : '00000000000000000000000000000000') : W
     : never
 
+/// A word the overlay does not have falls through to the base trie, and a word
+/// the base trie does not have falls through to the module's initial memory.
+export type $Under<T, Base, P extends string> =
+  $Get<T, P> extends infer W extends string
+    ? W extends 'u' ? $Fetch<Base, P> : W
+    : never
+
 export type $Read<M extends $Node, A extends WasmValue> =
-  M extends [infer T, infer MK extends string, unknown[], infer S extends unknown[]]
+  M extends [infer T, infer MK extends string, unknown[], infer S extends unknown[], infer Base]
     ? $Slice<A> extends infer P extends string
       ? P extends `${{MK}}${{infer D}}`
         ? $Sel<S, D> extends infer H
-          ? H extends 'x' ? $Fetch<T, P> : $Word<H>
+          ? H extends 'x' ? $Under<T, Base, P> : $Word<H>
           : never
-        : $Fetch<T, P>
+        : $Under<T, Base, P>
       : never
     : never
 export type $Write<M extends $Node, A extends WasmValue, V extends WasmValue> =
   $Split<A> extends [infer K extends string, infer B extends unknown[], infer D extends string]
-    ? M extends [infer T, infer MK, infer MB extends unknown[], infer S extends unknown[]]
+    ? M extends [infer T, infer MK, infer MB extends unknown[], infer S extends unknown[], infer Base]
       ? K extends MK
-        ? [T, MK, MB, $Set<S, D, [V]>]
-        : [(MK extends '{buf_none}' ? T : $MergeAt<T, MB, S>), K, B, $Set<$Empty, D, [V]>]
+        ? [T, MK, MB, $Set<S, D, [V]>, Base]
+        : [(MK extends '{buf_none}' ? T : $MergeAt<T, MB, S>), K, B, $Set<$Empty, D, [V]>, Base]
       : never
     : never
 

@@ -199,6 +199,18 @@ const clearRange = (node: Trie, from: number, bytes: number, fanout: number): Tr
   return out;
 };
 
+/// The chunk hands back its overlay, not the whole of memory: every word it
+/// wrote, and `u` everywhere it did not. Folding that into the trie the host
+/// already holds is a native walk over what changed, which is what makes a
+/// store in the types cost 385 instantiations instead of 3661.
+const mergeOverlay = (base: Trie, overlay: Trie): Trie => {
+  if (overlay === ABSENT) return base;
+  if (!Array.isArray(overlay)) return overlay;
+  return overlay.map((child, index) =>
+    mergeOverlay(Array.isArray(base) ? base[index]! : base, child),
+  );
+};
+
 const prune = (node: Trie, base: Trie, fanout: number, depth = 0): Trie => {
   const kid = (index: number) => (Array.isArray(base) ? base[index]! : base);
   if (depth < SPLIT_DEPTH && !(typeof node === "string" && node !== ABSENT && node.startsWith("$"))) {
@@ -349,34 +361,22 @@ export const enter = (
 };
 
 /// Did the printer give up part way through?
-/// Fuel per chunk. Evaluation is ~600us per unit and near-linear, so the cost
-/// that a chunk cannot amortize is the per-chunk constant: ~100ms to load the
-/// module plus ~190ms to print the state, paid whether the chunk ran 64 steps
-/// or 4096. Measured on doom chunk-0001, in fuel per wall-clock second:
+/// Fuel per chunk. What ends a chunk is not wall time but the checker giving
+/// up: it stops at 4,029,558 instantiations and reports "excessively deep".
+/// Measured on doom chunk 24551 by re-checking the dumped chunk standalone at
+/// a fixed state, so the numbers are deterministic:
 ///
-///     512 -> 835    1024 -> 1138    2048 -> 1390    4096 -> 1458
+///     fuel     1  ->  1.27M instantiations      fuel  1100 -> 3.57M
+///     fuel   768  ->  2.90M                     fuel  1280 -> 3.95M  (ok)
+///     fuel  1024  ->  3.43M                     fuel  1536 -> gives up
 ///
-/// 8192 is not a choice: it dies with "type instantiation is excessively deep".
-/// 4096 is a hair faster than 2048 but per-unit cost has already turned back up
-/// there (615us vs 582us) and it sits one doubling from the cliff, where a
-/// too-deep chunk throws away a 2.5s evaluation before the backoff halves.
-///
-/// End to end on doom, running the same 32768 fuel both ways, 2048 wins even
-/// though the first chunk is too deep for it and has to back off once:
-///
-///     1024 x 32 chunks -> 6.78s      2048 x 16 chunks -> 5.01s
-// Measured on doom, 30 chunks from the same checkpoint, ms per unit of fuel
-// retired (lower is better):
-//
-//   640  0.350   768  0.302   896  0.326   960  0.327   2048  0.343+
-//
-// Above ~800 the checker starts handing back approximations, and every one of
-// those costs a compiler replacement (2.8s per 30 chunks) plus a run of
-// halvings before the fuel settles back down. At 768 none of that happens:
-// zero degraded chunks and zero replacements across the same work. The old
-// 2048 never actually ran at 2048 - it halved its way down to about 512 and
-// paid for the trip every time a compiler was replaced.
-const DEFAULT_FUEL = 768;
+/// So a chunk is 1.27M of fixed cost - materialising the state - plus 2095 per
+/// unit of fuel, and the budget buys about 1300 units. Wall clock agrees that
+/// the ceiling is where to sit: fuel retired per second is 1422 at 768, 1766
+/// at 1024, 2133 at 1280, because the fixed cost is paid per chunk either way.
+/// Above 1280 the chunk is thrown away and re-run at half the fuel, which
+/// costs more than the extra fuel is worth.
+const DEFAULT_FUEL = 1280;
 
 const TRUNCATED = /\bany\b/;
 
@@ -888,7 +888,7 @@ ${splitReaders}
     }
 
     const r0 = performance.now();
-    const parsedTrie = parseTrie(state, memoryTrie, aliasBack);
+    const parsedTrie = mergeOverlay(memoryTrie, parseTrie(state, ABSENT, aliasBack));
     const r1 = performance.now();
     const prunedTrie = prune(parsedTrie, base, fanout);
     const r2 = performance.now();
