@@ -612,8 +612,13 @@ function sbrkWord(moduleText: string) {
   // A cold run starts on the module's data segments, not on nothing: `$entry`
   // takes the memory it runs on as a parameter, so `$Absent` here hands doom a
   // zeroed address space and every static reads 0.
-  let memory = options.memory ?? "$InitialMemory";
-  let memoryTrie: Trie = parseTrie(memory);
+  //
+  // It has to be the parsed trie, not the name: `$InitialMemory` as a leaf means
+  // the whole root, and `setWord` splits a leaf by copying it into all 64 slots,
+  // so the first store turns the state into 64 roots and every read below the
+  // top lands at the wrong depth and comes back 0.
+  let memoryTrie: Trie = options.memory === undefined ? initialMemory(moduleText) : parseTrie(options.memory);
+  let memory = printTrie(memoryTrie);
   // the table the current chunk's state file declares, to read its result back
   let aliasBack = new Map<string, string>();
   let chunks = 0;
