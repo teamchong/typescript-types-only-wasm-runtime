@@ -558,40 +558,6 @@ export const run = async (
   // one '1' per unit of work; taking a prefix off a string is free, unlike
   // re-slicing a tuple on every hop
   /// Where a finished frame's successor comes from.
-///
-/// Calling a spent `entry` again traps: doom's init runs sbrk, and sbrk's bump
-/// pointer already moved, so memset runs off the end of memory. Native wasm
-/// says so directly - "memory access out of bounds", every memory size from 16
-/// to 256 pages - and this runtime turns the same fault into a silent spin,
-/// because an out-of-range `$Read` answers 0 instead of trapping.
-///
-/// Zero that one word and re-entry works. Measured natively, six calls:
-///
-///   frame 1 ptr 393480  hash 4262db231b
-///   frame 2 ptr 655624  hash 6f44692aa8
-///   frame 3 ptr 852232  hash a2a8ce9d5b   (title screen, static until the demo)
-///
-/// The picture advances and each call returns the buffer it drew into, so the
-/// frame after this one is `entry` again over the same memory with sbrk reset.
-/// Restoring the rest of the allocator's words instead traps in func 12: init
-/// wants a virgin zone, and the heap it would re-init is still live.
-///
-/// sbrk is the function that loads and stores one constant address and calls
-/// memset, so the address comes out of the module rather than a constant here.
-function sbrkWord(moduleText: string) {
-  const funcs = new Map<string, string>();
-  for (const m of moduleText.matchAll(/type \$b(\d+)_\d+<[^=]*=([\s\S]*?)(?=(?:export )?type \$)/g))
-    funcs.set(m[1]!, (funcs.get(m[1]!) ?? "") + m[2]!);
-  for (const [, body] of funcs) {
-    const loads = new Set([...body.matchAll(/\$Load32<\$M, '([01]{32})'>/g)].map((m) => m[1]!));
-    const stores = new Set([...body.matchAll(/\$Store32<\$[mM]\d*, '([01]{32})'/g)].map((m) => m[1]!));
-    const both = [...loads].filter((a) => stores.has(a));
-    const calls = new Set([...body.matchAll(/\$call(\d+)</g)].map((m) => m[1]!));
-    if (both.length === 1 && calls.size === 1) return both[0]!;
-  }
-  return undefined;
-}
-
   const entryShape =
     /(?:export )?type \$entry<[^=]*=\s*\$Exit<\$b(\d+)_(\d+)<\$F, \[\], \$Buf<\$M>((?:,\s*'[01]+')*)\s*>>/.exec(moduleText);
   const entryFunc = entryShape?.[1] ?? "";
@@ -637,10 +603,8 @@ function sbrkWord(moduleText: string) {
       call = options.resume.call;
       frames = options.resume.frames;
     } else {
-      // $entry bakes the module-initial globals into its own call, so calling it
-      // again rewinds the stack pointer while memory keeps a heap grown past it:
-      // A fresh call, with sbrk reset so init can run again (see sbrkWord).
-      // The globals are $entry's own baked ones, not the ones the last return
+      // $entry bakes the module-initial globals into its own call, so the
+      // globals here are those baked ones and not the ones the last return
       // left: native re-entry is a fresh call, and that is what animates.
       const shape =
         // `moduleText` has already had its `export ` prefixes stripped
@@ -649,11 +613,14 @@ function sbrkWord(moduleText: string) {
         );
       if (!shape) throw new Error("cannot find $entry's call in the module: nothing to restart");
       const baked = shape[2]!.match(/'[01]+'/g) ?? [];
-      const sbrk = sbrkWord(moduleText);
-      if (!sbrk) throw new Error("cannot find sbrk's bump pointer in the module: re-entry would trap in init");
-      const zero = `'${"0".repeat(32)}'`;
+      // Re-enter exactly as the in-process frame loop does. Zeroing sbrk's bump
+      // pointer here left the allocator handing out live memory: measured from
+      // one checkpoint, the run makes it to chunk 6 and then spins in $b1_2 and
+      // $b1_4 - a byte copy whose source and destination are the same address
+      // and whose length is garbage, so memory's md5 never changes while fuel
+      // burns. Without the store, the same checkpoint lands a frame at chunk 7.
       call =
-        `$Exit<$b${shape[1]}<$FUEL, [], $Store32<$Buf<$IN>, '${sbrk}', ${zero}>` +
+        `$Exit<$b${shape[1]}<$FUEL, [], $Buf<$IN>` +
         `${baked.map((g) => `, ${g}`).join("")}>>`;
     }
     // a state saved before the split levels were kept can hold a leaf up top
