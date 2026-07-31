@@ -671,6 +671,23 @@ function sbrkWord(moduleText: string) {
         );
       if (!shape) throw new Error("cannot find $entry's call in the module: nothing to restart");
       const baked = shape[2]!.match(/'[01]+'/g) ?? [];
+      // ...except the page count, which is not part of a call. It is the last
+      // global (`memory.size` answers it), an instance only ever grows it, and
+      // doom writes what it implies into its own heap bookkeeping: 174508 holds
+      // `memory.size << 16 - 393216`. Frame 2 read that back as a heap it had
+      // and a `memory.size` it did not:
+      //
+      //   174508 = 524288   -> 14 pages when the frame before stored it
+      //   $entry's baked g1 = 6
+      //
+      // so sbrk asked to grow by (524288 - what 6 pages hold) >> 16 = 28277
+      // pages, over the trie's 1024, took the refused-grow path and landed on
+      // `unreachable` - which is `never`, and reads back as `result tag is
+      // never` at every fuel: FAILED chunk 0 at fuel 4 after 4589 chunks and
+      // two landed frames (393480, then 655624).
+      const carried = options.resume.globals ?? [];
+      const pages = baked.length - 1;
+      if (carried[pages] !== undefined) baked[pages] = carried[pages]!;
       const sbrk = sbrkWord(moduleText);
       if (!sbrk) throw new Error("cannot find sbrk's bump pointer in the module: re-entry would trap in init");
       const zero = `'${"0".repeat(32)}'`;
