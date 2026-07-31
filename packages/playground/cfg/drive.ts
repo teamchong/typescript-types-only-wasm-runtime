@@ -609,7 +609,10 @@ function sbrkWord(moduleText: string) {
   };
 
   let call = `$${entry}<$FUEL, $IN${args.length ? ", " + args.join(", ") : ""}>`;
-  let memory = options.memory ?? "$Absent";
+  // A cold run starts on the module's data segments, not on nothing: `$entry`
+  // takes the memory it runs on as a parameter, so `$Absent` here hands doom a
+  // zeroed address space and every static reads 0.
+  let memory = options.memory ?? "$InitialMemory";
   let memoryTrie: Trie = parseTrie(memory);
   // the table the current chunk's state file declares, to read its result back
   let aliasBack = new Map<string, string>();
