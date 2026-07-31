@@ -2660,10 +2660,52 @@ impl BlockEnv {
                 shl1 = shl1
             ),
         );
+
+        // Two multiplier bits per step instead of one. A step costs a shift plus,
+        // for a one bit, an add; taking the bits in pairs against precomputed 2A
+        // and 3A halves the shifts and turns the two adds a `11` pair used to
+        // cost into one. 2A and 3A cost a shift and an add to build, which the
+        // second step already pays back.
+        let shl2 = self.shl_helper(2);
+        self.register(
+            "$Mul16R4",
+            format!(
+                concat!(
+                    "export type $Mul16R4<A extends string, B extends string, Acc extends string, A2 extends string, A3 extends string> =\n",
+                    "  B extends `${{infer d0}}${{infer d1}}${{infer rest}}`\n",
+                    "    ? $Mul16R4<A, rest, d0 extends '0'\n",
+                    "        ? (d1 extends '0' ? {shl2}<Acc> : Wasm.I32Add<{shl2}<Acc>, A>)\n",
+                    "        : (d1 extends '0' ? Wasm.I32Add<{shl2}<Acc>, A2> : Wasm.I32Add<{shl2}<Acc>, A3>), A2, A3>\n",
+                    "    : Acc\n"
+                ),
+                shl2 = shl2
+            ),
+        );
+
+        // A zero multiplier still walked all sixteen bits, shifting a zero
+        // accumulator sixteen times. doom's fixed point makes that common: an
+        // integral value has a zero low half and a pure fraction a zero high
+        // one, and $Mul3264 hands both halves to a multiply. Checking for zero,
+        // and for a multiplier that fits in a byte, costs one pattern match.
         self.register(
             "$Mul16",
             format!(
-                "export type $Mul16<A extends string, B extends string> =\n  $Mul16Loop<A, $Tail16<B>, '{z32}'>\n"
+                concat!(
+                    "export type $Mul16<A extends string, B extends string> =\n",
+                    "  A extends '{z32}' ? '{z32}'\n",
+                    "  : $Tail16<B> extends '{z16}' ? '{z32}'\n",
+                    "  : {shl1}<A> extends infer $a2 extends string\n",
+                    "  ? Wasm.I32Add<$a2, A> extends infer $a3 extends string\n",
+                    "  ? $Tail16<B> extends `{z8}${{infer lo8}}`\n",
+                    "    ? $Mul16R4<A, lo8, '{z32}', $a2, $a3>\n",
+                    "    : $Mul16R4<A, $Tail16<B>, '{z32}', $a2, $a3>\n",
+                    "  : never\n",
+                    "  : never\n"
+                ),
+                z32 = z32,
+                z16 = "0".repeat(16),
+                z8 = "0".repeat(8),
+                shl1 = shl1
             ),
         );
 
@@ -2722,6 +2764,28 @@ impl BlockEnv {
             .to_string(),
         );
 
+        // A cross term multiplies a *high* half, and doom reaches $Mul64 through
+        // FixedMul, which sign-extends an i32: the high half is all zeros or all
+        // ones, never anything else. All ones is 2^32-1, which is -1 mod 2^32, so
+        // the product is just the negation - and all zeros makes it zero. Left as
+        // a general multiply those two cases are the *worst* input the multiplier
+        // has: 32 one bits is 32 adds over the accumulator, which measured 33k
+        // instantiations and tipped a negative FixedMul into TS2589 (`never`).
+        let o32 = "1".repeat(32);
+        self.register(
+            "$MulCross",
+            format!(
+                concat!(
+                    "export type $MulCross<H extends string, L extends string> =\n",
+                    "  H extends '{z32}' ? '{z32}'\n",
+                    "  : H extends '{o32}' ? Wasm.I32Sub<'{z32}', L>\n",
+                    "  : Wasm.I32Mul<H, L>\n"
+                ),
+                z32 = z32,
+                o32 = o32
+            ),
+        );
+
         // only the low 64 bits survive, so the high halves only ever reach the
         // top: a*b = lo*lo + ((ah*bl + al*bh) << 32)
         self.register(
@@ -2729,8 +2793,8 @@ impl BlockEnv {
             concat!(
                 "export type $Mul64<A extends string, B extends string> =\n",
                 "  $Mul3264<$Lo64<A>, $Lo64<B>> extends infer $m extends string\n",
-                "  ? Wasm.I32Mul<$Hi64<A>, $Lo64<B>> extends infer $ahbl extends WasmValue\n",
-                "  ? Wasm.I32Mul<$Lo64<A>, $Hi64<B>> extends infer $albh extends WasmValue\n",
+                "  ? $MulCross<$Hi64<A>, $Lo64<B>> extends infer $ahbl extends WasmValue\n",
+                "  ? $MulCross<$Hi64<B>, $Lo64<A>> extends infer $albh extends WasmValue\n",
                 "  ? Wasm.I32Add<$ahbl, $albh> extends infer $cross extends WasmValue\n",
                 "  ? Wasm.I32Add<$Hi64<$m>, $cross> extends infer $hi extends WasmValue\n",
                 "  ? `${$hi}${$Lo64<$m>}`\n",
