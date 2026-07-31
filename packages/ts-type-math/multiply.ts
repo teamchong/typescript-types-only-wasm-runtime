@@ -53,12 +53,27 @@ type _Halves<s extends string> =
   ? [`0000000000000000${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}`, `0000000000000000${lo}`]
   : never
 
+/// Splitting the multiplier costs two multiplies, an add and a shift even when
+/// one half is zero, and most multipliers doom runs are small. Measured per
+/// I32Mul, on 32 distinct operand pairs:
+///
+///     b = 3        2127 instantiations -> 1153
+///     b = 0x00ff   3796                -> 2822
+///     b = 0xffff   7600                -> 6626
+///     b = 0x10000  1937                -> 1647
+///
+/// A one bit in the multiplier costs ~335, so skipping a zero half saves about
+/// what three of them cost.
 type _MultiplyI32<a extends string, b extends string> =
   _Halves<b> extends [infer hi extends string, infer lo extends string]
-  ? Wasm.I32Add<
-      Ensure.I32<_MultiplyNarrowest<a, lo>>,
-      Wasm.I32Shl<Ensure.I32<_MultiplyNarrowest<a, hi>>, '00000000000000000000000000010000'>
-    >
+  ? hi extends Wasm.I32False
+    ? _MultiplyNarrowest<a, lo>
+    : lo extends Wasm.I32False
+      ? Wasm.I32Shl<Ensure.I32<_MultiplyNarrowest<a, hi>>, '00000000000000000000000000010000'>
+      : Wasm.I32Add<
+          Ensure.I32<_MultiplyNarrowest<a, lo>>,
+          Wasm.I32Shl<Ensure.I32<_MultiplyNarrowest<a, hi>>, '00000000000000000000000000010000'>
+        >
   : never
 
 type _Magnitude64<a extends string, b extends string> =
