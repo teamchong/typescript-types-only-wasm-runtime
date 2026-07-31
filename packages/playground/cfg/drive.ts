@@ -376,6 +376,26 @@ export const enter = (
 /// at 1024, 2133 at 1280, because the fixed cost is paid per chunk either way.
 /// Above 1280 the chunk is thrown away and re-run at half the fuel, which
 /// costs more than the extra fuel is worth.
+/// Extra segments per chunk, on top of the first one.
+///
+/// A chunk used to be one chain of tail instantiations, and the checker's
+/// tail-recursion elision quits at 1000 iterations: measured on a doom chunk,
+/// 940 and 980 land while 1000, 1020 and 1060 all report TS2589. Cost was never
+/// the limit - the marginal cost is 275 instantiations per instruction, so the
+/// 5M instantiation budget is worth ~18,000 of them against the ~1000 the cap
+/// allowed.
+///
+/// `$Drive` re-enters each suspend from an argument position, which starts a
+/// fresh chain, so instructions per chunk becomes segments x fuel and the 0.45s
+/// of fixed cost per chunk (printing, parsing and binding the state) is
+/// amortised over all of them.
+/// Measured on a doom checkpoint, 1 chunk against the baseline's 9, reaching a
+/// bit-identical state: 4s of baseline work in 2s. Swept further, units/second
+/// is 3,555 at 0 segments, 9,387 at 32, 11,228 at 64 and 12,702 at 128, and 256
+/// does not land at all. 128 buys 13% over 64 for double the chunk latency, and
+/// chunk latency is what the viewer and a crash both pay, so 64 it is.
+const SEGMENTS = 64;
+
 const DEFAULT_FUEL = 1280;
 
 const TRUNCATED = /\bany\b/;
@@ -743,7 +763,8 @@ function sbrkWord(moduleText: string) {
     mark("print");
     env.createFile(statePathDts, stateText);
     const file = `type $FUEL = ${fuelType(fuel)}
-type $Result = ${call}
+type $OUTER = ${fuelType(SEGMENTS)}
+type $Result = $Drive<$OUTER, $FUEL, ${call}>
 export type $Out_Tag = $Tag<$Result>
 export type $Out_Frames = $Frames<$Result>
 export type $Out_Globals = $GlobalsOf<$Result>

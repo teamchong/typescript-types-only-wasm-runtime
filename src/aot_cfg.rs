@@ -456,7 +456,103 @@ impl CfgCompiler {
                 out.push('\n');
             }
         }
+        // A chunk cannot run more than ~1000 instructions no matter how much
+        // fuel it is given: every instruction is one link in a chain of tail
+        // instantiations, and the checker's tail-recursion elision gives up at
+        // 1000 iterations. Measured on a doom chunk: 940 and 980 land, 1000,
+        // 1020 and 1060 all report TS2589. That cap, not cost, is what bounds a
+        // chunk - the marginal cost is 275 instantiations per instruction, so
+        // the 5M instantiation budget would allow ~18,000 of them.
+        //
+        // The counter resets when the recursive call sits in an argument
+        // position instead of a tail position, because the inner chain is
+        // resolved to a value before the outer one continues. Measured on a
+        // synthetic chain: flat dies at 5,000 steps, a nested one runs 20,000.
+        // A wrapper alias is not enough - `type Y<T> = T` around the
+        // continuation still hit TS2589 at every segment size, since the
+        // wrapped call is still the tail of the same chain.
+        //
+        // So the inner chain has to end by itself and be re-entered from
+        // outside, which is exactly the suspend the host already resumes. Doing
+        // that in types is the same reconstruction `enter()` does in the
+        // driver: the innermost frame names the block and carries its locals,
+        // the frames below it become the new `$K`, and the memory and globals
+        // come off the suspend record.
+        let tramp = self.emit_trampoline(&out);
+        out.push_str(&tramp);
         Ok(out)
+    }
+
+    /// `$Resume` re-enters a suspend without the host, and `$Drive` runs a
+    /// bounded number of segments per chunk.
+    ///
+    /// The table is read back out of the emitted text rather than the block
+    /// structs so that it cannot disagree with the signatures it has to call:
+    /// each block's saved locals are whatever its parameter list has after
+    /// fuel, frames, memory and the globals.
+    fn emit_trampoline(&self, module: &str) -> String {
+        let globals = self.globals.len();
+        let mut branches = String::new();
+        let mut blocks = 0usize;
+        for line in module.lines() {
+            let Some(rest) = line.strip_prefix("export type $b") else {
+                continue;
+            };
+            let Some(open) = rest.find('<') else { continue };
+            let name = &rest[..open];
+            let Some(params) = top_level_params(&rest[open + 1..]) else {
+                continue;
+            };
+            // fuel, frames, memory, then one per global: everything after that
+            // is a live local, saved in the frame in this same order
+            if params < 3 + globals {
+                continue;
+            }
+            let saved = params - 3 - globals;
+            let pattern: String = (0..saved)
+                .map(|i| format!(", infer $s{i} extends WasmValue"))
+                .collect();
+            let mut args = vec!["$F".to_string(), "$B".to_string(), "$Buf<$MM>".to_string()];
+            args.extend((0..globals).map(|i| format!("$g{i}")));
+            args.extend((0..saved).map(|i| format!("$s{i}")));
+            branches.push_str(&format!(
+                "  $T extends ['{name}', unknown{pattern}]
+    ? $Exit<$b{name}<{}>>
+  : ",
+                args.join(", ")
+            ));
+            blocks += 1;
+        }
+        if blocks == 0 {
+            return String::new();
+        }
+        let ginfer: Vec<String> = (0..globals)
+            .map(|i| format!("infer $g{i} extends WasmValue"))
+            .collect();
+        // Not one indented line in here. The driver turns this module into a
+        // global script by rewriting `export type` at the start of a line, so an
+        // indented `export` survives, makes the file a module, and hides every
+        // block from the chunk that calls it - which reads as the chunk's result
+        // tag coming back unresolved.
+        let mut text = String::new();
+        text.push_str("\n/// Re-enter a suspend at type level: the same call `enter()` builds in\n");
+        text.push_str("/// the host, so a chunk is no longer a single tail chain and the\n");
+        text.push_str(&format!(
+            "/// 1000-iteration cap stops bounding it. {blocks} blocks can be resumed.\n"
+        ));
+        text.push_str("export type $Resume<$R, $F extends string> =\n");
+        text.push_str(&format!(
+            "[$Frames<$R>, $GlobalsOf<$R>, $MemOf<$R>] extends [[infer $T, ...infer $B extends unknown[]], [{}], infer $MM extends $Node]\n",
+            ginfer.join(", ")
+        ));
+        text.push_str("? (\n");
+        text.push_str(&branches);
+        text.push_str("$R\n)\n: $R\n");
+        text.push_str("\n/// One segment per outer step, each a fresh tail chain. A segment that\n");
+        text.push_str("/// returns or traps ends the chunk: only a suspend can be picked up.\n");
+        text.push_str("export type $Drive<$O extends string, $F extends string, $R> =\n");
+        text.push_str("$O extends `1${infer $rest}` ? ($Tag<$R> extends 's' ? $Drive<$rest, $F, $Resume<$R, $F>> : $R) : $R\n");
+        text
     }
 
     /// `call_indirect` becomes a match on the table slot. The table is fixed at
@@ -3634,4 +3730,23 @@ impl Compare {
             _ => None,
         }
     }
+}
+
+/// How many type parameters a generic list declares, stopping at the `>` that
+/// closes it. Nested `<...>` and `[...]` do not end it and their commas do not
+/// count.
+fn top_level_params(text: &str) -> Option<usize> {
+    let mut depth = 0i32;
+    let mut count = 1usize;
+    for ch in text.chars() {
+        match ch {
+            '<' | '[' | '(' => depth += 1,
+            ']' | ')' => depth -= 1,
+            '>' if depth == 0 => return Some(count),
+            '>' => depth -= 1,
+            ',' if depth == 0 => count += 1,
+            _ => {}
+        }
+    }
+    None
 }
