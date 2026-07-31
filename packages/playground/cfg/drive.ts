@@ -372,12 +372,28 @@ export const enter = (
 /// fresh chain, so instructions per chunk becomes segments x fuel and the 0.45s
 /// of fixed cost per chunk (printing, parsing and binding the state) is
 /// amortised over all of them.
-/// Measured on a doom checkpoint, 1 chunk against the baseline's 9, reaching a
-/// bit-identical state: 4s of baseline work in 2s. Swept further, units/second
-/// is 3,555 at 0 segments, 9,387 at 32, 11,228 at 64 and 12,702 at 128, and 256
-/// does not land at all. 128 buys 13% over 64 for double the chunk latency, and
-/// chunk latency is what the viewer and a crash both pay, so 64 it is.
-const SEGMENTS = 64;
+/// One segment per chunk: the type-level trampoline does not agree with the
+/// host's own resume, so it stays off until it does.
+///
+/// `$Resume` re-enters a suspend from an argument position, which is worth
+/// 3x (3,555 units/s at 0 segments against 11,228 at 64), but it executes a
+/// different block than `enter()` does from the same suspend. Cold start,
+/// identical fuel, identical state size:
+///
+///   segments  baseline chunk N      trampoline chunk 1
+///   2         4_2, 2 frames, 36992  4_4, 2 frames, 36992
+///   8         4_2, 2 frames, 36992  4_4, 2 frames, 36992
+///   64        4_2, 2 frames, 36992  4_4, 2 frames, 36992
+///
+/// It diverges on the very first chunk and compounds: by 327,680 fuel the
+/// driven run has `main` returning 0 with SP at 60544 instead of 65536, doom
+/// bailing out of init. The baseline is still initializing at 382,720 fuel
+/// (13_7, 4 frames, 64,982 chars) and goes on to render.
+///
+/// The table pairs each block id with the saved locals its parameter list
+/// implies, which is where I would look first: a frame that wants a returned
+/// value carries one fewer saved local than its block declares parameters.
+const SEGMENTS = 1;
 
 const DEFAULT_FUEL = 1280;
 
