@@ -125,13 +125,17 @@ const printTrie = (node: Trie): string =>
 /// chunk, so the repeats are what to attack: 10012 of those words are the
 /// all-ones word alone. Declaring the common ones as aliases in the state file
 /// makes each use 3 characters. 64 is where the measured curve flattens: top-8
-/// saves 15% of the text, top-64 saves 25%, top-256 saves 34% but the extra 192
-/// declarations are 192 more types for the checker to bind per chunk.
+/// saves 15% of the text, top-64 saves 25%, top-4096 saves 50%. The extra
+/// declarations are cheaper than the text they remove: at doom's frame-5 state
+/// (7.3MB), raising the cap from 64 to 4096 cut the emitted state from 5.54MB to
+/// 2.75MB and the chunk from 371ms to 243ms, of which tsgo's resolve went 260ms
+/// -> 138ms. Past 4096 the text keeps shrinking (2.29MB at 20000) but the time
+/// does not (242ms), so the win is the repeated literals, not the node count.
 ///
 /// Before: [['11111111111111111111111111111111'], ['11111111111111111111111111111111']]
 /// After:  type $A0 = ['11111111111111111111111111111111']
 ///         [$A0, $A0]
-const ALIAS_TOP = 64;
+const ALIAS_TOP = 4096;
 
 const aliasWordsOf = (node: Trie): string[] => {
   const seen = new Map<string, number>();
