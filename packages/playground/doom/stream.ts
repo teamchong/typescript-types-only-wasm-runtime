@@ -32,28 +32,50 @@ if (!checkpointPath) throw new Error("usage: stream.ts <checkpoint.json> [port]"
 /// where the browser's buttons wait for the checker to pick them up
 const inputPath = `${checkpointPath}.input`;
 
-/// The keys doom actually reads, in the order they are drawn. Codes are
-/// KeyboardEvent.code so the layout is physical, not what the OS maps.
-const KEYS: Array<[string, string]> = [
-  ["KeyW", "W"],
-  ["KeyA", "A"],
-  ["KeyS", "S"],
-  ["KeyD", "D"],
-  ["ArrowLeft", "left"],
-  ["ArrowRight", "right"],
-  ["ArrowUp", "fwd"],
-  ["ArrowDown", "back"],
-  ["ControlLeft", "fire"],
-  ["Space", "use"],
-  ["ShiftLeft", "run"],
-  ["AltLeft", "strafe"],
-  ["Escape", "esc"],
-  ["Enter", "enter"],
-  ["Digit1", "1"],
-  ["Digit2", "2"],
-  ["Digit3", "3"],
-  ["Digit4", "4"],
-];
+/// The pad used to draw 18 keys while the driver forwarded 10, so W/A/S/D,
+/// shift, alt and the number row lit up green and did nothing, and Y/N - which
+/// the game does read, for the quit prompt - were missing. The list is read out
+/// of the driver rather than copied, so the two cannot drift again.
+const driverSource = readFileSync(join(__dirname, "..", "cfg", "drive.ts"), "utf8");
+const forwardedCodes = (): string[] => {
+  const table = driverSource.match(/const INPUT_BITS = \[([^\]]*)\]/);
+  if (!table) throw new Error("drive.ts has no INPUT_BITS table to draw a pad from");
+  return [...table[1]!.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
+};
+const BITS = forwardedCodes();
+
+/// A frame is minutes, so "I pressed it" and "the game has it" are far apart
+/// and the pad has to show both. The second one is in the checkpoint: the input
+/// word carries a sentinel in its high bits, so the state the game is reading
+/// can be grepped straight out of the memory the poll already parsed. Measured
+/// on a live checkpoint: exactly one match, 22 fixed bits plus the 10 key bits.
+const SENTINEL = driverSource.match(/const INPUT_SENTINEL = "([01]+)"/)?.[1];
+if (!SENTINEL) throw new Error("drive.ts has no INPUT_SENTINEL to find the input word with");
+const INPUT_WORD = new RegExp(`${SENTINEL.slice(0, 22)}([01]{10})`);
+
+/// Which keys the game itself is holding, read back from the checkpoint.
+const seenKeys = (memory: string): string[] => {
+  const word = memory.match(INPUT_WORD);
+  if (!word) return [];
+  const bits = word[1]!;
+  return BITS.filter((_, bit) => bits[bits.length - 1 - bit] === "1");
+};
+
+/// What each key does once the game has it, so the pad says why to press it.
+/// Menu meaning first: the game boots into the menu, which is where a new
+/// player is.
+const WHAT: Record<string, [string, string]> = {
+  Escape: ["menu", "opens and closes the menu, and backs out of a submenu"],
+  Enter: ["select", "picks the highlighted menu item"],
+  ArrowUp: ["up / fwd", "menu: previous item. in game: walk forward"],
+  ArrowDown: ["down / back", "menu: next item. in game: walk backward"],
+  ArrowLeft: ["left", "menu: slider down. in game: turn left"],
+  ArrowRight: ["right", "menu: slider up. in game: turn right"],
+  Space: ["use", "opens doors and works switches"],
+  ControlLeft: ["fire", "left ctrl. fires the weapon"],
+  KeyY: ["yes", "answers the quit and new-game prompts"],
+  KeyN: ["no", "dismisses a prompt"],
+};
 
 const page = `<!doctype html>
 <title>doom, by the type checker</title>
@@ -66,18 +88,22 @@ const page = `<!doctype html>
   #pad { width: 260px; display: flex; flex-direction: column; gap: 10px }
   h2 { font: 600 11px ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase;
        color: #777; margin: 0 0 6px }
-  #keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px }
-  .key { border: 1px solid #333; border-radius: 3px; padding: 6px 0; text-align: center;
-         font-size: 11px; color: #666; background: #171717 }
-  .key.on { background: #3ddc84; border-color: #3ddc84; color: #04180c; font-weight: 700 }
-  .btns { display: flex; gap: 4px }
-  .btn { flex: 1; border: 1px solid #333; border-radius: 3px; padding: 6px 0; text-align: center;
-         font-size: 11px; color: #666; background: #171717 }
-  .btn.on { background: #ffd166; border-color: #ffd166; color: #201600; font-weight: 700 }
-  #aim { height: 54px; border: 1px solid #333; border-radius: 3px; position: relative;
-         background: #171717; overflow: hidden }
-  #dot { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #6cf;
-         left: 50%; top: 50%; transform: translate(-50%, -50%) }
+  #keys { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px }
+  .key { border: 1px solid #333; border-radius: 3px; padding: 5px 6px; background: #171717;
+         cursor: pointer; user-select: none; -webkit-user-select: none }
+  .key:hover { border-color: #555 }
+  .key b { display: block; font: 600 11px ui-monospace, monospace; color: #bbb }
+  .key i { display: block; font: 10px ui-monospace, monospace; font-style: normal; color: #666 }
+  .key b em { float: right; font-style: normal; font-size: 9px; letter-spacing: .06em }
+  .key.on { background: #3ddc84; border-color: #3ddc84 }
+  .key.on b, .key.on i { color: #04180c }
+  /* waiting: the browser has it, the checker has not read it back yet */
+  .key.wait { border-color: #ffd166 }
+  .key.wait b em { color: #ffd166 }
+  /* live: the game itself is holding this key in the last checkpoint */
+  .key.live { border-color: #6cf; box-shadow: inset 0 0 0 1px #6cf }
+  .key.live b em { color: #6cf }
+  .key.on b em { color: #04180c }
   #log { height: 190px; overflow: hidden; border: 1px solid #262626; border-radius: 3px;
          background: #0d0d0d; padding: 6px; font-size: 11px; line-height: 1.5; color: #8a8a8a }
   #log b { color: #3ddc84; font-weight: 600 }
@@ -89,12 +115,9 @@ const page = `<!doctype html>
 <div id=stage>
   <canvas id=screen width=${WIDTH} height=${HEIGHT}></canvas>
   <div id=pad>
-    <div><h2>keys</h2><div id=keys></div></div>
-    <div><h2>mouse</h2><div id=aim><div id=dot></div></div>
-      <div class=btns style="margin-top:4px">
-        <div class=btn id=m0>fire</div><div class=btn id=m1>mid</div><div class=btn id=m2>alt</div>
-      </div>
-      <div class=meta style="margin-top:4px">dx <span id=dx>0</span> dy <span id=dy>0</span></div>
+    <div><h2>keys</h2><div id=keys></div>
+      <div class=meta style="margin-top:6px">click a key or press it. these ten are the
+        whole input word; the mouse and the rest of the keyboard have no bits in it yet.</div>
     </div>
     <div><h2>sent to checker</h2>
       <div class=meta>rev <span id=rev>0</span> acked <span id=ack>0</span></div>
@@ -119,26 +142,57 @@ const page = `<!doctype html>
   var statusEl = document.getElementById("status");
   var logEl = document.getElementById("log");
   var keysEl = document.getElementById("keys");
-  var dot = document.getElementById("dot");
-  var KEYS = ${JSON.stringify(KEYS)};
+  var KEYS = ${JSON.stringify(forwardedCodes().map((code) => [code, ...(WHAT[code] ?? [code, code])]))};
   var cells = {};
+  var badges = {};
   for (var i = 0; i < KEYS.length; i++) {
-    var cell = document.createElement("div");
-    cell.className = "key";
-    cell.textContent = KEYS[i][1];
-    keysEl.appendChild(cell);
-    cells[KEYS[i][0]] = cell;
+    (function (code, label, hint) {
+      var cell = document.createElement("div");
+      cell.className = "key";
+      cell.title = code + " - " + hint + ". click to tap, hold to hold";
+      var b = document.createElement("b");
+      b.textContent = label;
+      var badge = document.createElement("em");
+      b.appendChild(badge);
+      badges[code] = badge;
+      var s = document.createElement("i");
+      s.textContent = hint;
+      cell.appendChild(b);
+      cell.appendChild(s);
+      /// The pad is the only input on a phone and the only one that shows what
+      /// a key is for, so a cell presses the same key the keyboard does.
+      /// pointer events, not click: a click has no hold, and a menu that is
+      /// read once per chunk needs the hold as much as the count.
+      cell.addEventListener("pointerdown", function (e) {
+        e.preventDefault();
+        cell.setPointerCapture(e.pointerId);
+        press(code);
+      });
+      cell.addEventListener("pointerup", function () { release(code); });
+      cell.addEventListener("pointercancel", function () { release(code); });
+      keysEl.appendChild(cell);
+      cells[code] = cell;
+    })(KEYS[i][0], KEYS[i][1], KEYS[i][2]);
   }
   var held = {};
-  var buttons = {};
+  var waiting = {};
+  var live = {};
+  /// three facts per key, because they are minutes apart: the browser holds it,
+  /// the checker has not read it back yet, the game itself is holding it
+  var paint = function (code) {
+    var cell = cells[code];
+    if (!cell) return;
+    cell.classList.toggle("on", !!held[code]);
+    cell.classList.toggle("wait", !!waiting[code] && !live[code]);
+    cell.classList.toggle("live", !!live[code]);
+    badges[code].textContent = live[code] ? "in game" : waiting[code] ? "queued" : "";
+  };
   /// A chunk is ~1.5s and the driver reads this file once per chunk, so a 100ms
   /// tap is invisible to it: measured 0 of 10 Enter taps reaching the state,
   /// while a 5s hold landed. Keydowns are counted rather than sampled, and the
   /// driver consumes one count per chunk.
   var presses = {};
   var rev = 0;
-  var dx = 0;
-  var dy = 0;
   var lines = [];
   var ws = new WebSocket("ws://" + location.host);
 
@@ -157,63 +211,43 @@ const page = `<!doctype html>
     document.getElementById("rev").textContent = rev;
     var down = [];
     for (var k in held) if (held[k]) down.push(k);
-    var mb = [];
-    for (var b in buttons) if (buttons[b]) mb.push(Number(b));
-    ws.send(JSON.stringify({
-      rev: rev,
-      keys: down,
-      presses: presses,
-      mouse: { dx: dx, dy: dy, buttons: mb },
-    }));
-    dx = 0;
-    dy = 0;
+    ws.send(JSON.stringify({ rev: rev, keys: down, presses: presses }));
+  };
+
+  /// keyboard and pad go through the same two calls, so a clicked key and a
+  /// typed key are the same event as far as the checker can tell
+  var press = function (code) {
+    if (held[code]) return;
+    held[code] = true;
+    presses[code] = (presses[code] || 0) + 1;
+    /// A frame is minutes and a chunk is seconds, so a press that vanishes
+    /// until the next paint reads as a dropped press. Mark it waiting the
+    /// moment it is sent, and let the checkpoint clear it.
+    waiting[code] = true;
+    paint(code);
+    log("down", code);
+    send();
+  };
+  var release = function (code) {
+    if (!held[code]) return;
+    held[code] = false;
+    paint(code);
+    log("up", code);
+    send();
   };
 
   window.addEventListener("keydown", function (e) {
-    if (cells[e.code]) e.preventDefault();
-    if (held[e.code]) return;
-    held[e.code] = true;
-    presses[e.code] = (presses[e.code] || 0) + 1;
-    if (cells[e.code]) cells[e.code].classList.add("on");
-    log("down", e.code);
-    send();
+    if (!cells[e.code]) return;
+    e.preventDefault();
+    press(e.code);
   });
   window.addEventListener("keyup", function (e) {
-    if (cells[e.code]) e.preventDefault();
-    held[e.code] = false;
-    if (cells[e.code]) cells[e.code].classList.remove("on");
-    log("up", e.code);
-    send();
-  });
-  canvas.addEventListener("click", function () { canvas.requestPointerLock(); });
-  window.addEventListener("mousemove", function (e) {
-    if (document.pointerLockElement !== canvas) return;
-    dx += e.movementX;
-    dy += e.movementY;
-    document.getElementById("dx").textContent = dx;
-    document.getElementById("dy").textContent = dy;
-    var x = Math.max(-1, Math.min(1, dx / 200));
-    var y = Math.max(-1, Math.min(1, dy / 200));
-    dot.style.left = (50 + x * 46) + "%";
-    dot.style.top = (50 + y * 40) + "%";
-    send();
-  });
-  window.addEventListener("mousedown", function (e) {
-    if (document.pointerLockElement !== canvas) return;
+    if (!cells[e.code]) return;
     e.preventDefault();
-    buttons[e.button] = true;
-    var el = document.getElementById("m" + e.button);
-    if (el) el.classList.add("on");
-    log("down", "mouse" + e.button);
-    send();
+    release(e.code);
   });
-  window.addEventListener("mouseup", function (e) {
-    buttons[e.button] = false;
-    var el = document.getElementById("m" + e.button);
-    if (el) el.classList.remove("on");
-    log("up", "mouse" + e.button);
-    send();
-  });
+  /// a click used to grab the pointer for a mouse look nothing reads
+  canvas.addEventListener("click", function () { canvas.focus(); });
 
   var painted = 0;
   var onMessage = async function (e) {
@@ -223,6 +257,18 @@ const page = `<!doctype html>
         document.getElementById("ack").textContent = msg.rev;
         document.getElementById("qchunk").textContent = msg.chunk;
         return;
+      }
+      if (msg.seen) {
+        /// the checkpoint is the only honest answer to "did that register":
+        /// once the key shows up in the game's own input word, the queue mark
+        /// comes off, and a key that is still queued is still queued
+        for (var c in cells) {
+          var isLive = msg.seen.indexOf(c) >= 0;
+          if (isLive) waiting[c] = false;
+          else if (live[c] && !held[c]) waiting[c] = false;
+          live[c] = isLive;
+          paint(c);
+        }
       }
       statusEl.textContent = msg.state;
       // metrics outlive the state line: an idle tick says nothing about rate,
@@ -573,6 +619,8 @@ const poll = () => {
     eta: etaMin > 0 ? `${etaMin.toFixed(0)}m` : undefined,
     inFrame: frameChunks ? `${inFrame}/${frameChunks}` : `${inFrame}/?`,
     painted: `${painted}/${WIDTH * HEIGHT} (${percent}%)`,
+    seen: seenKeys(checkpoint.memory),
+    chunk: checkpoint.chunks,
   });
   for (const socket of clients) {
     socket.write(wsFrame(last));
