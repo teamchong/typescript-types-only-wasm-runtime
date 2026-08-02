@@ -605,6 +605,14 @@ export const run = async (
   const inputSlot = inputWordOf(moduleText);
   const inputPath = options.save ? `${options.save}.input` : "";
   let inputRev = -1;
+  // Held keys are a level, but a tap is an edge the poll never sees: a chunk is
+  // ~1.5s and a keypress is ~100ms, and 0 of 10 measured Enter taps reached the
+  // state while a 5s hold did. The page counts keydowns instead, and each count
+  // not yet handed to the game is held down here for one whole chunk.
+  let heldKeys: string[] = [];
+  const pressesSeen: Record<string, number> = {};
+  const pressesOwed: Record<string, number> = {};
+  let inputMask = "";
   // Readers for the memory a branch at a time, two levels down. They cost
   // nothing until one is asked for: a type alias is only instantiated when
   // something reads it, and the whole point is that almost always only the
@@ -830,11 +838,29 @@ function sbrkWord(moduleText: string) {
     // and its release can both arrive inside one frame's worth of chunks.
     if (inputSlot && inputPath) {
       try {
-        const sent = JSON.parse(readFileSync(inputPath, "utf8")) as { rev: number; keys: string[] };
+        const sent = JSON.parse(readFileSync(inputPath, "utf8")) as {
+          rev: number;
+          keys: string[];
+          presses?: Record<string, number>;
+        };
         if (sent.rev !== inputRev) {
           inputRev = sent.rev;
+          heldKeys = sent.keys ?? [];
+          for (const [code, count] of Object.entries(sent.presses ?? {})) {
+            const owed = count - (pressesSeen[code] ?? 0);
+            if (owed > 0) pressesOwed[code] = (pressesOwed[code] ?? 0) + owed;
+            pressesSeen[code] = count;
+          }
+        }
+        const latched = Object.keys(pressesOwed).filter((code) => pressesOwed[code]! > 0);
+        const mask = inputMaskWord([...heldKeys, ...latched]);
+        // One count per chunk: two taps between polls are two separate events,
+        // not one long press the menu reads as a single keystroke.
+        for (const code of latched) pressesOwed[code]!--;
+        if (mask !== inputMask) {
+          inputMask = mask;
           memoryTrie = prune(
-            setWord(memoryTrie, inputSlot.word, inputMaskWord(sent.keys ?? []), fanout, inputSlot.levels / Math.log2(fanout)),
+            setWord(memoryTrie, inputSlot.word, mask, fanout, inputSlot.levels / Math.log2(fanout)),
             base,
             fanout,
           );

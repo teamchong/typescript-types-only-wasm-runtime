@@ -131,6 +131,11 @@ const page = `<!doctype html>
   }
   var held = {};
   var buttons = {};
+  /// A chunk is ~1.5s and the driver reads this file once per chunk, so a 100ms
+  /// tap is invisible to it: measured 0 of 10 Enter taps reaching the state,
+  /// while a 5s hold landed. Keydowns are counted rather than sampled, and the
+  /// driver consumes one count per chunk.
+  var presses = {};
   var rev = 0;
   var dx = 0;
   var dy = 0;
@@ -154,7 +159,12 @@ const page = `<!doctype html>
     for (var k in held) if (held[k]) down.push(k);
     var mb = [];
     for (var b in buttons) if (buttons[b]) mb.push(Number(b));
-    ws.send(JSON.stringify({ rev: rev, keys: down, mouse: { dx: dx, dy: dy, buttons: mb } }));
+    ws.send(JSON.stringify({
+      rev: rev,
+      keys: down,
+      presses: presses,
+      mouse: { dx: dx, dy: dy, buttons: mb },
+    }));
     dx = 0;
     dy = 0;
   };
@@ -163,6 +173,7 @@ const page = `<!doctype html>
     if (cells[e.code]) e.preventDefault();
     if (held[e.code]) return;
     held[e.code] = true;
+    presses[e.code] = (presses[e.code] || 0) + 1;
     if (cells[e.code]) cells[e.code].classList.add("on");
     log("down", e.code);
     send();
@@ -308,10 +319,21 @@ const server = createServer((_req, res) => {
 /// Mouse deltas arrive per event and have to add up between frames, so the
 /// snapshot accumulates them and the held sets are last-writer-wins.
 let inputRev = 0;
-let pending = { keys: [] as string[], dx: 0, dy: 0, buttons: [] as number[] };
+let pending = {
+  keys: [] as string[],
+  presses: {} as Record<string, number>,
+  dx: 0,
+  dy: 0,
+  buttons: [] as number[],
+};
 
 const acceptInput = (text: string) => {
-  let message: { rev: number; keys: string[]; mouse: { dx: number; dy: number; buttons: number[] } };
+  let message: {
+    rev: number;
+    keys: string[];
+    presses?: Record<string, number>;
+    mouse: { dx: number; dy: number; buttons: number[] };
+  };
   try {
     message = JSON.parse(text);
   } catch {
@@ -321,6 +343,7 @@ const acceptInput = (text: string) => {
   inputRev++;
   pending = {
     keys: message.keys,
+    presses: message.presses ?? pending.presses,
     dx: pending.dx + (message.mouse?.dx ?? 0),
     dy: pending.dy + (message.mouse?.dy ?? 0),
     buttons: message.mouse?.buttons ?? [],
