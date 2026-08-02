@@ -14,3 +14,5 @@ packages/playground/cfg/failing-output.txt
 packages/playground/cfg/*.cfg.ts
 packages/playground/**/*.cfg.ts
 packages/playground/gfx/frames/
+# live doom checkpoint; the clean-start seed is doom/first-frame.json.gz and stays tracked
+packages/playground/doom/.live/

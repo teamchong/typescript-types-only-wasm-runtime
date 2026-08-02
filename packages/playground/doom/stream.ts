@@ -521,7 +521,7 @@ const poll = () => {
     say(
       existsSync(checkpointPath)
         ? `checkpoint ${basename(checkpointPath)} is mid-write, reading again in 1s`
-        : `no checkpoint at ${checkpointPath} - start the driver: pnpm run play`,
+        : `no checkpoint at ${checkpointPath} - start the driver: pnpm run start`,
     );
     return;
   }
@@ -571,11 +571,11 @@ const poll = () => {
         ? `two drivers are writing ${basename(checkpointPath)}: ${frozenChunks} ` +
             `chunks with no memory write and ${entryRewinds} restarts of the ` +
             `per-call count, so they are rewinding each other. Kill all but one: ` +
-            `pkill -f 'node.*cfg/drive.ts', then run pnpm run play once.`
+            `pkill -f 'node.*cfg/drive.ts', then run pnpm run start once.`
         : `wedged: ${frozenChunks} chunks with no memory write from a single ` +
             `driver, so the screen cannot change (doom's zone pointer is 0 - ` +
             `Z_Init found no heap after a restart on used memory). Kill the ` +
-            `driver, rm ${basename(checkpointPath)}, and run pnpm run play again.`,
+            `driver, rm ${basename(checkpointPath)}, and run pnpm run start again.`,
     );
     lastChunk = checkpoint.chunks;
     lastEvalMs = checkpoint.evalMs;
@@ -660,7 +660,7 @@ setInterval(poll, 1000);
 // age instead, which is a fact the server already has.
 const sayStartup = () => {
   if (!existsSync(checkpointPath)) {
-    say(`no checkpoint at ${checkpointPath} - start the driver: pnpm run play`);
+    say(`no checkpoint at ${checkpointPath} - start the driver: pnpm run start`);
     return;
   }
   const age = ((Date.now() - statSync(checkpointPath).mtimeMs) / 1000).toFixed(0);
