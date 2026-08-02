@@ -362,24 +362,23 @@ const server = createServer((_req, res) => {
   res.end(page);
 });
 
-/// Mouse deltas arrive per event and have to add up between frames, so the
-/// snapshot accumulates them and the held sets are last-writer-wins.
+/// Held keys are last-writer-wins; press counts are a queue the driver drains
+/// one per chunk, so they accumulate here rather than in the page.
 let inputRev = 0;
 let pending = {
   keys: [] as string[],
   presses: {} as Record<string, number>,
-  dx: 0,
-  dy: 0,
-  buttons: [] as number[],
+};
+
+const writeInput = () => {
+  writeFileSync(
+    inputPath,
+    JSON.stringify({ rev: inputRev, chunk: lastChunk, ...pending }),
+  );
 };
 
 const acceptInput = (text: string) => {
-  let message: {
-    rev: number;
-    keys: string[];
-    presses?: Record<string, number>;
-    mouse: { dx: number; dy: number; buttons: number[] };
-  };
+  let message: { rev: number; keys: string[]; presses?: Record<string, number> };
   try {
     message = JSON.parse(text);
   } catch {
@@ -387,19 +386,34 @@ const acceptInput = (text: string) => {
   }
   if (!Array.isArray(message.keys)) return;
   inputRev++;
-  pending = {
-    keys: message.keys,
-    presses: message.presses ?? pending.presses,
-    dx: pending.dx + (message.mouse?.dx ?? 0),
-    dy: pending.dy + (message.mouse?.dy ?? 0),
-    buttons: message.mouse?.buttons ?? [],
-  };
-  writeFileSync(
-    inputPath,
-    JSON.stringify({ rev: inputRev, chunk: lastChunk, ...pending }),
-  );
+  pending.keys = message.keys;
+  // The page sends what it counted since its last message, not a running
+  // total: a total that only ever grows cannot be retired once the game has
+  // the press, and retiring it is what keeps a restart quiet.
+  for (const [code, count] of Object.entries(message.presses ?? {})) {
+    if (count > 0) pending.presses[code] = (pending.presses[code] ?? 0) + count;
+  }
+  writeInput();
   const ack = Buffer.from(JSON.stringify({ rev: inputRev, chunk: lastChunk }));
   for (const socket of clients) socket.write(wsFrame(ack, 0x1));
+};
+
+/// A press is retired when the game is seen holding that key: the driver has
+/// latched it, so the count has done its job and can go back to zero. Lowering
+/// a count is safe against the driver's `owed = count - seen` - it lowers
+/// `seen` to match and owes nothing - and it means the file a restarting driver
+/// reads describes what is still waiting, not everything ever pressed.
+const retirePresses = (seen: string[]) => {
+  let changed = false;
+  for (const code of seen) {
+    if ((pending.presses[code] ?? 0) > 0) {
+      pending.presses[code] = 0;
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  inputRev++;
+  writeInput();
 };
 
 server.on("upgrade", (req, socket: Socket) => {
@@ -442,6 +456,15 @@ let lastAt = 0;
 // The measurement outlives this process: restarting the stream throws away a
 // frame length that cost 19 minutes to measure, and then fps reads `-` for a
 // whole frame again even though the driver never stopped.
+/// The counts in the input file outlive the driver: the play loop restarts the
+/// driver on its own, and a fresh driver has an empty `pressesSeen`, so every
+/// count still on disk reads as a press it owes the game. Measured after one
+/// Enter tap against a file left holding {"ControlLeft":20,"Enter":4}: the game
+/// got Escape, Enter, KeyY, KeyN and Space over the next 20 seconds, none of
+/// them pressed by anyone. Start from nothing.
+inputRev++;
+writeInput();
+
 const framePath = `${checkpointPath}.frame`;
 let frameChunks = 0;
 let frameSecondsSaved = 0;
@@ -590,6 +613,8 @@ const poll = () => {
   lastAt = now;
   lastEvalMs = checkpoint.evalMs;
   lastChunk = checkpoint.chunks;
+  const nowSeen = seenKeys(checkpoint.memory);
+  retirePresses(nowSeen);
   const started = performance.now();
   const { rgb, painted } = frameFrom(checkpoint.memory, initial, screenOf(checkpoint));
   last = encodePng(rgb, WIDTH, HEIGHT);
@@ -619,7 +644,7 @@ const poll = () => {
     eta: etaMin > 0 ? `${etaMin.toFixed(0)}m` : undefined,
     inFrame: frameChunks ? `${inFrame}/${frameChunks}` : `${inFrame}/?`,
     painted: `${painted}/${WIDTH * HEIGHT} (${percent}%)`,
-    seen: seenKeys(checkpoint.memory),
+    seen: nowSeen,
     chunk: checkpoint.chunks,
   });
   for (const socket of clients) {
