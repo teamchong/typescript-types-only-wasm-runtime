@@ -612,6 +612,12 @@ export const run = async (
   let heldKeys: string[] = [];
   const pressesSeen: Record<string, number> = {};
   const pressesOwed: Record<string, number> = {};
+  // A code held down two chunks running is one keydown to the game: the module
+  // compares the word against the previous one and only posts an event for bits
+  // that changed. Two owed Enters back to back would be a single keystroke and
+  // the menu would never advance, so a code that was down last chunk sits out
+  // this one and the bit goes 1, 0, 1.
+  let lastLatched = new Set<string>();
   let inputMask = "";
   // Readers for the memory a branch at a time, two levels down. They cost
   // nothing until one is asked for: a type alias is only instantiated when
@@ -852,11 +858,14 @@ function sbrkWord(moduleText: string) {
             pressesSeen[code] = count;
           }
         }
-        const latched = Object.keys(pressesOwed).filter((code) => pressesOwed[code]! > 0);
+        const latched = Object.keys(pressesOwed).filter(
+          (code) => pressesOwed[code]! > 0 && !lastLatched.has(code),
+        );
         const mask = inputMaskWord([...heldKeys, ...latched]);
         // One count per chunk: two taps between polls are two separate events,
         // not one long press the menu reads as a single keystroke.
         for (const code of latched) pressesOwed[code]!--;
+        lastLatched = new Set(latched);
         if (mask !== inputMask) {
           inputMask = mask;
           memoryTrie = prune(
