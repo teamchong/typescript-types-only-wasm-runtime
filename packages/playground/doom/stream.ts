@@ -48,10 +48,11 @@ const BITS = forwardedCodes();
 /// and the pad has to show both. The second one is in the checkpoint: the input
 /// word carries a sentinel in its high bits, so the state the game is reading
 /// can be grepped straight out of the memory the poll already parsed. Measured
-/// on a live checkpoint: exactly one match, 22 fixed bits plus the 10 key bits.
+/// on a live checkpoint: exactly one match, the fixed high bits plus one bit
+/// per key in INPUT_BITS.
 const SENTINEL = driverSource.match(/const INPUT_SENTINEL = "([01]+)"/)?.[1];
 if (!SENTINEL) throw new Error("drive.ts has no INPUT_SENTINEL to find the input word with");
-const INPUT_WORD = new RegExp(`${SENTINEL.slice(0, 22)}([01]{10})`);
+const INPUT_WORD = new RegExp(`${SENTINEL.slice(0, 32 - BITS.length)}([01]{${BITS.length}})`);
 
 /// Which keys the game itself is holding, read back from the checkpoint.
 const seenKeys = (memory: string): string[] => {
@@ -75,6 +76,16 @@ const WHAT: Record<string, [string, string]> = {
   ControlLeft: ["fire", "left ctrl. fires the weapon"],
   KeyY: ["yes", "answers the quit and new-game prompts"],
   KeyN: ["no", "dismisses a prompt"],
+  Digit1: ["fist / saw", "in game: chainsaw if you have it, else fist"],
+  Digit2: ["pistol", "in game: the pistol"],
+  Digit3: ["shotgun", "in game: the shotgun"],
+  Digit4: ["chaingun", "in game: the chaingun"],
+  Digit5: ["rockets", "in game: the rocket launcher"],
+  Digit6: ["plasma", "in game: the plasma rifle"],
+  Digit7: ["bfg", "in game: the BFG9000"],
+  ShiftLeft: ["run", "hold with a direction to run"],
+  AltLeft: ["strafe", "hold with left/right to sidestep instead of turn"],
+  Tab: ["map", "toggles the automap"],
 };
 
 const page = `<!doctype html>

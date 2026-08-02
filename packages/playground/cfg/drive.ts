@@ -218,18 +218,19 @@ const prune = (node: Trie, base: Trie, fanout: number, depth = 0): Trie => {
 
 /// Doom reads its keys from one word it never writes:
 ///
-///     volatile int ts_input_mask = 0x5A17C000;  /* low 10 bits are the keys */
+///     volatile int ts_input_mask = 0x5A100000;  /* low 20 bits are the keys */
 ///
 /// `entry` loads it, masks off the sentinel, and hands the bits to
 /// `ts_post_input`, which turns each changed bit into a D_PostEvent. A word the
 /// host writes into the state shadows the module's data, so a keypress is a
 /// single `setWord` per chunk - not a patch of the 117MB module text, which is
 /// what the sentinel in the high bits was originally there to find.
-const INPUT_SENTINEL = "01011010000101111100000000000000";
+const INPUT_SENTINEL = "01011010000100000000000000000000";
 
-/// Bit order is the table `ts_post_input` walks (address 85856 in the wasm):
-/// bit 0 ESC, 1 ENTER, 2..5 the arrows, 6 use, 7 fire, 8 y, 9 n. The names are
-/// KeyboardEvent.code, which is what stream.ts writes to <checkpoint>.input.
+/// Bit order is the select chain `ts_post_input` walks: bit 0 ESC, 1 ENTER,
+/// 2..5 the arrows, 6 use, 7 fire, 8 y, 9 n, 10..16 the weapon digits, 17 run,
+/// 18 strafe, 19 map. The names are KeyboardEvent.code, which is what stream.ts
+/// writes to <checkpoint>.input.
 const INPUT_BITS = [
   "Escape",
   "Enter",
@@ -241,6 +242,16 @@ const INPUT_BITS = [
   "ControlLeft",
   "KeyY",
   "KeyN",
+  "Digit1",
+  "Digit2",
+  "Digit3",
+  "Digit4",
+  "Digit5",
+  "Digit6",
+  "Digit7",
+  "ShiftLeft",
+  "AltLeft",
+  "Tab",
 ];
 
 /// Where that word lives, as a word index, read off the module's own data
@@ -254,9 +265,10 @@ const inputWordOf = (moduleText: string) => {
 const inputMaskWord = (keys: string[]) => {
   let mask = 0;
   for (const [bit, code] of INPUT_BITS.entries()) if (keys.includes(code)) mask |= 1 << bit;
-  // The sentinel stays in the high bits: `entry` ands with 1023, so they are
-  // dead to the game, and keeping them makes a state word recognisable.
-  return (INPUT_SENTINEL.slice(0, 22) + mask.toString(2).padStart(10, "0"));
+  // The sentinel stays in the high 12 bits: `entry` ands with 0xFFFFF, so they
+  // are dead to the game, and keeping them makes a state word recognisable.
+  return (INPUT_SENTINEL.slice(0, 32 - INPUT_BITS.length) +
+    mask.toString(2).padStart(INPUT_BITS.length, "0"));
 };
 
 /// The module's own initial memory, as the host sees it.
