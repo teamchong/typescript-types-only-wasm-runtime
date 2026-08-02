@@ -19,7 +19,7 @@ echo ""
 START_TIME=$(date +%s)
 
 # Run the eval
-~/.local/share/mise/installs/node/22.21.1/bin/node \
+node \
   --stack-size=8192 \
   --max-old-space-size=16384 \
   --max-semi-space-size=16384 \
