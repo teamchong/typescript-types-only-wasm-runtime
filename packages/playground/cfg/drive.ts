@@ -198,6 +198,21 @@ const mergeOverlay = (base: Trie, overlay: Trie): Trie => {
   );
 };
 
+/// Reads one word out of the state, falling through `$Absent` to the module's
+/// own initial data the way the checker's own loads do.
+const getWord = (node: Trie, base: Trie, word: number, fanout: number, levels: number): string => {
+  if (levels === 0) return node === ABSENT ? (typeof base === "string" ? base : ZERO_WORD) : (node as string);
+  const bits = Math.log2(fanout);
+  const index = (word >>> ((levels - 1) * bits)) & (fanout - 1);
+  return getWord(
+    Array.isArray(node) ? node[index]! : node,
+    Array.isArray(base) ? base[index]! : base,
+    word,
+    fanout,
+    levels - 1,
+  );
+};
+
 const prune = (node: Trie, base: Trie, fanout: number, depth = 0): Trie => {
   const kid = (index: number) => (Array.isArray(base) ? base[index]! : base);
   if (depth < SPLIT_DEPTH && !(typeof node === "string" && node !== ABSENT && node.startsWith("$"))) {
@@ -226,6 +241,21 @@ const prune = (node: Trie, base: Trie, fanout: number, depth = 0): Trie => {
 /// single `setWord` per chunk - not a patch of the 117MB module text, which is
 /// what the sentinel in the high bits was originally there to find.
 const INPUT_SENTINEL = "01011010000100000000000000000000";
+
+/// `ts_post_input` keeps the last word it posted, and compares each incoming
+/// bit against it: that shadow is the game's acknowledgement, and it is the
+/// only signal the host has that a key was actually taken. Measured on the
+/// wasm build, one bit set and then cleared:
+///
+///     word 0..01, ack 0..00   bit written, frame not run yet
+///     word 0..01, ack 0..01   frame ran: keydown posted
+///     word 0..00, ack 0..01   bit cleared, frame not run yet
+///     word 0..00, ack 0..00   frame ran: keyup posted
+///
+/// So a press is: set the bit, wait for the ack to show it, clear the bit, wait
+/// for the ack to drop it. No frame counting, and it survives the host being
+/// restarted between frames, which it is - one process is one frame.
+const ACK_WORD = 4410172 / 4;
 
 /// Bit order is the select chain `ts_post_input` walks: bit 0 ESC, 1 ENTER,
 /// 2..5 the arrows, 6 use, 7 fire, 8 y, 9 n, 10..16 the weapon digits, 17 run,
@@ -620,16 +650,69 @@ export const run = async (
   // Held keys are a level, but a tap is an edge the poll never sees: a chunk is
   // ~1.5s and a keypress is ~100ms, and 0 of 10 measured Enter taps reached the
   // state while a 5s hold did. The page counts keydowns instead, and each count
-  // not yet handed to the game is held down here for one whole chunk.
+  // not yet handed to the game is held down here.
+  //
+  // How long "held down" has to be is not a guess, and it is not a timer
+  // either. `entry` reads the word once, in its first instruction, and hands it
+  // to `ts_post_input` before `D_OneFrame`; a measured frame is 194 chunks, so
+  // a bit that is up for one chunk is read with probability 1/194 - which is
+  // what "I pressed Enter and the menu just sat there" was. The game says when
+  // it has taken a key (see ACK_WORD), so a press is a handshake:
+  //
+  //   idle    -> bit set, once a press is owed
+  //   sent    -> hold the bit until the ack shows it: that is the keydown
+  //   release -> clear the bit until the ack drops it: that is the keyup
+  //
+  // Measured: with no released frame between two presses the menu reads them as
+  // one long press (`Esc Enter Enter Enter` back-to-back leaves gamestate 3,
+  // with a released frame it reaches 0), so `release` is not optional.
   let heldKeys: string[] = [];
-  const pressesSeen: Record<string, number> = {};
-  const pressesOwed: Record<string, number> = {};
-  // A code held down two chunks running is one keydown to the game: the module
-  // compares the word against the previous one and only posts an event for bits
-  // that changed. Two owed Enters back to back would be a single keystroke and
-  // the menu would never advance, so a code that was down last chunk sits out
-  // this one and the bit goes 1, 0, 1.
-  let lastLatched = new Set<string>();
+  // One process is one frame, so the handshake has to outlive it. `seen` used
+  // to be per-process, which re-owed every press the page had ever counted on
+  // every frame: that is the menu opening and closing on its own.
+  const latchPath = options.save ? `${options.save}.latch` : "";
+  const latchState: {
+    seen?: Record<string, number>;
+    phase?: "idle" | "sent" | "release";
+    code?: string;
+  } = (() => {
+    try {
+      return JSON.parse(readFileSync(latchPath, "utf8"));
+    } catch {
+      return {};
+    }
+  })();
+  const pressesSeen: Record<string, number> = latchState.seen ?? {};
+  /// `pressCounts` is a counter in the page's server process; `pressesSeen`
+  /// outlives it in the latch file. Measured: the server restarted at 13:20:34
+  /// with its counter back at zero while the latch still said
+  /// `{Enter:2,Escape:3}`, so `count - seen` was negative for every key and no
+  /// press was ever owed again - both badges stuck on "queued" forever. A
+  /// count below its seen value can only mean the counter restarted, so drop
+  /// the stale seen. Within one session counts only rise, so this cannot
+  /// re-send a press that already landed.
+  /// Persisted, not just held: the reseat has to survive this process. The
+  /// latch is only written when a phase changes, so a reseat that fixed the
+  /// counters in memory left `{"Enter":1}` on disk for an hour (measured: the
+  /// page server restarted at 16:01 with presses `{}` while the latch still
+  /// read `Enter:1` at 15:02), and the next driver would load the stale count
+  /// and swallow the next Enter.
+  const reseatSeen = (counts: Record<string, number>) => {
+    let changed = false;
+    for (const code of Object.keys(pressesSeen)) {
+      if ((counts[code] ?? 0) < pressesSeen[code]!) {
+        pressesSeen[code] = 0;
+        changed = true;
+      }
+    }
+    if (changed) saveLatch();
+  };
+  let phase: "idle" | "sent" | "release" = latchState.phase ?? "idle";
+  let sending: string | undefined = latchState.code;
+  const saveLatch = () => {
+    if (latchPath) writeFileSync(latchPath, JSON.stringify({ seen: pressesSeen, phase, code: sending }));
+  };
+  let pressCounts: Record<string, number> = {};
   let inputMask = "";
   // Readers for the memory a branch at a time, two levels down. They cost
   // nothing until one is asked for: a type alias is only instantiated when
@@ -864,20 +947,37 @@ function sbrkWord(moduleText: string) {
         if (sent.rev !== inputRev) {
           inputRev = sent.rev;
           heldKeys = sent.keys ?? [];
-          for (const [code, count] of Object.entries(sent.presses ?? {})) {
-            const owed = count - (pressesSeen[code] ?? 0);
-            if (owed > 0) pressesOwed[code] = (pressesOwed[code] ?? 0) + owed;
-            pressesSeen[code] = count;
-          }
+          pressCounts = sent.presses ?? {};
+          reseatSeen(pressCounts);
         }
-        const latched = Object.keys(pressesOwed).filter(
-          (code) => pressesOwed[code]! > 0 && !lastLatched.has(code),
+        // What the game says it last took, read out of the state the same way
+        // the module would read it.
+        const ack = parseInt(
+          getWord(memoryTrie, base, ACK_WORD, fanout, inputSlot.levels / Math.log2(fanout)),
+          2,
         );
+        const bitOf = (code: string) => 1 << INPUT_BITS.indexOf(code);
+        if (phase === "idle") {
+          sending = Object.keys(pressCounts).find(
+            (code) => pressCounts[code]! - (pressesSeen[code] ?? 0) > 0 && INPUT_BITS.includes(code),
+          );
+          if (sending) {
+            phase = "sent";
+            saveLatch();
+          }
+        } else if (phase === "sent" && sending && (ack & bitOf(sending)) !== 0) {
+          // keydown landed
+          phase = "release";
+          saveLatch();
+        } else if (phase === "release" && sending && (ack & bitOf(sending)) === 0) {
+          // keyup landed: the press is spent, the next one can go out
+          pressesSeen[sending] = (pressesSeen[sending] ?? 0) + 1;
+          phase = "idle";
+          sending = undefined;
+          saveLatch();
+        }
+        const latched = phase === "sent" && sending ? [sending] : [];
         const mask = inputMaskWord([...heldKeys, ...latched]);
-        // One count per chunk: two taps between polls are two separate events,
-        // not one long press the menu reads as a single keystroke.
-        for (const code of latched) pressesOwed[code]!--;
-        lastLatched = new Set(latched);
         if (mask !== inputMask) {
           inputMask = mask;
           memoryTrie = prune(

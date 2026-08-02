@@ -62,6 +62,38 @@ const seenKeys = (memory: string): string[] => {
   return BITS.filter((_, bit) => bits[bits.length - 1 - bit] === "1");
 };
 
+/// A press is two halves: the driver holds the bit until the game acks the
+/// keydown, then clears it and waits for the ack to drop, which is the keyup.
+/// Only the first half is visible in the checkpoint's input word, so a page
+/// that reports the word alone blanks the badge a frame early - the key looks
+/// dropped while its keyup is still owed. The driver's latch says which press
+/// is in flight, so the badge stays lit until it is spent.
+const latchPath = `${checkpointPath}.latch`;
+type Latch = { phase?: string; code?: string; seen?: Record<string, number> };
+const readLatch = (): Latch => {
+  try {
+    return JSON.parse(readFileSync(latchPath, "utf8")) as Latch;
+  } catch {
+    return {};
+  }
+};
+const inFlight = (latch: Latch): string[] =>
+  latch.code && (latch.phase === "sent" || latch.phase === "release") ? [latch.code] : [];
+
+/// Whether a press is still owed, asked as a question about state rather than
+/// watched for as an event. The page used to clear its own "queued" mark when
+/// the key turned up in the checkpoint's input word, but that word holds the
+/// key for one chunk and the page only hears about the chunks that get polled:
+/// measured Enter delivered (latch seen Enter:1, the episode screen on the
+/// glass) with the badge still reading "queued" 60s later, because the one
+/// message that would have cleared it never went out. The driver owes
+/// `presses - seen` presses for a key; when that is zero there is nothing
+/// queued, whichever messages were missed.
+const queuedKeys = (latch: Latch): string[] =>
+  Object.keys(pending.presses).filter(
+    (code) => (pending.presses[code] ?? 0) - (latch.seen?.[code] ?? 0) > 0,
+  );
+
 /// What each key does once the game has it, so the pad says why to press it.
 /// Menu meaning first: the game boots into the menu, which is where a new
 /// player is.
@@ -188,6 +220,7 @@ const page = `<!doctype html>
   var held = {};
   var waiting = {};
   var live = {};
+  var linger = {};
   /// three facts per key, because they are minutes apart: the browser holds it,
   /// the checker has not read it back yet, the game itself is holding it
   var paint = function (code) {
@@ -273,11 +306,25 @@ const page = `<!doctype html>
         /// the checkpoint is the only honest answer to "did that register":
         /// once the key shows up in the game's own input word, the queue mark
         /// comes off, and a key that is still queued is still queued
+        /// The picture a key produced and the seen list that reports it are
+        /// one checkpoint apart: measured Escape's menu drawn at frame 3 with
+        /// seen still empty, and seen:Escape arriving at frame 4. Blanking the
+        /// badge the moment a key leaves seen therefore clears it one frame
+        /// before the picture it caused shows up. Hold it one more message so
+        /// the badge and the screen say the same thing.
         for (var c in cells) {
           var isLive = msg.seen.indexOf(c) >= 0;
-          if (isLive) waiting[c] = false;
+          /// The server owes a press or it does not, and it says so every
+          /// message. A page that only unsets this mark on the frame the key
+          /// shows up in the input word keeps the mark forever when it misses
+          /// that frame: measured Enter spent, episode screen drawn, badge
+          /// still "queued" a minute later.
+          if (msg.queued) waiting[c] = msg.queued.indexOf(c) >= 0;
+          else if (isLive) waiting[c] = false;
           else if (live[c] && !held[c]) waiting[c] = false;
-          live[c] = isLive;
+          if (isLive) linger[c] = 1;
+          else if (linger[c] > 0) linger[c]--;
+          live[c] = isLive || linger[c] > 0;
           paint(c);
         }
       }
@@ -401,8 +448,16 @@ const acceptInput = (text: string) => {
   // The page sends what it counted since its last message, not a running
   // total: a total that only ever grows cannot be retired once the game has
   // the press, and retiring it is what keeps a restart quiet.
-  for (const [code, count] of Object.entries(message.presses ?? {})) {
-    if (count > 0) pending.presses[code] = (pending.presses[code] ?? 0) + count;
+  // A newer press cancels older waiting ones. The queue drains one key per
+  // chunk and a chunk is minutes, so a queue that keeps every press replays
+  // stale intent long after the player gave up on it: four Enters stacked
+  // behind an Escape means four menus toggled before the Enter the player
+  // actually wants. Only the last press survives, and it survives at count 1.
+  const fresh = Object.entries(message.presses ?? {}).filter(([, c]) => c > 0);
+  if (fresh.length > 0) {
+    pending.presses = {};
+    const [code] = fresh[fresh.length - 1]!;
+    pending.presses[code] = 1;
   }
   writeInput();
   const ack = Buffer.from(JSON.stringify({ rev: inputRev, chunk: lastChunk }));
@@ -624,8 +679,10 @@ const poll = () => {
   lastAt = now;
   lastEvalMs = checkpoint.evalMs;
   lastChunk = checkpoint.chunks;
-  const nowSeen = seenKeys(checkpoint.memory);
+  const latch = readLatch();
+  const nowSeen = [...new Set([...seenKeys(checkpoint.memory), ...inFlight(latch)])];
   retirePresses(nowSeen);
+  const nowQueued = queuedKeys(latch);
   const started = performance.now();
   const { rgb, painted } = frameFrom(checkpoint.memory, initial, screenOf(checkpoint));
   last = encodePng(rgb, WIDTH, HEIGHT);
@@ -656,6 +713,7 @@ const poll = () => {
     inFrame: frameChunks ? `${inFrame}/${frameChunks}` : `${inFrame}/?`,
     painted: `${painted}/${WIDTH * HEIGHT} (${percent}%)`,
     seen: nowSeen,
+    queued: nowQueued,
     chunk: checkpoint.chunks,
   });
   for (const socket of clients) {
