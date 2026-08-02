@@ -216,6 +216,49 @@ const prune = (node: Trie, base: Trie, fanout: number, depth = 0): Trie => {
   return !Array.isArray(base) && base === node ? ABSENT : node;
 };
 
+/// Doom reads its keys from one word it never writes:
+///
+///     volatile int ts_input_mask = 0x5A17C000;  /* low 10 bits are the keys */
+///
+/// `entry` loads it, masks off the sentinel, and hands the bits to
+/// `ts_post_input`, which turns each changed bit into a D_PostEvent. A word the
+/// host writes into the state shadows the module's data, so a keypress is a
+/// single `setWord` per chunk - not a patch of the 117MB module text, which is
+/// what the sentinel in the high bits was originally there to find.
+const INPUT_SENTINEL = "01011010000101111100000000000000";
+
+/// Bit order is the table `ts_post_input` walks (address 85856 in the wasm):
+/// bit 0 ESC, 1 ENTER, 2..5 the arrows, 6 use, 7 fire, 8 y, 9 n. The names are
+/// KeyboardEvent.code, which is what stream.ts writes to <checkpoint>.input.
+const INPUT_BITS = [
+  "Escape",
+  "Enter",
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "Space",
+  "ControlLeft",
+  "KeyY",
+  "KeyN",
+];
+
+/// Where that word lives, as a word index, read off the module's own data
+/// table rather than hardcoded: the address moves whenever doom is rebuilt.
+const inputWordOf = (moduleText: string) => {
+  const found = moduleText.match(new RegExp(`'([01]+)': '${INPUT_SENTINEL}'`));
+  if (!found) return undefined;
+  return { word: parseInt(found[1]!, 2), levels: found[1]!.length };
+};
+
+const inputMaskWord = (keys: string[]) => {
+  let mask = 0;
+  for (const [bit, code] of INPUT_BITS.entries()) if (keys.includes(code)) mask |= 1 << bit;
+  // The sentinel stays in the high bits: `entry` ands with 1023, so they are
+  // dead to the game, and keeping them makes a state word recognisable.
+  return (INPUT_SENTINEL.slice(0, 22) + mask.toString(2).padStart(10, "0"));
+};
+
 /// The module's own initial memory, as the host sees it.
 const initialMemory = (moduleText: string): Trie => {
   const marker = "type $InitialMemory = ";
@@ -559,6 +602,9 @@ export const run = async (
   // whole instead of the split readers and never sees a write land
   const fanout = (moduleText.match(/^(?:export )?type \$Kid\d+</gm) ?? []).length;
   const base = initialMemory(moduleText);
+  const inputSlot = inputWordOf(moduleText);
+  const inputPath = options.save ? `${options.save}.input` : "";
+  let inputRev = -1;
   // Readers for the memory a branch at a time, two levels down. They cost
   // nothing until one is asked for: a type alias is only instantiated when
   // something reads it, and the whole point is that almost always only the
@@ -779,6 +825,25 @@ function sbrkWord(moduleText: string) {
 
   while (chunks < max) {
     mark("tail");
+    // Keys, if the browser sent any since the last chunk. Writing the word
+    // every chunk (rather than once a frame) is what makes a tap land: a press
+    // and its release can both arrive inside one frame's worth of chunks.
+    if (inputSlot && inputPath) {
+      try {
+        const sent = JSON.parse(readFileSync(inputPath, "utf8")) as { rev: number; keys: string[] };
+        if (sent.rev !== inputRev) {
+          inputRev = sent.rev;
+          memoryTrie = prune(
+            setWord(memoryTrie, inputSlot.word, inputMaskWord(sent.keys ?? []), fanout, inputSlot.levels / Math.log2(fanout)),
+            base,
+            fanout,
+          );
+          memory = printTrie(memoryTrie);
+        }
+      } catch {
+        // no input file yet, or a half-written one: the game just sees no keys
+      }
+    }
     // The state is printed as its own top-level type, never nested inside the
     // result tuple. Measured reason: the printer elides deeply nested parts as
     // `any` once they sit a couple of levels down inside a bigger type, and
