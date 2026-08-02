@@ -1328,8 +1328,28 @@ pub fn ensure_version(cmd: &str, arg: &str, expected: &str) {
         // however some tools write to stdout instead, usually by web developers that don't know better
         actual = std::str::from_utf8(&output.stdout).unwrap_or_else(|_| panic!("Error decoding stdout"));
     }
-    let error = format!("expected {} to be version {}, got {}", cmd, expected, actual);
-    assert!(actual.contains(expected), "{error}");
+    let minimum = parse_version(expected).expect("minimum version must be x.y.z");
+    let found = parse_version(actual)
+        .unwrap_or_else(|| panic!("could not find an x.y.z version in {} output: {}", cmd, actual));
+
+    let error = format!("expected {} to be version {} or newer, got {}", cmd, expected, actual);
+    assert!(found >= minimum, "{error}");
+}
+
+/// Returns the first `x.y.z` triple in `text`, so that a version can be compared
+/// numerically rather than by substring. A substring match rejects every version
+/// except the pinned one: "1.0.41".contains("1.0.39") is false.
+pub fn parse_version(text: &str) -> Option<(u32, u32, u32)> {
+    text.split(|c: char| !c.is_ascii_digit() && c != '.').find_map(|token| {
+        let mut parts = token.split('.');
+        let major = parts.next()?.parse().ok()?;
+        let minor = parts.next()?.parse().ok()?;
+        let patch = parts.next()?.parse().ok()?;
+        if parts.next().is_some() {
+            return None;
+        }
+        Some((major, minor, patch))
+    })
 }
 
 pub fn generate_wasm2wat(dir_entry: &DirEntry) {
