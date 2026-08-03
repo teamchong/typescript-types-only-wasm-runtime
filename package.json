@@ -8,6 +8,8 @@
   },
   "scripts": {
     "browser": "pnpm --filter playground run browser",
+    "start": "pnpm --filter playground run start",
+    "restart": "pnpm --filter playground run restart",
     "clean": "rm -f .tsbuildinfo && rm -rf packages/playground/evaluate/results && rm -rf target && rm -rf trace",
     "preinstall": "npx only-allow pnpm",
     "eval": "pnpm --filter playground --silent run eval",
