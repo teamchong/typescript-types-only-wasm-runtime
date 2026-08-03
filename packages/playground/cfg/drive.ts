@@ -1094,6 +1094,7 @@ ${splitReaders}
           : Math.max(minFuel, Math.floor(fuel / 2));
         if (lastGood >= fuel) lastGood = 0;
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: too deep; fuel -> ${fuel}    \n`);
+        mark("retry");
         continue;
       }
       if (recycled !== chunks) {
@@ -1104,6 +1105,7 @@ ${splitReaders}
         worked = 0;
         recycle("worn");
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: worn out; new compiler every ${lifetime}    \n`);
+        mark("retry");
         continue;
       }
       failed = `chunk ${chunks}: ${message}`;
@@ -1134,6 +1136,7 @@ ${splitReaders}
         worked = 0;
         recycle("bad");
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: ${bad}; new compiler every ${lifetime}    \n`);
+        mark("retry");
         continue;
       }
       if (fuel > minFuel) {
@@ -1148,6 +1151,7 @@ ${splitReaders}
           : Math.max(minFuel, Math.floor(fuel / 2));
         if (lastGood >= fuel) lastGood = 0;
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: ${bad}; fuel -> ${fuel}    \n`);
+        mark("retry");
         continue;
       }
       failed = `chunk ${chunks} at fuel ${fuel}: ${bad}`;
