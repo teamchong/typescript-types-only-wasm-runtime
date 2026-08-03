@@ -372,16 +372,18 @@ impl CfgCompiler {
         let mut out = String::new();
         out.push_str(&self.emit_prelude());
         out.push_str(&self.emit_initial_memory());
-        // The one place a result leaves the type level. A return keeps its write
-        // buffer so the caller can carry on with it, but the host reads the
-        // memory as text and pastes it into the next chunk, so what it sees has
-        // to be a flushed trie. A suspend has already flushed; only a return
-        // needs it here.
+        // The one place a result leaves the type level. Both tags carry a raw
+        // overlay so `$Resume` can re-enter with the base intact; the host reads
+        // the memory as text and pastes it into the next chunk, so what leaves
+        // through here has to be a flushed trie. `$Flush` of an already-plain
+        // trie is the trie, so double-wrapping is a no-op.
         out.push_str(
-            "\n/// what the host reads: a returned memory, flushed back to a plain trie\n\
+            "\n/// what the host reads: memory flushed back to a plain trie\n\
              export type $Exit<$R> =\n  \
-             $R extends ['r', infer $F1 extends string, infer $M1 extends $Node, ...infer $Rest]\n    \
+             $R extends ['r', infer $F1 extends string, infer $M1, ...infer $Rest]\n    \
              ? ['r', $F1, $Flush<$M1>, ...$Rest]\n    \
+             : $R extends ['s', infer $K1 extends unknown[], infer $M1, ...infer $Rest]\n    \
+             ? ['s', $K1, $Flush<$M1>, ...$Rest]\n    \
              : $R\n",
         );
         out.push_str(&self.emit_host_accessors());
@@ -519,7 +521,10 @@ impl CfgCompiler {
             let pattern: String = (0..saved)
                 .map(|i| format!(", infer $s{i} extends WasmValue"))
                 .collect();
-            let mut args = vec!["$F".to_string(), "$B".to_string(), "$Buf<$MM>".to_string()];
+            // the raw overlay from the suspend, base and write buffer intact:
+            // wrapping a fresh $Buf here is what used to drop every store the
+            // previous segment made
+            let mut args = vec!["$F".to_string(), "$B".to_string(), "$MM".to_string()];
             args.extend((0..globals).map(|i| format!("$g{i}")));
             args.extend((0..saved).map(|i| format!("$s{i}")));
             branches.push_str(&format!(
@@ -549,7 +554,7 @@ impl CfgCompiler {
         ));
         text.push_str("export type $Resume<$R, $F extends string> =\n");
         text.push_str(&format!(
-            "[$Frames<$R>, $GlobalsOf<$R>, $MemOf<$R>] extends [[infer $T, ...infer $B extends unknown[]], [{}], infer $MM extends $Node]\n",
+            "[$Frames<$R>, $GlobalsOf<$R>, $MemOf<$R>] extends [[infer $T, ...infer $B extends unknown[]], [{}], infer $MM extends unknown[]]\n",
             ginfer.join(", ")
         ));
         text.push_str("? (\n");
@@ -558,7 +563,7 @@ impl CfgCompiler {
         text.push_str("\n/// One segment per outer step, each a fresh tail chain. A segment that\n");
         text.push_str("/// returns or traps ends the chunk: only a suspend can be picked up.\n");
         text.push_str("export type $Drive<$O extends string, $F extends string, $R> =\n");
-        text.push_str("$O extends `1${infer $rest}` ? ($Tag<$R> extends 's' ? $Drive<$rest, $F, $Resume<$R, $F>> : $R) : $R\n");
+        text.push_str("$O extends `1${infer $rest}` ? ($Tag<$R> extends 's' ? $Drive<$rest, $F, $Resume<$R, $F>> : $Exit<$R>) : $Exit<$R>\n");
         text
     }
 
@@ -1185,8 +1190,8 @@ export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> 
              export type $Tag<$R> = $R extends [infer $T, ...unknown[]] ? $T : 'bad'\n\
              export type $Frames<$R> = $R extends ['s', infer $Ks extends unknown[], ...unknown[]] ? $Ks : []\n\
              export type $MemOf<$R> =\n  \
-             $R extends ['s', unknown, infer $M1 extends $Node, ...unknown[]] ? $M1\n  \
-             : $R extends ['r', unknown, infer $M1 extends $Node, ...unknown[]] ? $M1\n  \
+             $R extends ['s', unknown, infer $M1, ...unknown[]] ? $M1\n  \
+             : $R extends ['r', unknown, infer $M1, ...unknown[]] ? $M1\n  \
              : never\n\
              export type $GlobalsOf<$R> =\n{suspend_globals}\n\
              export type $ValueOf<$R> =\n  \
@@ -1751,8 +1756,9 @@ impl<'a> FunctionCfg<'a> {
         // it was called through, so the host gets the whole call stack innermost
         // first and can walk back out of it. Memory and globals live outside the
         // frames because there is only ever one of each: an inner frame returns
-        // them to the frame below it. The host only ever sees flushed memory, so
-        // a snapshot round-trips through text as it did before the buffer.
+        // them to the frame below it. The suspend keeps the raw overlay so
+        // `$Resume` can re-enter it with the base intact; `$Exit` flushes it at
+        // the host boundary, so a snapshot still round-trips through text.
         let mut frame = vec![
             format!("'{}_{}'", self.func_index, block.id),
             // resumed exactly as it was: nothing to add to its stack
@@ -1761,7 +1767,7 @@ impl<'a> FunctionCfg<'a> {
         frame.push(format!("\u{1}S{}\u{1}", block.id));
         frame.extend(block.stack.iter().cloned());
         let mut alive = vec![format!("[[{}], ...$K]", frame.join(", "))];
-        alive.push("$Flush<$M>".to_string());
+        alive.push("$M".to_string());
         for i in 0..self.module.globals.len() {
             alive.push(format!("$g{i}"));
         }
@@ -3602,7 +3608,8 @@ mod tests {
                 "block {name} never checks fuel"
             );
             assert!(
-                declaration.contains("['s', '"),
+                // frames-first suspend tuple: ['s', [['0_0', ...], ...$K], $M, ...]
+                declaration.contains("['s', [["),
                 "block {name} has no suspend path"
             );
         }
