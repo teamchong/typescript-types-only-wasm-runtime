@@ -442,12 +442,15 @@ export const enter = (
 ///     fuel   768  ->  2.90M                     fuel  1280 -> 3.95M  (ok)
 ///     fuel  1024  ->  3.43M                     fuel  1536 -> gives up
 ///
-/// So a chunk is 1.27M of fixed cost - materialising the state - plus 2095 per
-/// unit of fuel, and the budget buys about 1300 units. Wall clock agrees that
-/// the ceiling is where to sit: fuel retired per second is 1422 at 768, 1766
-/// at 1024, 2133 at 1280, because the fixed cost is paid per chunk either way.
-/// Above 1280 the chunk is thrown away and re-run at half the fuel, which
-/// costs more than the extra fuel is worth.
+/// Those numbers were measured on the flat `Record<string, string>` memory,
+/// where instantiation cost scaled with fuel and the checker gave up past
+/// 1280. The 64-way trie broke that link: cost now scales with words touched,
+/// not words held, and the same in-level state retires 655,360 fuel in
+/// ~1.1s/chunk with zero elisions (measured live at chunk ~4800, E1M1).
+/// The adaptive ladder below still doubles from 10 and halves on "too deep",
+/// so the default is a cap, not a promise: on states the checker cannot
+/// afford, it settles lower by itself. 1,310,720 was knocked back to 655,360
+/// on the same state, which is where the ceiling sits today.
 /// Extra segments per chunk, on top of the first one.
 ///
 /// A chunk used to be one chain of tail instantiations, and the checker's
@@ -499,7 +502,7 @@ export const enter = (
 /// So a chunk is one segment until `$Resume` can thread the base through.
 const SEGMENTS = 0;
 
-const DEFAULT_FUEL = 1280;
+const DEFAULT_FUEL = 655360;
 
 const TRUNCATED = /\bany\b/;
 
