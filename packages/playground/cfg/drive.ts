@@ -960,10 +960,28 @@ function sbrkWord(moduleText: string) {
           2,
         );
         const bitOf = (code: string) => 1 << INPUT_BITS.indexOf(code);
-        if (phase === "idle") {
-          sending = Object.keys(pressCounts).find(
+        const nextPress = () =>
+          Object.keys(pressCounts).find(
             (code) => pressCounts[code]! - (pressesSeen[code] ?? 0) > 0 && INPUT_BITS.includes(code),
           );
+        // The server keeps only the newest intent. If another key arrives
+        // before the game acknowledges this keydown, replace it now instead
+        // of making the player wait a whole frame for an obsolete press. Once
+        // ack is high the keydown landed and its release must still complete.
+        const replacement = nextPress();
+        if (
+          phase === "sent" &&
+          sending &&
+          replacement &&
+          replacement !== sending &&
+          (ack & bitOf(sending)) === 0
+        ) {
+          phase = "idle";
+          sending = undefined;
+          saveLatch();
+        }
+        if (phase === "idle") {
+          sending = nextPress();
           if (sending) {
             phase = "sent";
             saveLatch();

@@ -233,9 +233,9 @@ const page = `<!doctype html>
   };
   /// A chunk is ~1.5s and the driver reads this file once per chunk, so a 100ms
   /// tap is invisible to it: measured 0 of 10 Enter taps reaching the state,
-  /// while a 5s hold landed. Keydowns are counted rather than sampled, and the
-  /// driver consumes one count per chunk.
-  var presses = {};
+  /// while a 5s hold landed. Send the keydown as an edge. A cumulative object
+  /// makes every later keyup resend every old press, and object insertion order
+  /// can then replace a new Enter with the last key first pressed.
   var rev = 0;
   var lines = [];
   var ws = new WebSocket("ws://" + location.host);
@@ -249,12 +249,14 @@ const page = `<!doctype html>
   };
 
   /// one shape for every input change: the checker gets state, not events
-  var send = function () {
+  var send = function (pressed) {
     if (ws.readyState !== 1) return;
     rev++;
     document.getElementById("rev").textContent = rev;
     var down = [];
+    var presses = {};
     for (var k in held) if (held[k]) down.push(k);
+    if (pressed) presses[pressed] = 1;
     ws.send(JSON.stringify({ rev: rev, keys: down, presses: presses }));
   };
 
@@ -263,14 +265,13 @@ const page = `<!doctype html>
   var press = function (code) {
     if (held[code]) return;
     held[code] = true;
-    presses[code] = (presses[code] || 0) + 1;
     /// A frame is minutes and a chunk is seconds, so a press that vanishes
     /// until the next paint reads as a dropped press. Mark it waiting the
     /// moment it is sent, and let the checkpoint clear it.
     waiting[code] = true;
     paint(code);
     log("down", code);
-    send();
+    send(code);
   };
   var release = function (code) {
     if (!held[code]) return;
