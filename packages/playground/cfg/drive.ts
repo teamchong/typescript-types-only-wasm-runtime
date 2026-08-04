@@ -1378,6 +1378,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     max?: number;
     save?: string;
     every?: number;
+    quiet?: boolean;
     resume?: Checkpoint;
   } = {};
   for (let i = 2; i < process.argv.length; i++) {
@@ -1386,9 +1387,18 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     else if (arg === "--max") options.max = Number(process.argv[++i]);
     else if (arg === "--save") options.save = process.argv[++i];
     else if (arg === "--every") options.every = Number(process.argv[++i]);
+    else if (arg === "--quiet") options.quiet = true;
     else if (arg === "--resume") {
       const from = process.argv[++i];
       options.resume = JSON.parse(readFileSync(from, "utf8")) as Checkpoint;
+    } else if (arg.startsWith("--")) {
+      // An unknown flag used to fall through to `positional` and be spliced
+      // into the generated type as an argument to `$entry`, so the failure
+      // surfaced ~650KB into a generated file as
+      //   chunk-5952.ts:655449: '>' expected
+      // pointing at `$entry<$FUEL, $IN, --quiet>`. Name the flag instead.
+      console.error(`unknown flag ${arg}`);
+      process.exit(2);
     } else positional.push(arg);
   }
   const [modulePath, entry, ...rest] = positional;

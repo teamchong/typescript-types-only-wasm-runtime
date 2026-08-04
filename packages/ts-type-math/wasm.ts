@@ -118,13 +118,31 @@ export namespace Wasm {
     NotEqualsBinary<a, b>
   >
 
+  /// wasm masks a shift or rotate count to the width of the value: i32.shl by
+  /// 33 shifts by 1, and by -1 shifts by 31. The count arrives here as a full
+  /// 32-bit word, so without the mask a count outside 0..31 decodes to a number
+  /// no branch of the shift table matches and the operation is `never` -
+  /// measured on `single-i32shl.wat`, `entry(7, -3)` gave "return value is not
+  /// a word: never" where the engine gives 536870912.
+  ///
+  /// The low five characters of the word are the low 5 bits. Twenty-seven
+  /// single-character `infer`s consume the high bits - each matches exactly one
+  /// character - and the remainder is the masked count, re-padded to 32.
+  /// A `${string}` prefix instead of the twenty-seven is not anchored: it
+  /// matches greedily and the whole word falls through unmasked, which is the
+  /// first version of this fix and it changed nothing.
+  type Low5<b extends string> =
+    b extends `${infer _1}${infer _2}${infer _3}${infer _4}${infer _5}${infer _6}${infer _7}${infer _8}${infer _9}${infer _10}${infer _11}${infer _12}${infer _13}${infer _14}${infer _15}${infer _16}${infer _17}${infer _18}${infer _19}${infer _20}${infer _21}${infer _22}${infer _23}${infer _24}${infer _25}${infer _26}${infer _27}${infer Rest}`
+      ? `000000000000000000000000000${Rest}`
+      : b
+
   export type I32Shl<
     /** value to shift */
     a extends WasmValue,
     /** amount to shift by */
     b extends WasmValue
   > = Satisfies<WasmValue,
-    ShiftLeftBinaryO<a, b>
+    ShiftLeftBinaryO<a, Low5<b>>
   >
 
   export type I32ShrU<
@@ -133,7 +151,7 @@ export namespace Wasm {
     /** amount to shift by */
     b extends WasmValue
   > = Satisfies<WasmValue,
-    ShiftRightBinary<a, b, false>
+    ShiftRightBinary<a, Low5<b>, false>
   >
 
   export type I32ShrS<
@@ -142,7 +160,7 @@ export namespace Wasm {
     /** amount to shift by */
     b extends WasmValue
   > = Satisfies<WasmValue,
-    ShiftRightBinary<a, b, true>
+    ShiftRightBinary<a, Low5<b>, true>
   >
 
   export type I32And<
@@ -398,7 +416,22 @@ export namespace Wasm {
   > = Satisfies<WasmValue,
     RotateLeft<
       a,
-      Convert.WasmValue.ToTSNumber<shiftBy, 'i32'>
+      Convert.WasmValue.ToTSNumber<Low5<shiftBy>, 'i32'>
+    >
+  >
+
+  /// `i32.rotr` had no implementation at all: the compiler emitted
+  /// `Wasm.I32Rotr` (src/aot_cfg.rs, I32Rotr => env.binary(..)) and nothing
+  /// here declared it, so any module using it failed to resolve rather than
+  /// giving a wrong answer. Rotating right by n is rotating left by 32-n, and
+  /// the count is masked first so that n=0 rotates by 0 and not by 32.
+  export type I32Rotr<
+    a extends WasmValue,
+    shiftBy extends WasmValue
+  > = Satisfies<WasmValue,
+    RotateLeft<
+      a,
+      Convert.WasmValue.ToTSNumber<Low5<Wasm.I32Sub<'00000000000000000000000000100000', Low5<shiftBy>>>, 'i32'>
     >
   >
 

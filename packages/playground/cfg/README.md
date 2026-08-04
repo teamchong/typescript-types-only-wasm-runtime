@@ -32,9 +32,33 @@ it maps indices to colours and nothing else.
 - `pnpm arcade:conform` - compile and check every module in `conformance-tests` against the engine
 - `pnpm arcade:ceiling` - measure how much work one type evaluation can do
 
-Current state: **64/64 supported modules and every pong frame are identical to the
-wasm engine** (`pnpm arcade:conform`), conway included. Unsupported so far: i64,
-floats, `call_indirect`, and imported-function calls.
+Current state: **69/69 supported modules and every pong frame are identical to
+the wasm engine** (`pnpm arcade:conform`), conway included. Unsupported so far:
+i64, floats, and imported-function calls; `call_indirect` works.
+
+What `arcade:conform` actually compares was widened, and it found five bugs that
+the old version passed:
+
+- It compared only the returned i32. A wasm function's memory is most of what it
+  does - `memory-overwrite.wat` stores, loads, multiplies and stores again - so
+  it now decodes the state trie and compares **every word** against the engine's
+  linear memory.
+- Every export was called once with a first argument of `0`, which makes stores
+  invisible: storing zero over zero changes nothing. It now runs three argument
+  vectors, none starting at zero, with mixed signs.
+- `i32.shl`, `i32.shr_s`, `i32.shr_u` and `i32.rotl` did not mask their shift
+  count. wasm masks it to 5 bits, so `7 << -3` is `7 << 29`; without the mask
+  the count matched no branch of the shift table and the whole operation was
+  `never`. Measured: `single-i32shl.wat` `entry(7, -3)` failed with "return
+  value is not a word: never" where the engine gives 536870912.
+- `i32.rotr` had **no implementation at all**: the compiler emitted
+  `Wasm.I32Rotr` and ts-type-math never declared it, so any module using it
+  failed to resolve. `single-i32rotr.wat` is a new case covering it.
+
+Running out of chunks is now reported separately from a wrong answer. Two conway
+calls take arguments like `rows = 2147483647`, a two-billion-iteration loop that
+the engine walks in a second and this runtime cannot finish; counting that as a
+mismatch buries real ones.
 
 ## How it works
 

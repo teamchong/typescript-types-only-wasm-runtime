@@ -1529,7 +1529,7 @@ impl<'a> FunctionCfg<'a> {
             // instruction than one more `infer`. Past the crossover the nesting
             // is what costs - 16 deep is 10.4s in the worst shape, 20 is 13.7
             // minutes - so long blocks get the pipeline, whose cost is linear.
-            let body = if block.has_pattern || destructures || block.bindings.len() <= Self::NEST_LIMIT {
+            let body = if block.has_pattern || destructures || block.bindings.len() <= nest_limit() {
                 self.render_nested(&block)
             } else {
                 self.render_pipeline(&block, &live)
@@ -1605,29 +1605,8 @@ impl<'a> FunctionCfg<'a> {
             .unwrap_or_default()
     }
 
-    /// How many instructions a block may chain before it is cut in two.
-    ///
-    /// A block is a chain of nested `infer`s, one per instruction, and tsgo
-    /// resolves that shape in time exponential in its depth. Measured, on a
-    /// chain of i32 adds: 16 deep takes 19ms, 18 takes 57ms, 20 takes 213ms, 22
-    /// takes 798ms, 24 takes 3.2s, and 32 had not finished after 17 minutes.
-    ///
-    /// So a long basic block is not slow, it is fatal - and nothing stops a
-    /// program from having one. Cutting the chain costs a hop, about 200µs,
-    /// which buys back an unbounded amount.
-    ///
-    /// The cliff is not the only reason to cut early. Swept against the pixel
-    /// game, a steady frame takes 0.09s at a cap of 12, 0.06s at 8, and 0.06s
-    /// at 6 and 4 - the curve is still falling well below the knee, because a
-    /// shallower chain is cheaper to resolve even where it is not exponential.
-    /// It flattens at about 6, and hops start to outweigh the saving below
-    /// that.
-    const DEPTH_CAP: usize = 6;
-
-
     /// Blocks up to this many instructions are rendered as nested `infer`s,
-    /// longer ones as a pipeline.
-    const NEST_LIMIT: usize = 10;
+    /// longer ones as a pipeline. See `nest_limit()` for the live value.
 
     /// The same limit for a block rendered as a pipeline, where instructions are
     /// applications of one-step aliases rather than nested `infer`s and the
@@ -3549,11 +3528,59 @@ fn state_reads(text: &str, slots: &HashMap<String, usize>) -> String {
 /// the right answer is a measurement: a longer block is fewer hops for the same
 /// work, but inside a block the memory is an unevaluated store chain that every
 /// later load walks.
+///
+/// There is a hard ceiling regardless. A block is a chain of nested `infer`s,
+/// one per instruction, and tsgo resolves that shape in time exponential in its
+/// depth: on a chain of i32 adds, 16 deep takes 19ms, 18 takes 57ms, 20 takes
+/// 213ms, 22 takes 798ms, 24 takes 3.2s, and 32 had not finished after 17
+/// minutes. So a long basic block is not slow, it is fatal, and nothing stops a
+/// program from having one. 16 sits just under that onset.
+///
+/// This was 6, from a pixel-game sweep that read 6 and 8 and concluded shorter
+/// is better. 8 is a local maximum, so those two points describe a slope that
+/// does not exist. `cfg/bench/storechain.wat` - N sequential stores in one
+/// basic block, then a load, which is the store-chain walk this cap exists to
+/// bound - measured across the whole range, µs/iteration:
+///
+///                    d4    d6    d8   d12   d16   d24   d32   d48
+///     8 stores     1155  1127  1190   861   894   878   882   904
+///     16 stores    1473  1558  1657  1039   986  1131   985   970
+///     32 stores    3405  3565  3752  2023  1989  2117  2074  2034
+///
+/// The chain itself is not the cost: 32 stores nested in one block (cap 48) is
+/// the fastest shape measured. The hops bought to avoid it are, at ~130µs each.
+///
+/// Confirmed on doom, 200 chunks cold from `entry`, units/s:
+///
+///     cap 6: 1691 (fuel 1023)   cap 12: 1914   cap 16: 1975   cap 24: 1961
+///
+/// Fuel settles at 1260 rather than 1023 above 6, i.e. fewer TS2589 backoffs,
+/// so the win is not just fewer hops. Past 16 it is flat.
+///
+/// Confirmed again end-to-end, not on a prefix: doom `entry` run to
+/// termination, both caps reaching the same result 4677984.
+///
+///     cap  6: 4645 chunks, 2828.51s, 0.61 s/chunk
+///     cap 16: 4053 chunks, 2534.99s, 0.63 s/chunk
+///
+/// A short cap makes each chunk slightly cheaper and buys 592 more of them,
+/// losing 10.4% overall. Chunk count, not chunk cost, is what this cap sets.
 fn depth_cap() -> usize {
     std::env::var("DEPTH_CAP")
         .ok()
         .and_then(|text| text.parse().ok())
-        .unwrap_or(6)
+        .unwrap_or(16)
+}
+
+/// Blocks up to this many bindings are rendered as nested `infer`s, longer ones
+/// as a pipeline. Coupled to `depth_cap()`: the cap decides how long a block
+/// gets to be, this decides how a block of that length is rendered, so raising
+/// one moves work across this boundary.
+fn nest_limit() -> usize {
+    std::env::var("NEST_LIMIT")
+        .ok()
+        .and_then(|text| text.parse().ok())
+        .unwrap_or(10)
 }
 
 fn pipeline_cap() -> usize {
