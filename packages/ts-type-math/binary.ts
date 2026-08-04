@@ -489,3 +489,65 @@ export type I64ClzBinary64<
     >
   >
 >
+
+type CountTrailingZeros<
+  a extends WasmValue,
+  count extends 1[] = []
+> = Satisfies<number,
+  a extends `${infer init extends string}0`
+  ? CountTrailingZeros<
+      init,
+      [...count, 1]
+    >
+  : count['length']
+>
+
+type CountOneBits<
+  a extends WasmValue,
+  count extends 1[] = []
+> = Satisfies<number,
+  a extends `${infer bit extends string}${infer tail extends string}`
+  ? CountOneBits<
+      tail,
+      bit extends '1' ? [...count, 1] : count
+    >
+  : count['length']
+>
+
+export type I32CtzBinary<
+  a extends WasmValue
+> = Satisfies<WasmValue,
+  Convert.TSNumber.ToWasmValue<
+    CountTrailingZeros<a>,
+    'i32'
+  >
+>
+
+export type I64CtzBinary64<
+  a extends WasmValue
+> = Satisfies<WasmValue,
+  Convert.TSBigInt.ToWasmValue<
+    Convert.TSNumber.ToTSBigInt<
+      CountTrailingZeros<a>
+    >
+  >
+>
+
+export type I32PopcntBinary<
+  a extends WasmValue
+> = Satisfies<WasmValue,
+  Convert.TSNumber.ToWasmValue<
+    CountOneBits<a>,
+    'i32'
+  >
+>
+
+export type I64PopcntBinary64<
+  a extends WasmValue
+> = Satisfies<WasmValue,
+  Convert.TSBigInt.ToWasmValue<
+    Convert.TSNumber.ToTSBigInt<
+      CountOneBits<a>
+    >
+  >
+>
