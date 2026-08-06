@@ -570,6 +570,17 @@ export interface Checkpoint {
   entryChunks: number;
   evalMs: number;
   split: string[];
+  /// The fuel search state, which is a property of the module and not of the
+  /// process that found it. Nine evaluations at chunk 0 are spent walking
+  /// 655360 down to the edge, and a cold resume that starts at DEFAULT_FUEL
+  /// pays them again for an edge the previous run already located. A/B on one
+  /// checkpoint, six chunks each, differing only in whether the edge was
+  /// saved: 344 units/s with it against 129 without, and the cold run also
+  /// overshoots to fuel 1280 where the warm one holds the measured 980.
+  fuel?: number;
+  /// The lowest fuel known to fail. `Infinity` is not JSON, so an unbounded
+  /// cap is written as absent rather than as `null`.
+  capFail?: number;
 }
 
 export interface RunResult {
@@ -862,14 +873,23 @@ function sbrkWord(moduleText: string) {
     memory = printTrie(memoryTrie);
     carried = options.resume.chunks;
   }
+  // An explicit --fuel is an instruction and outranks the saved edge; the
+  // checkpoint only speaks when the caller did not.
+  if (options.fuel === undefined && options.resume?.fuel !== undefined) {
+    fuel = options.resume.fuel;
+  }
   let backoffs = 0;
   // The fuel that lands is a cliff, not a slope: measured on one real chunk in
   // the session, 640/720/800/960 all come back with a tag and cost the same
   // (852/814/799/803ms), 1120 and 1280 come back never. Cost per chunk barely
   // moves with fuel, so the instructions covered per chunk is set by how close
   // the fuel sits to that edge, and doubling past it wastes a whole evaluation.
-  let capFail = Infinity;
-  let lastGood = 0;
+  let capFail = options.resume?.capFail ?? Infinity;
+  // The fuel we are resuming at already landed for the run that saved it, so
+  // it is a floor to back off to, not an unknown to re-derive.
+  let lastGood = options.fuel === undefined && options.resume?.fuel !== undefined
+    ? options.resume.fuel
+    : 0;
   let units = 0;
   let evalMs = 0;
   let trieMs = 0;
@@ -1275,6 +1295,8 @@ ${splitReaders}
         entryChunks: chunks,
         evalMs,
         split: [...split],
+        fuel,
+        capFail: capFail === Infinity ? undefined : capFail,
         // each `entry` call allocates its own screen and returns it, so a fixed
         // address reads the frame before this one
         result: done ? value_ : options.resume?.result,
