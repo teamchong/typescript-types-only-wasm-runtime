@@ -139,6 +139,19 @@ pub struct CfgCompiler {
     capacity_pages: u64,
     /// Index of the synthetic global holding the current page count.
     pages_global: usize,
+    /// Declared maximum pages, when the module states one. A memory with a
+    /// maximum can never exceed it, so that is a real compile-time bound even
+    /// for an imported memory the host sizes.
+    memory_max_pages: Option<u64>,
+    /// Whether the memory is imported. An imported memory's declared size is a
+    /// *minimum* the host must satisfy, not a limit - the host may hand over a
+    /// larger one, and doom's runner does - so `memory_pages` cannot be used to
+    /// refuse an access.
+    memory_imported: bool,
+    /// Whether any function contains `memory.grow`. When nothing grows, the
+    /// in-bounds limit is fixed at compile time, so a literal address is
+    /// checked by the compiler and costs nothing at type level.
+    grows_memory: bool,
     /// export name -> function index (into defined functions)
     exports: Vec<(String, u32)>,
     num_imports: u32,
@@ -202,6 +215,9 @@ impl CfgCompiler {
             memory_pages: 1,
             capacity_pages: 1,
             pages_global: 0,
+            memory_max_pages: None,
+            memory_imported: false,
+            grows_memory: false,
             exports: Vec::new(),
             num_imports: 0,
             trie_bits: 14,
@@ -234,6 +250,8 @@ impl CfgCompiler {
                             wasmparser::TypeRef::Func(_) => self.num_imports += 1,
                             wasmparser::TypeRef::Memory(memory) => {
                                 self.memory_pages = memory.initial.max(1);
+                                self.memory_max_pages = memory.maximum;
+                                self.memory_imported = true;
                             }
                             _ => {}
                         }
@@ -243,6 +261,7 @@ impl CfgCompiler {
                     for memory in reader {
                         let memory = memory.map_err(|e| e.to_string())?;
                         self.memory_pages = memory.initial.max(1);
+                        self.memory_max_pages = memory.maximum;
                     }
                 }
                 Payload::FunctionSection(reader) => {
@@ -310,7 +329,23 @@ impl CfgCompiler {
                         }
                     }
                 }
-                Payload::CodeSectionEntry(body) => bodies.push(body),
+                Payload::CodeSectionEntry(body) => {
+                    // One scan for `memory.grow`: it decides whether the bounds
+                    // check below can be a compile-time comparison or has to
+                    // read the page count at type level.
+                    if let Ok(reader) = body.get_operators_reader() {
+                        for op in reader {
+                            match op {
+                                Ok(wasmparser::Operator::MemoryGrow { .. }) => {
+                                    self.grows_memory = true;
+                                }
+                                Err(_) => break,
+                                _ => {}
+                            }
+                        }
+                    }
+                    bodies.push(body)
+                }
                 _ => {}
             }
         }
@@ -693,6 +728,52 @@ impl CfgCompiler {
             params.join(", "),
             args.join(", ")
         )
+    }
+
+    /// One past the last addressable byte, when the module fixes it at compile
+    /// time. `None` means the bound has to be read from the page-count global at
+    /// type level instead.
+    ///
+    /// Three things can move the end of memory, and each has to be ruled out:
+    /// `memory.grow`; an imported memory, whose declared size is the *minimum*
+    /// the host must supply rather than a limit (doom declares 72 pages and its
+    /// runner is free to hand over more, so believing 72 made every address
+    /// above it trap); and a declared maximum, which does bound both of those.
+    /// What is left is a module that defines its own memory and never grows it,
+    /// where the declared size is exactly the size.
+    fn fixed_mem_limit(&self) -> Option<u32> {
+        // A module that grows moves its own end at runtime, so the bound has to
+        // be read from the page-count global rather than fixed here - even
+        // though `addressable_pages` would give a valid *upper* bound, using it
+        // would accept an address in a page the program has not grown into yet.
+        if self.grows_memory {
+            return None;
+        }
+        Some((self.addressable_pages() * 65536).min(u32::MAX as u64) as u32)
+    }
+
+    /// Pages an access is allowed to touch.
+    ///
+    /// This is deliberately *not* what `memory.size` reports. That has to stay
+    /// the declared minimum, because doom's allocator grows the heap from
+    /// wherever memory currently ends and the zone address depends on it (see
+    /// the note at `pages_global`). The bound an access is checked against is a
+    /// different question: how much memory really exists.
+    ///
+    /// For a memory the module defines and never grows, the two coincide. For an
+    /// imported one the host decides the size and the declaration is only a
+    /// minimum - doom declares 72 pages and *needs* 128, since at 72 the real
+    /// engine traps inside `entry` and at 128 it returns 4677984 - so believing
+    /// the declaration here would refuse accesses the program legitimately
+    /// makes. A declared maximum is a real ceiling; without one, what the trie
+    /// can address is.
+    fn addressable_pages(&self) -> u64 {
+        let declared = if self.memory_imported || self.grows_memory {
+            self.memory_max_pages.unwrap_or(self.capacity_pages)
+        } else {
+            self.memory_pages
+        };
+        declared.min(self.capacity_pages)
     }
 
     /// type and body of a defined function, by index into the defined functions
@@ -1637,6 +1718,14 @@ impl<'a> FunctionCfg<'a> {
             shallow: HashSet::new(),
             next_temp: 0,
             stores: 0,
+            // When the end of memory is fixed at compile time, most addresses
+            // are a literal or a literal plus a static offset, so the check
+            // folds away in `address` and nothing is emitted at all.
+            mem_limit: self.module.fixed_mem_limit(),
+            pages_global: match self.module.fixed_mem_limit() {
+                Some(_) => None,
+                None => Some(self.module.pages_global),
+            },
         };
         let mut labels = pending.labels.clone();
         let mut pos = pending.pos;
@@ -2529,6 +2618,17 @@ struct BlockEnv {
     shallow: HashSet<String>,
     next_temp: usize,
     stores: usize,
+    /// One past the last addressable byte, when that is known at compile time:
+    /// `Some` for a module that never grows. Every load and store has to refuse
+    /// an address at or past it, the way an engine traps, instead of reading a
+    /// word the program never allocated.
+    mem_limit: Option<u32>,
+    /// Index of the page-count global to bound against when the limit is not
+    /// fixed, i.e. the module can grow. It has to be an index rather than a
+    /// name: `memory.grow` rebinds the global to a fresh temp, and a guard
+    /// holding the name the block was entered with would keep checking the
+    /// page count from before the grow.
+    pages_global: Option<usize>,
 }
 
 impl BlockEnv {
@@ -3413,11 +3513,148 @@ impl BlockEnv {
         self.bind(&sum, "WasmValue")
     }
 
+    /// Width in bytes touched by an access, so the check catches the tail of a
+    /// word that starts in bounds and ends past the end.
+    fn access_width(helper: &str) -> u32 {
+        match helper {
+            "$Load8U" | "$Load8S" | "$Store8" => 1,
+            "$Load16U" | "$Load16S" | "$Store16" => 2,
+            "$Load64" | "$Store64" => 8,
+            _ => 4,
+        }
+    }
+
+    /// Refuse an access that runs past the end of memory.
+    ///
+    /// wasm traps, and a trap is `never` here, so an out-of-bounds access has to
+    /// make the whole result `never` rather than read or write a word the
+    /// program never allocated. Without this a store past the end silently
+    /// succeeded and a load past the end returned zero: `storechain8` strides
+    /// 512 bytes from 4096 and leaves its declared page at n=124, where the
+    /// engine traps and the type level happily kept going.
+    ///
+    /// Returns a prefix that reads as `<condition> extends true ?`, to be
+    /// spliced in front of the access with `: never` after it. `None` means the
+    /// access is provably in bounds and nothing is emitted at all.
+    ///
+    /// Nothing here is `bind`ed. A binding becomes a pipeline step that the
+    /// block evaluates whether or not the guard needs it, and that is the whole
+    /// cost: binding the comparisons cost storechain 7x (1188 -> 8305 us/iter).
+    /// Inlined instead, they sit inside conditional branches, and a conditional
+    /// type only instantiates the branch it takes.
+    fn bounds_guard(&mut self, addr: &str, width: u32) -> Option<String> {
+        // Nothing to name for an address the compiler can already decide.
+        if let (Some(base), Some(limit)) = (Self::literal(addr), self.mem_limit) {
+            return if u64::from(base) + u64::from(width) > u64::from(limit) {
+                Some("never extends never ?".to_string())
+            } else {
+                None
+            };
+        }
+        // The guard mentions the address two or three more times. Naming it
+        // first measured the same either way (storechain32 3799 vs 3883 us/iter,
+        // inside noise), so leave it inline rather than spend a pipeline slot.
+        let one = bits32(1);
+        let last = u64::from(width) - 1;
+        // `addr + (width - 1)`, the last byte touched. Inlined, and so possibly
+        // written twice below; both copies are inside lazy branches.
+        let end = if last == 0 {
+            addr.to_string()
+        } else {
+            format!("Wasm.I32Add<{addr}, '{}'>", bits32(last as i32))
+        };
+        // An access that wraps the top of the address space always traps.
+        let wrapped = format!("Wasm.I32LtU<{end}, {addr}>");
+
+        let limit = match self.mem_limit {
+            Some(limit) => limit,
+            None => {
+                // The module can grow, so the bound is the live page count.
+                // Read it here rather than at block entry: `memory.grow` rebinds
+                // the global, and a guard holding the old name would keep
+                // checking the size from before the grow.
+                let pages = self.globals[self.pages_global?].clone();
+                let bytes = format!("Wasm.I32Shl<{pages}, '{}'>", bits32(16));
+                let over = format!("Wasm.I32LtU<{end}, {bytes}>");
+                return Some(format!(
+                    "({wrapped} extends '{one}' ? '{}' : {over}) extends '{one}' ?",
+                    zero()
+                ));
+            }
+        };
+
+        // Decide it by looking at the characters, not by doing arithmetic.
+        //
+        // `I32Add` + `I32LtU` per access is what a bounds check naively costs,
+        // and it is expensive: 4-6x on the storechain fixtures. But an address is
+        // a 32-character binary string, and "is this below N" is a question
+        // about its leading characters.
+        //
+        // Hiding the arithmetic in a conditional's untaken branch does not work -
+        // tsc instantiates it anyway, measured at 660576 instantiations for
+        // `A extends ... ? '1' : <8 adds>` against the same 660576 for the adds
+        // alone. A pattern match is free: 658537, exactly the cost of mentioning
+        // the address. So the test has to *be* the pattern match.
+        //
+        // The largest in-bounds address is `limit - width`. When that is one
+        // below a power of two, every in-bounds address is exactly one whose top
+        // bits are all zero, and a single template literal decides it - no
+        // arithmetic, no wrap check (a wrapped address has a high bit set and
+        // fails the same test). Memory limits are whole pages, so this covers
+        // every power-of-two page count: 1, 2, 16, and each capacity the trie
+        // rounds up to.
+        if u64::from(limit).is_power_of_two() {
+            let low = u64::from(limit).trailing_zeros() as usize;
+            let zeros = "0".repeat(32 - low);
+            // Below the limit exactly when the top bits are clear. A wrapped
+            // address has a high bit set and fails this too, so the wrap check
+            // comes for free.
+            let inside = format!("{addr} extends `{zeros}${{string}}`");
+            if width == 1 {
+                return Some(format!(
+                    "({inside} ? '{one}' : '{}') extends '{one}' ?",
+                    zero()
+                ));
+            }
+            // A `width`-byte access also has to not run off the end, and only
+            // the last `width - 1` addresses can. Those are exactly the ones
+            // whose low `low` bits exceed `limit - width`, i.e. whose bottom
+            // bits are all ones apart from the final few - still a pattern.
+            // Enumerate them: `width - 1` templates, 1, 3 or 7 of them.
+            let overhang: Vec<String> = ((u64::from(limit) - u64::from(width) + 1)
+                ..u64::from(limit))
+                .map(|value| {
+                    let bits = format!("{value:032b}");
+                    format!("`${{string}}{}`", &bits[32 - low..])
+                })
+                .collect();
+            let over = overhang.join(" | ");
+            return Some(format!(
+                "({inside} ? ({addr} extends {over} ? '{}' : '{one}') : '{}') extends '{one}' ?",
+                zero(),
+                zero()
+            ));
+        }
+        // Otherwise fall back to comparing. doom declares 11 pages, which is not
+        // a power of two, but its capacity is - the trie rounds up - so this is
+        // the rare path.
+        let over = format!("Wasm.I32LtU<{end}, '{}'>", bits32(limit as i32));
+        Some(format!(
+            "({wrapped} extends '{one}' ? '{}' : {over}) extends '{one}' ?",
+            zero()
+        ))
+    }
+
     fn load(&mut self, helper: &str, offset: u64, ret: Result<Step, String>) -> Result<Step, String> {
         self.mem_ops += 1;
         let addr = self.address(offset);
         let addr = self.bind(&addr, "WasmValue");
+        let guard = self.bounds_guard(&addr, Self::access_width(helper));
         let value = format!("{helper}<{}, {addr}>", self.memory);
+        let value = match guard {
+            Some(guard) => format!("({guard} {value} : never)"),
+            None => value,
+        };
         let named = self.bind(&value, "WasmValue");
         self.push(named);
         ret
@@ -3428,7 +3665,14 @@ impl BlockEnv {
         let addr = self.address(offset);
         let addr = self.bind(&addr, "WasmValue");
         let value = self.bind(&value, "WasmValue");
+        let guard = self.bounds_guard(&addr, Self::access_width(helper));
         let next = format!("{helper}<{}, {addr}, {value}>", self.memory);
+        // A refused store poisons memory itself, so the trap cannot be
+        // discarded by a later block that ignores the stored value.
+        let next = match guard {
+            Some(guard) => format!("({guard} {next} : never)"),
+            None => next,
+        };
         // every store is named: keeps the emitted text flat and gives the fuel
         // accounting something to count
         let name = format!("$m{}", self.next_temp);

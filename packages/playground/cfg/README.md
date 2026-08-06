@@ -36,6 +36,28 @@ Current state: **69/69 supported modules and every pong frame are identical to
 the wasm engine** (`pnpm arcade:conform`), conway included. Unsupported so far:
 i64, floats, and imported-function calls; `call_indirect` works.
 
+Memory accesses trap where the engine traps. An access that runs past the end of
+memory used to succeed quietly - a store landed, a load returned zero - so
+`storechain8`, which strides 512 bytes from 4096, ran long after it had left its
+one declared page and the engine had stopped. `bounds.test.ts` pins both bound
+shapes, which are separate paths in the compiler: a memory the module owns and
+never grows is bounded at compile time, and a growing one is checked against the
+live page count.
+
+The bound is not the declared size when the memory is **imported**. A declared
+size is the minimum the host must supply, not a limit: doom asks for 72 pages and
+needs 128 - at 72 the real engine traps inside `entry` - so an imported memory is
+bounded by its declared maximum, or by what the trie can address when it states
+none. Note this is deliberately not the number `memory.size` reports, which has
+to stay the declared minimum or doom's allocator puts its zone in the wrong place.
+
+The check is characters, not arithmetic. `I32Add` + `I32LtU` per access cost 4-6x
+on the storechain fixtures; comparing the address's leading characters against a
+power-of-two limit is a template-literal match, which is free (measured: 658537
+instantiations, the same as merely mentioning the address). Hiding the arithmetic
+in a conditional's untaken branch does *not* work - tsc instantiates it anyway.
+Overhead is now 15-30%, and doom is unchanged at 8 chunks in 37.4s against 36.6s.
+
 What `arcade:conform` actually compares was widened, and it found five bugs that
 the old version passed:
 
