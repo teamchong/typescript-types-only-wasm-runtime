@@ -482,18 +482,25 @@ export type $Kid61<$M> = $M extends [unknown, unknown, unknown, unknown, unknown
 export type $Kid62<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $c62, unknown] ? $c62 : $M
 export type $Kid63<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $c63] ? $c63 : $M
 
+export type $p0_0_0<$S extends $State> =
+  [$Store32<$S[0], '00000000000000000000010000000000', $S[2]>, ...$Rest<$S>]
+
+export type $p0_0_1<$S extends $State> =
+  [...$S, $Load32<$S[0], '00000000000000000000010000000000'>]
+
+export type $p0_0_2<$S extends $State> =
+  [...$S, Wasm.I32Add<$S[3], $Shl1<$S[3]>>]
+
+export type $p0_0_3<$S extends $State> =
+  [$Store32<$S[0], '00000000000000000000010000000000', $S[4]>, ...$Rest<$S>]
+
+export type $p0_0_4<$S extends $State> =
+  [...$S, $Load32<$S[0], '00000000000000000000010000000000'>]
+
 export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue> =
   $F extends `111${infer $F1}`
-  ? $Store32<$M, '00000000000000000000010000000000', $l0> extends infer $m0 extends $Node
-    ? $Load32<$m0, '00000000000000000000010000000000'> extends infer $t1 extends WasmValue
-    ? Wasm.I32Add<$t1, $Shl1<$t1>> extends infer $t2 extends WasmValue
-    ? $Store32<$m0, '00000000000000000000010000000000', $t2> extends infer $m3 extends $Node
-    ? $Load32<$m3, '00000000000000000000010000000000'> extends infer $t4 extends WasmValue
-    ? ['r', $F1, $m3, $g0, $t4]
-    : never
-    : never
-    : never
-    : never
+  ? $p0_0_4<$p0_0_3<$p0_0_2<$p0_0_1<$p0_0_0<[$M, $g0, $l0]>>>>> extends infer $S extends $State
+    ? ['r', $F1, $S[0], $S[1], $S[5]]
     : never
   : ['s', [['0_0', '0', $l0], ...$K], $M, $g0]
 

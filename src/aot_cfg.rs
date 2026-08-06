@@ -3576,11 +3576,27 @@ fn depth_cap() -> usize {
 /// as a pipeline. Coupled to `depth_cap()`: the cap decides how long a block
 /// gets to be, this decides how a block of that length is rendered, so raising
 /// one moves work across this boundary.
+///
+/// 0 means always pipeline. The old default of 10 meant that at `depth_cap()`
+/// of 16 almost every doom block rendered nested -- only 5 blocks out of 11694
+/// were pipelined, so the pipeline renderer was dead code and this boundary was
+/// never actually measured.
+///
+/// A/B on doom `entry`, 200 chunks cold, same 379860 fuel units consumed and a
+/// bit-identical saved state afterwards (466776 chars of memory, 4 frames, 2
+/// globals, same call string, sha256 3c0767bb...):
+///
+///     NEST_LIMIT=100000 (all nested):   280.95s wall, 214.0s eval, 1352 units/s
+///     NEST_LIMIT=0      (all pipeline): 213.03s wall, 155.3s eval, 1783 units/s
+///
+/// The pipeline form is 27% cheaper to check at identical output. Nesting an
+/// `infer` chain makes the checker re-walk the prefix at each new binding; a
+/// pipeline hands each step a name that is already resolved.
 fn nest_limit() -> usize {
     std::env::var("NEST_LIMIT")
         .ok()
         .and_then(|text| text.parse().ok())
-        .unwrap_or(10)
+        .unwrap_or(0)
 }
 
 fn pipeline_cap() -> usize {

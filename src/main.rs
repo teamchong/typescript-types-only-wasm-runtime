@@ -1247,18 +1247,30 @@ pub fn count_instructions(module: &Module) -> IndexMap<String, u32> {
     counts
 }
 
-pub fn wat_to_dts(wat: String, dump_path: &str, preview_bytes: bool) -> SourceFile {
-    let buf = parser::ParseBuffer::new(&wat).unwrap();
+/// Parse a `.wat` and write its `.dump` debug artifact. This is the half of
+/// `wat_to_dts` that works for every fixture, including the ones the legacy
+/// TypeScript generator cannot model.
+pub fn wat_to_dump(wat: &str, dump_path: &str) {
+    let buf = parser::ParseBuffer::new(wat).unwrap();
     let parsed_wat = &parser::parse::<Wat>(&buf).unwrap();
-
-    let source = SourceFile::new(preview_bytes);
 
     if let wast::Wat::Module(ref module) = parsed_wat {
         let counter = count_instructions(module);
 
         let dump = format!("{:#?}\n\n\n\n\n{:#?}", module, counter);
         dbg_dump_file!(dump, dump_path);
+    }
+}
 
+pub fn wat_to_dts(wat: String, dump_path: &str, preview_bytes: bool) -> SourceFile {
+    wat_to_dump(&wat, dump_path);
+
+    let buf = parser::ParseBuffer::new(&wat).unwrap();
+    let parsed_wat = &parser::parse::<Wat>(&buf).unwrap();
+
+    let source = SourceFile::new(preview_bytes);
+
+    if let wast::Wat::Module(ref module) = parsed_wat {
         match &module.kind {
             ModuleKind::Binary(_) => {
                 panic!("WebAssembly Binary is not supported.  Only WebAssembly Text.");
@@ -1276,6 +1288,26 @@ pub fn skip_list() -> Vec<&'static str> {
     vec![
         // "conway", //
     ]
+}
+
+/// Fixtures that are still compiled from `.wat` to `.wasm` (so the checked-in binary
+/// can never drift from its source) but that are deliberately not fed to the legacy
+/// TypeScript generator in this file. They exist to exercise the Rust-side compilers
+/// directly and use features the legacy generator has never modelled -- currently
+/// imported functions, which it panics on.
+pub fn codegen_skip_list() -> Vec<&'static str> {
+    vec![
+        "call-indirect-import", // imports a function; only the AOT dispatch tests read this
+    ]
+}
+
+/// the file is only compiled to wasm, never handed to the legacy TS generator
+pub fn should_skip_codegen(dir_entry: &DirEntry) -> bool {
+    let path = dir_entry.path().with_extension("");
+    let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
+        return false;
+    };
+    codegen_skip_list().iter().any(|&skip| file_name == skip)
 }
 
 pub fn focus_list() -> Vec<&'static str> {
@@ -1467,8 +1499,27 @@ pub fn create_ts(source_file: &SourceFile, dir_entry: &DirEntry) {
     fs::write(path, source_file.to_string()).unwrap();
 }
 
+/// True when `cmd` can be spawned at all. Used to skip regeneration steps whose
+/// output is checked in, so the suite still runs on a machine without the full
+/// wasm toolchain installed.
+pub fn tool_available(cmd: &str) -> bool {
+    Command::new(cmd).arg("--version").output().is_ok()
+}
+
 pub fn generate_c2wasm(c_input: &DirEntry) {
     let cmd = "clang-18";
+    if !tool_available(cmd) {
+        // The .wasm is checked in next to the .c, so an absent compiler only means
+        // we cannot notice an edit to the .c file. Fail if there is nothing to fall
+        // back to, otherwise carry on with the committed artifact.
+        let wasm = c_input.path().with_extension("wasm");
+        assert!(
+            wasm.exists(),
+            "{cmd} is not installed and there is no committed {} to fall back to",
+            wasm.display()
+        );
+        return;
+    }
     ensure_version(cmd, "-v", "18.1.8");
 
     // convert the .wat file to a .wasm file (also validates the .wat)
@@ -1652,6 +1703,14 @@ mod tests {
         let all_files: Vec<_> = from_wat.iter().chain(from_c.iter()).collect();
 
         for dir_entry in all_files {
+            if should_skip_codegen(dir_entry) {
+                // Still refresh the .dump so the debug artifact cannot drift from
+                // the .wat; only the legacy TypeScript emission is skipped.
+                let wat = fs::read_to_string(dir_entry.path().with_extension("wat")).unwrap();
+                let dump_path = dir_entry.path().with_extension("dump");
+                wat_to_dump(&wat, dump_path.to_str().unwrap());
+                continue;
+            }
             let source_file = parse_wat_and_dump(dir_entry);
             create_ts(&source_file, dir_entry);
         }

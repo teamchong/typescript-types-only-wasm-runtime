@@ -482,12 +482,15 @@ export type $Kid61<$M> = $M extends [unknown, unknown, unknown, unknown, unknown
 export type $Kid62<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $c62, unknown] ? $c62 : $M
 export type $Kid63<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $c63] ? $c63 : $M
 
+export type $p0_0_0<$S extends $State> =
+  [...$S, $Eq<$S[2], '00000000000000000000000000000000'>]
+
 export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Eq<$l0, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
-    ? $b0_4<$F1, $K, $M, $g0, $l0>
-    : $b0_3<$F1, $K, $M, $g0>
+  ? $p0_0_0<[$M, $g0, $l0]> extends infer $S extends $State
+    ? $S[3] extends '00000000000000000000000000000000'
+      ? $b0_4<$F1, $K, $S[0], $S[1], $S[2]>
+      : $b0_3<$F1, $K, $S[0], $S[1]>
     : never
   : ['s', [['0_0', '0', $l0], ...$K], $M, $g0]
 
@@ -510,12 +513,15 @@ export type $b0_3<$F extends string, $K extends unknown[], $M extends $Node, $g0
   : ['s', [['0_3', '0'], ...$K], $M, $g0]
 
 
+export type $p0_4_0<$S extends $State> =
+  [...$S, $Eq<$S[2], '00000000000000000000000000000001'>]
+
 export type $b0_4<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Eq<$l0, '00000000000000000000000000000001'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
-    ? $b0_5<$F1, $K, $M, $g0>
-    : $b0_2<$F1, $K, $M, $g0>
+  ? $p0_4_0<[$M, $g0, $l0]> extends infer $S extends $State
+    ? $S[3] extends '00000000000000000000000000000000'
+      ? $b0_5<$F1, $K, $S[0], $S[1]>
+      : $b0_2<$F1, $K, $S[0], $S[1]>
     : never
   : ['s', [['0_4', '0', $l0], ...$K], $M, $g0]
 

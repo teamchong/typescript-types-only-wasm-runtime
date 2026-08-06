@@ -1466,25 +1466,181 @@ mod tests {
         }
     }
 
+    /// Independently parse a module's table, function signatures and imports so
+    /// the dispatch assertions below do not depend on hardcoded counts that go
+    /// stale whenever the checked-in wasm is regenerated.
+    struct TableOracle {
+        num_func_imports: u32,
+        /// type index per *defined* function (imports excluded)
+        defined_func_types: Vec<u32>,
+        /// import index -> type index
+        import_func_types: Vec<u32>,
+        /// table slot -> function index
+        table: std::collections::BTreeMap<u32, u32>,
+        /// distinct type indices, so we can exercise every dispatch type
+        num_types: u32,
+    }
+
+    impl TableOracle {
+        fn parse(wasm_bytes: &[u8]) -> Self {
+            use wasmparser::{Element, ElementItems, ElementKind, ExternalKind, Operator, TypeRef};
+
+            let mut oracle = TableOracle {
+                num_func_imports: 0,
+                defined_func_types: Vec::new(),
+                import_func_types: Vec::new(),
+                table: std::collections::BTreeMap::new(),
+                num_types: 0,
+            };
+
+            for payload in Parser::new(0).parse_all(wasm_bytes) {
+                match payload.unwrap() {
+                    Payload::TypeSection(reader) => {
+                        oracle.num_types = reader.count();
+                    }
+                    Payload::ImportSection(reader) => {
+                        for import in reader {
+                            let import = import.unwrap();
+                            if let TypeRef::Func(type_idx) = import.ty {
+                                oracle.import_func_types.push(type_idx);
+                                oracle.num_func_imports += 1;
+                            }
+                        }
+                    }
+                    Payload::FunctionSection(reader) => {
+                        for type_idx in reader {
+                            oracle.defined_func_types.push(type_idx.unwrap());
+                        }
+                    }
+                    Payload::ElementSection(reader) => {
+                        for element in reader {
+                            let Element { kind, items, .. } = element.unwrap();
+                            let ElementKind::Active {
+                                table_index,
+                                offset_expr,
+                            } = kind
+                            else {
+                                continue;
+                            };
+                            if table_index.unwrap_or(0) != 0 {
+                                continue;
+                            }
+                            let mut base = 0u32;
+                            for op in offset_expr.get_operators_reader() {
+                                if let Ok(Operator::I32Const { value }) = op {
+                                    base = value as u32;
+                                }
+                            }
+                            match items {
+                                ElementItems::Functions(funcs) => {
+                                    for (slot, func_idx) in funcs.into_iter().enumerate() {
+                                        oracle.table.insert(base + slot as u32, func_idx.unwrap());
+                                    }
+                                }
+                                ElementItems::Expressions(_, exprs) => {
+                                    for (slot, expr) in exprs.into_iter().enumerate() {
+                                        for op in expr.unwrap().get_operators_reader() {
+                                            if let Ok(Operator::RefFunc { function_index }) = op {
+                                                oracle
+                                                    .table
+                                                    .insert(base + slot as u32, function_index);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            let _ = ExternalKind::Func;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            oracle
+        }
+
+        fn type_of(&self, func_idx: u32) -> Option<u32> {
+            if func_idx < self.num_func_imports {
+                self.import_func_types.get(func_idx as usize).copied()
+            } else {
+                self.defined_func_types
+                    .get((func_idx - self.num_func_imports) as usize)
+                    .copied()
+            }
+        }
+
+        /// Slots that a `call_indirect` of `type_index` can actually reach:
+        /// signature must match exactly and imports are left as traps.
+        fn reachable(&self, type_index: u32) -> Vec<(u32, u32)> {
+            self.table
+                .iter()
+                .filter(|(_, &func_idx)| {
+                    func_idx >= self.num_func_imports && self.type_of(func_idx) == Some(type_index)
+                })
+                .map(|(&slot, &func_idx)| (slot, func_idx - self.num_func_imports))
+                .collect()
+        }
+    }
+
     #[test]
     fn call_indirect_only_dispatches_to_matching_signatures() {
-        // doom's table holds one (param i32) function at slot 1 and six () ones
-        // at slots 2..7, so each dispatch type must only list its own signature
+        // Every dispatch type must list exactly the table slots whose function
+        // signature matches that call_indirect type - never a slot of another
+        // signature, which would let a mistyped call through instead of trapping.
         let wasm_bytes =
             fs::read("./packages/playground/doom/doom.wasm").expect("Failed to read doom.wasm");
+        let oracle = TableOracle::parse(&wasm_bytes);
 
         let mut compiler = CleanAotCompiler::new();
         compiler.collect_metadata(&wasm_bytes).unwrap();
 
-        let mut with_params = String::new();
-        compiler.emit_indirect_dispatch(&mut with_params, 1, usize::MAX);
-        assert!(with_params.contains("(1 reachable target)"), "{with_params}");
-
-        let mut without_params = String::new();
-        compiler.emit_indirect_dispatch(&mut without_params, 0, usize::MAX);
         assert!(
-            without_params.contains("(6 reachable targets)"),
-            "{without_params}"
+            !oracle.table.is_empty(),
+            "doom.wasm has no active table entries, so this test proves nothing"
+        );
+
+        let mut types_with_targets = 0;
+        for type_index in 0..oracle.num_types {
+            let expected = oracle.reachable(type_index);
+
+            let mut out = String::new();
+            compiler.emit_indirect_dispatch(&mut out, type_index, usize::MAX);
+
+            assert!(
+                out.contains(&format!(
+                    "({} reachable target{})",
+                    expected.len(),
+                    if expected.len() == 1 { "" } else { "s" }
+                )),
+                "type {type_index} should reach {} slots\n{out}",
+                expected.len()
+            );
+
+            for (slot, local_idx) in &expected {
+                assert!(
+                    out.contains(&format!(
+                        "$callee extends '{slot:032b}' ? $func_{local_idx}_impl<"
+                    )),
+                    "type {type_index} must route slot {slot} to $func_{local_idx}_impl\n{out}"
+                );
+            }
+
+            // Nothing outside the matching set may appear, and a miss must trap.
+            let emitted_slots = out.matches("$callee extends '").count();
+            assert_eq!(
+                emitted_slots,
+                expected.len(),
+                "type {type_index} emitted extra dispatch arms\n{out}"
+            );
+            assert!(out.trim_end().ends_with("never"), "{out}");
+
+            if !expected.is_empty() {
+                types_with_targets += 1;
+            }
+        }
+
+        assert!(
+            types_with_targets > 0,
+            "no dispatch type reached any table slot, so signature filtering was never exercised"
         );
     }
 }

@@ -493,18 +493,25 @@ export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0
   : ['s', [['0_0', '0'], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p1_0_0<$S extends $State> =
+  [$Store32<$S[0], $S[17], '00000000000000000000000000000000'>, ...$Rest<$S>]
+
+export type $p1_0_1<$S extends $State> =
+  [...$S, Wasm.I32Add<$S[15], $Shl3<$S[15]>>]
+
+export type $p1_0_2<$S extends $State> =
+  [...$S, Wasm.I32Add<$S[16], $S[19]>]
+
+export type $p1_0_3<$S extends $State> =
+  [...$S, Wasm.I32Add<$S[20], $S[12]>]
+
+export type $p1_0_4<$S extends $State> =
+  [...$S, $Dec1<$S[21]>]
+
 export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `11${infer $F1}`
-  ? $Store32<$M, $l5, '00000000000000000000000000000000'> extends infer $m0 extends $Node
-    ? Wasm.I32Add<$l3, $Shl3<$l3>> extends infer $t1 extends WasmValue
-    ? Wasm.I32Add<$l4, $t1> extends infer $t2 extends WasmValue
-    ? Wasm.I32Add<$t2, $l0> extends infer $t3 extends WasmValue
-    ? $Dec1<$t3> extends infer $t4 extends WasmValue
-    ? $b1_2<$F1, $K, $m0, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, '11111111111111111111111111111111', $l1, $l2, $l3, $l5, $Dec3<$t4>, $l7, $Dec0<$l4>>
-    : never
-    : never
-    : never
-    : never
+  ? $p1_0_4<$p1_0_3<$p1_0_2<$p1_0_1<$p1_0_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l7]>>>>> extends infer $S extends $State
+    ? $b1_2<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], '11111111111111111111111111111111', $S[13], $S[14], $S[15], $S[17], $Dec3<$S[22]>, $S[18], $Dec0<$S[16]>>
     : never
   : ['s', [['1_0', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l7], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
@@ -515,96 +522,131 @@ export type $b1_1<$F extends string, $K extends unknown[], $M extends $Node, $g0
   : ['s', [['1_1', '0'], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p1_2_0<$S extends $State> =
+  [...$S, Wasm.I32Add<$S[12], $S[15]>]
+
+export type $p1_2_1<$S extends $State> =
+  [...$S, Wasm.I32GeS<$S[20], $S[13]>]
+
 export type $b1_2<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l0, $l3> extends infer $t0 extends WasmValue
-    ? Wasm.I32GeS<$t0, $l1> extends infer $t1 extends WasmValue
-    ? $b1_4<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, '00000000000000000000000000000000', $l5, $l6, $l7, $l8, $t0, $t1>
-    : never
+  ? $p1_2_1<$p1_2_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8]>> extends infer $S extends $State
+    ? $b1_4<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], '00000000000000000000000000000000', $S[16], $S[17], $S[18], $S[19], $S[20], $S[21]>
     : never
   : ['s', [['1_2', '0', $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p1_3_0<$S extends $State> =
+  [...$S, $Inc0<$S[17]>]
+
+export type $p1_3_1<$S extends $State> =
+  [...$S, $Inc0<$S[12]>]
+
+export type $p1_3_2<$S extends $State> =
+  [...$S, $Ne<$S[21], '00000000000000000000000000000010'>]
+
 export type $b1_3<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Inc0<$l6> extends infer $t0 extends WasmValue
-    ? $Inc0<$l0> extends infer $t1 extends WasmValue
-    ? $Ne<$t1, '00000000000000000000000000000010'> extends infer $t2 extends WasmValue
-    ? $t2 extends '00000000000000000000000000000000'
-    ? $b1_10<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10>
-    : $b1_2<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $Inc0<$l0>, $l1, $l2, $l3, $l5, $Inc3<$t0>, $l7, $l8>
-    : never
-    : never
+  ? $p1_3_2<$p1_3_1<$p1_3_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8]>>> extends infer $S extends $State
+    ? $S[22] extends '00000000000000000000000000000000'
+      ? $b1_10<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11]>
+      : $b1_2<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $Inc0<$S[12]>, $S[13], $S[14], $S[15], $S[16], $Inc3<$S[20]>, $S[18], $S[19]>
     : never
   : ['s', [['1_3', '0', $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p1_4_0<$S extends $State> =
+  [...$S, $Dec0<$S[16]>]
+
+export type $p1_4_1<$S extends $State> =
+  [...$S, Wasm.I32Or<$S[23], $S[12]>]
+
+export type $p1_4_2<$S extends $State> =
+  [...$S, $Eq<$S[24], '00000000000000000000000000000000'>]
+
+export type $p1_4_3<$S extends $State> =
+  [...$S, $LtS00000000<$S[21]>]
+
+export type $p1_4_4<$S extends $State> =
+  [...$S, Wasm.I32Or<$S[25], $S[26]>]
+
+export type $p1_4_5<$S extends $State> =
+  [...$S, Wasm.I32Or<$S[22], $S[27]>]
+
 export type $b1_4<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Dec0<$l4> extends infer $t0 extends WasmValue
-    ? Wasm.I32Or<$t0, $l0> extends infer $t1 extends WasmValue
-    ? $Eq<$t1, '00000000000000000000000000000000'> extends infer $t2 extends WasmValue
-    ? $LtS00000000<$l9> extends infer $t3 extends WasmValue
-    ? Wasm.I32Or<$t2, $t3> extends infer $t4 extends WasmValue
-    ? Wasm.I32Or<$l10, $t4> extends infer $t5 extends WasmValue
-    ? $t5 extends '00000000000000000000000000000000'
-    ? $b1_6<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : $b1_5<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : never
-    : never
-    : never
-    : never
-    : never
+  ? $p1_4_5<$p1_4_4<$p1_4_3<$p1_4_2<$p1_4_1<$p1_4_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10]>>>>>> extends infer $S extends $State
+    ? $S[28] extends '00000000000000000000000000000000'
+      ? $b1_6<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[16], $S[17], $S[18], $S[19], $S[20], $S[21], $S[22]>
+      : $b1_5<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[16], $S[17], $S[18], $S[19], $S[20], $S[21], $S[22]>
     : never
   : ['s', [['1_4', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p1_5_0<$S extends $State> =
+  [...$S, $Inc0<$S[16]>]
+
+export type $p1_5_1<$S extends $State> =
+  [...$S, $Ne<$S[23], '00000000000000000000000000000011'>]
+
 export type $b1_5<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Inc0<$l4> extends infer $t0 extends WasmValue
-    ? $Ne<$t0, '00000000000000000000000000000011'> extends infer $t1 extends WasmValue
-    ? $t1 extends '00000000000000000000000000000000'
-    ? $b1_9<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l5, $l6, $l7, $l8>
-    : $b1_4<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $Inc0<$l4>, $l5, $l6, $l7, $l8, $l9, $l10>
-    : never
+  ? $p1_5_1<$p1_5_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10]>> extends infer $S extends $State
+    ? $S[24] extends '00000000000000000000000000000000'
+      ? $b1_9<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[17], $S[18], $S[19], $S[20]>
+      : $b1_4<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $Inc0<$S[16]>, $S[17], $S[18], $S[19], $S[20], $S[21], $S[22]>
     : never
   : ['s', [['1_5', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p1_6_0<$S extends $State> =
+  [...$S, Wasm.I32Add<$S[16], $S[20]>]
+
+export type $p1_6_1<$S extends $State> =
+  [...$S, Wasm.I32LeS<$S[14], $S[23]>]
+
+export type $p1_6_2<$S extends $State> =
+  [...$S, $LtS00000000<$S[23]>]
+
+export type $p1_6_3<$S extends $State> =
+  [...$S, Wasm.I32Or<$S[25], $S[24]>]
+
 export type $b1_6<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l4, $l8> extends infer $t0 extends WasmValue
-    ? Wasm.I32LeS<$l2, $t0> extends infer $t1 extends WasmValue
-    ? $LtS00000000<$t0> extends infer $t2 extends WasmValue
-    ? Wasm.I32Or<$t2, $t1> extends infer $t3 extends WasmValue
-    ? $t3 extends '00000000000000000000000000000000'
-    ? $b1_7<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : $b1_5<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : never
-    : never
-    : never
+  ? $p1_6_3<$p1_6_2<$p1_6_1<$p1_6_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10]>>>> extends infer $S extends $State
+    ? $S[26] extends '00000000000000000000000000000000'
+      ? $b1_7<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[16], $S[17], $S[18], $S[19], $S[20], $S[21], $S[22]>
+      : $b1_5<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[16], $S[17], $S[18], $S[19], $S[20], $S[21], $S[22]>
     : never
   : ['s', [['1_6', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p1_7_0<$S extends $State> =
+  [...$S, Wasm.I32Add<$S[16], $S[18]>]
+
+export type $p1_7_1<$S extends $State> =
+  [...$S, $Load8U<$S[0], $S[23]>]
+
+export type $p1_7_2<$S extends $State> =
+  [...$S, $Eq<$S[24], '00000000000000000000000000000000'>]
+
 export type $b1_7<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l4, $l6> extends infer $t0 extends WasmValue
-    ? $Load8U<$M, $t0> extends infer $t1 extends WasmValue
-    ? $Eq<$t1, '00000000000000000000000000000000'> extends infer $t2 extends WasmValue
-    ? $t2 extends '00000000000000000000000000000000'
-    ? $b1_8<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : $b1_5<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10>
-    : never
-    : never
+  ? $p1_7_2<$p1_7_1<$p1_7_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10]>>> extends infer $S extends $State
+    ? $S[25] extends '00000000000000000000000000000000'
+      ? $b1_8<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[16], $S[17], $S[18], $S[19], $S[20], $S[21], $S[22]>
+      : $b1_5<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[16], $S[17], $S[18], $S[19], $S[20], $S[21], $S[22]>
     : never
   : ['s', [['1_7', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p1_8_0<$S extends $State> =
+  [$Store32<$S[0], $S[17], $Inc0<$S[19]>>, ...$Rest<$S>]
+
 export type $b1_8<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
   $F extends `11${infer $F1}`
-  ? $Store32<$M, $l5, $Inc0<$l7>> extends infer $m0 extends $Node
-    ? $b1_5<$F1, $K, $m0, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $Inc0<$l7>, $l8, $l9, $l10>
+  ? $p1_8_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10]> extends infer $S extends $State
+    ? $b1_5<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[16], $S[17], $S[18], $Inc0<$S[19]>, $S[20], $S[21], $S[22]>
     : never
   : ['s', [['1_8', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9, $l10], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
@@ -624,20 +666,26 @@ export type $b1_10<$F extends string, $K extends unknown[], $M extends $Node, $g
 export type $call1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $p0 extends WasmValue, $p1 extends WasmValue, $p2 extends WasmValue, $p3 extends WasmValue, $p4 extends WasmValue, $p5 extends WasmValue> =
   $b1_0<$F, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $p0, $p1, $p2, $p3, $p4, $p5, '00000000000000000000000000000000'>
 
+export type $p2_0_0<$S extends $State> =
+  [...$S, $Inc4<$S[1]>]
+
 export type $b2_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l5 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Inc4<$g0> extends infer $t0 extends WasmValue
-    ? $LtS00000001<$l1> extends '00000000000000000000000000000000'
-    ? $b2_2<$F1, $K, $M, $Dec7<$t0>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l5, $Dec7<$t0>>
-    : $b2_1<$F1, $K, $M, $Dec7<$t0>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $Dec7<$t0>>
+  ? $p2_0_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l5]> extends infer $S extends $State
+    ? $LtS00000001<$S[13]> extends '00000000000000000000000000000000'
+      ? $b2_2<$F1, $K, $S[0], $Dec7<$S[16]>, $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $Dec7<$S[16]>>
+      : $b2_1<$F1, $K, $S[0], $Dec7<$S[16]>, $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $Dec7<$S[16]>>
     : never
   : ['s', [['2_0', '0', $l0, $l1, $l2, $l5], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p2_1_0<$S extends $State> =
+  [...$S, $Dec4<$S[12]>]
+
 export type $b2_1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Dec4<$l7> extends infer $t0 extends WasmValue
-    ? ['r', $F1, $M, $Inc7<$t0>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, '00000000000000000000000000000000']
+  ? $p2_1_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l7]> extends infer $S extends $State
+    ? ['r', $F1, $S[0], $Inc7<$S[13]>, $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], '00000000000000000000000000000000']
     : never
   : ['s', [['2_1', '0', $l7], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
@@ -656,28 +704,37 @@ export type $b2_3<$F extends string, $K extends unknown[], $M extends $Node, $g0
   : ['s', [['2_3', '0', $l0, $l1, $l2, $l7], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p2_4_0<$S extends $State> =
+  [...$S, $Eq<$S[19], '00000000000000000000000000000000'>]
+
 export type $b2_4<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Eq<$l8, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
-    ? $b2_7<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
-    : $b2_6<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8>
+  ? $p2_4_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8]> extends infer $S extends $State
+    ? $S[20] extends '00000000000000000000000000000000'
+      ? $b2_7<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[16], $S[17], $S[18], $S[19]>
+      : $b2_6<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[16], $S[17], $S[18], $S[19]>
     : never
   : ['s', [['2_4', '0', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p2_5_0<$S extends $State> =
+  [...$S, $Inc0<$S[15]>]
+
+export type $p2_5_1<$S extends $State> =
+  [...$S, $Inc0<$S[17]>]
+
+export type $p2_5_2<$S extends $State> =
+  [...$S, $Inc0<$S[16]>]
+
+export type $p2_5_3<$S extends $State> =
+  [...$S, $Ne<$S[22], $S[13]>]
+
 export type $b2_5<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Inc0<$l4> extends infer $t0 extends WasmValue
-    ? $Inc0<$l6> extends infer $t1 extends WasmValue
-    ? $Inc0<$l5> extends infer $t2 extends WasmValue
-    ? $Ne<$t2, $l1> extends infer $t3 extends WasmValue
-    ? $t3 extends '00000000000000000000000000000000'
-    ? $b2_12<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l7>
-    : $b2_4<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $Inc3<$t0>, $Inc0<$l5>, $Inc3<$t1>, $l7, $l8>
-    : never
-    : never
-    : never
+  ? $p2_5_3<$p2_5_2<$p2_5_1<$p2_5_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8]>>>> extends infer $S extends $State
+    ? $S[23] extends '00000000000000000000000000000000'
+      ? $b2_12<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[18]>
+      : $b2_4<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $Inc3<$S[20]>, $Inc0<$S[16]>, $Inc3<$S[21]>, $S[18], $S[19]>
     : never
   : ['s', [['2_5', '0', $l0, $l1, $l2, $l4, $l5, $l6, $l7, $l8], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
@@ -782,28 +839,37 @@ export type $b2_14<$F extends string, $K extends unknown[], $M extends $Node, $g
   : ['s', [['2_14', '0', $l7], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p2_15_0<$S extends $State> =
+  [...$S, $Eq<$S[18], '00000000000000000000000000000000'>]
+
 export type $b2_15<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Eq<$l9, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
-    ? $b2_18<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
-    : $b2_17<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l4, $l4, $l2, $l6, $l7, $l0, $l9>
+  ? $p2_15_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l4, $l6, $l7, $l9]> extends infer $S extends $State
+    ? $S[19] extends '00000000000000000000000000000000'
+      ? $b2_18<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[16], $S[17], $S[18]>
+      : $b2_17<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[15], $S[14], $S[16], $S[17], $S[12], $S[18]>
     : never
   : ['s', [['2_15', '0', $l0, $l1, $l2, $l4, $l6, $l7, $l9], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p2_16_0<$S extends $State> =
+  [...$S, $Inc0<$S[15]>]
+
+export type $p2_16_1<$S extends $State> =
+  [...$S, $Inc0<$S[12]>]
+
+export type $p2_16_2<$S extends $State> =
+  [...$S, $Inc0<$S[16]>]
+
+export type $p2_16_3<$S extends $State> =
+  [...$S, $Ne<$S[21], $S[13]>]
+
 export type $b2_16<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l9 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Inc0<$l4> extends infer $t0 extends WasmValue
-    ? $Inc0<$l0> extends infer $t1 extends WasmValue
-    ? $Inc0<$l6> extends infer $t2 extends WasmValue
-    ? $Ne<$t2, $l1> extends infer $t3 extends WasmValue
-    ? $t3 extends '00000000000000000000000000000000'
-    ? $b2_22<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l7>
-    : $b2_15<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $Inc3<$t1>, $l1, $l2, $Inc3<$t0>, $Inc0<$l6>, $l7, $l9>
-    : never
-    : never
-    : never
+  ? $p2_16_3<$p2_16_2<$p2_16_1<$p2_16_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l4, $l6, $l7, $l9]>>>> extends infer $S extends $State
+    ? $S[22] extends '00000000000000000000000000000000'
+      ? $b2_22<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[17]>
+      : $b2_15<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $Inc3<$S[20]>, $S[13], $S[14], $Inc3<$S[19]>, $Inc0<$S[16]>, $S[17], $S[18]>
     : never
   : ['s', [['2_16', '0', $l0, $l1, $l2, $l4, $l6, $l7, $l9], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
@@ -826,14 +892,18 @@ export type $b2_19<$F extends string, $K extends unknown[], $M extends $Node, $g
   : ['s', [['2_19', '0', $l0, $l1, $l2, $l4, $l6, $l7, $l9], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p2_20_0<$S extends $State> =
+  [...$S, $Load8U<$S[0], $S[15]>]
+
+export type $p2_20_1<$S extends $State> =
+  [$Store8<$S[0], $S[20], $S[22]>, ...$Rest<$S>]
+
 export type $b2_20<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue> =
   $F extends `11${infer $F1}`
-  ? $Load8U<$M, $l3> extends infer $t0 extends WasmValue
-    ? $Store8<$M, $l8, $t0> extends infer $m1 extends $Node
-    ? $Dec0<$l5> extends '00000000000000000000000000000000'
-    ? $b2_21<$F1, $K, $m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l4, $l6, $l7, $l9>
-    : $b2_20<$F1, $K, $m1, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $Inc0<$l3>, $l4, $Dec0<$l5>, $l6, $l7, $Inc0<$l8>, $l9>
-    : never
+  ? $p2_20_1<$p2_20_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9]>> extends infer $S extends $State
+    ? $Dec0<$S[17]> extends '00000000000000000000000000000000'
+      ? $b2_21<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[16], $S[18], $S[19], $S[21]>
+      : $b2_20<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $Inc0<$S[15]>, $S[16], $Dec0<$S[17]>, $S[18], $S[19], $Inc0<$S[20]>, $S[21]>
     : never
   : ['s', [['2_20', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7, $l8, $l9], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
@@ -861,14 +931,19 @@ export type $b3_0<$F extends string, $K extends unknown[], $M extends $Node, $g0
   : ['s', [['3_0', '0', $l0, $l1, $l2, $l3, $l5], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p3_1_0<$S extends $State> =
+  [...$S, $Dec5<$S[12]>]
+
+export type $p3_1_1<$S extends $State> =
+  [...$S, $Inc7<$S[13]>]
+
+export type $p3_1_2<$S extends $State> =
+  [$Store8<$S[0], $Inc10<$S[14]>, '00000000000000000000000000000000'>, ...$Rest<$S>]
+
 export type $b3_1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l3 extends WasmValue> =
   $F extends `11${infer $F1}`
-  ? $Dec5<$l3> extends infer $t0 extends WasmValue
-    ? $Inc7<$t0> extends infer $t1 extends WasmValue
-    ? $Store8<$M, $Inc10<$t1>, '00000000000000000000000000000000'> extends infer $m2 extends $Node
-    ? ['r', $F1, $m2, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, '00000000000000000000010001100000']
-    : never
-    : never
+  ? $p3_1_2<$p3_1_1<$p3_1_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l3]>>> extends infer $S extends $State
+    ? ['r', $F1, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], '00000000000000000000010001100000']
     : never
   : ['s', [['3_1', '0', $l3], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
@@ -891,12 +966,15 @@ export type $b3_4<$F extends string, $K extends unknown[], $M extends $Node, $g0
   : ['s', [['3_4', '0', $l3], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p3_5_0<$S extends $State> =
+  [...$S, $Eq<$S[17], '00000000000000000000000000000000'>]
+
 export type $b3_5<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Eq<$l7, '00000000000000000000000000000000'> extends infer $t0 extends WasmValue
-    ? $t0 extends '00000000000000000000000000000000'
-    ? $b3_8<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l5, $l7>
-    : $b3_7<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l0, $l5, $l2, $l7>
+  ? $p3_5_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l5, $l7]> extends infer $S extends $State
+    ? $S[18] extends '00000000000000000000000000000000'
+      ? $b3_8<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[16], $S[17]>
+      : $b3_7<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[15], $S[12], $S[16], $S[14], $S[17]>
     : never
   : ['s', [['3_5', '0', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
@@ -943,18 +1021,25 @@ export type $b3_11<$F extends string, $K extends unknown[], $M extends $Node, $g
   : ['s', [['3_11', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p3_12_0<$S extends $State> =
+  [...$S, $Dec5<$S[15]>]
+
+export type $p3_12_1<$S extends $State> =
+  [...$S, $Inc7<$S[20]>]
+
+export type $p3_12_2<$S extends $State> =
+  [...$S, $Load8U<$S[0], $S[16]>]
+
+export type $p3_12_3<$S extends $State> =
+  [...$S, ($S[22] extends '00000000000000000000000000000000' ? '00000000000000000000000000101110' : '00000000000000000000000000100100')]
+
+export type $p3_12_4<$S extends $State> =
+  [$Store8<$S[0], $Inc10<$S[21]>, $S[23]>, ...$Rest<$S>]
+
 export type $b3_12<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
   $F extends `11${infer $F1}`
-  ? $Dec5<$l3> extends infer $t0 extends WasmValue
-    ? $Inc7<$t0> extends infer $t1 extends WasmValue
-    ? $Load8U<$M, $l4> extends infer $t2 extends WasmValue
-    ? ($t2 extends '00000000000000000000000000000000' ? '00000000000000000000000000101110' : '00000000000000000000000000100100') extends infer $t3 extends WasmValue
-    ? $Store8<$M, $Inc10<$t1>, $t3> extends infer $m4 extends $Node
-    ? $b3_11<$F1, $K, $m4, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $Inc0<$l3>, $l4, $l5, $l6, $l7>
-    : never
-    : never
-    : never
-    : never
+  ? $p3_12_4<$p3_12_3<$p3_12_2<$p3_12_1<$p3_12_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7]>>>>> extends infer $S extends $State
+    ? $b3_11<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $Inc0<$S[15]>, $S[16], $S[17], $S[18], $S[19]>
     : never
   : ['s', [['3_12', '0', $l0, $l1, $l2, $l3, $l4, $l5, $l6, $l7], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
@@ -971,28 +1056,38 @@ export type $b3_14<$F extends string, $K extends unknown[], $M extends $Node, $g
   : ['s', [['3_14', '0', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p3_15_0<$S extends $State> =
+  [...$S, $Inc0<$S[12]>]
+
+export type $p3_15_1<$S extends $State> =
+  [...$S, $Inc0<$S[16]>]
+
+export type $p3_15_2<$S extends $State> =
+  [...$S, $Ne<$S[19], $S[13]>]
+
 export type $b3_15<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Inc0<$l0> extends infer $t0 extends WasmValue
-    ? $Inc0<$l5> extends infer $t1 extends WasmValue
-    ? $Ne<$t1, $l1> extends infer $t2 extends WasmValue
-    ? $t2 extends '00000000000000000000000000000000'
-    ? $b3_18<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l3>
-    : $b3_5<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $Inc3<$t0>, $l1, $l2, $l3, $Inc0<$l5>, $l7>
-    : never
-    : never
+  ? $p3_15_2<$p3_15_1<$p3_15_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l5, $l7]>>> extends infer $S extends $State
+    ? $S[20] extends '00000000000000000000000000000000'
+      ? $b3_18<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[15]>
+      : $b3_5<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $Inc3<$S[18]>, $S[13], $S[14], $S[15], $Inc0<$S[16]>, $S[17]>
     : never
   : ['s', [['3_15', '0', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p3_16_0<$S extends $State> =
+  [...$S, $Dec5<$S[15]>]
+
+export type $p3_16_1<$S extends $State> =
+  [...$S, $Inc7<$S[18]>]
+
+export type $p3_16_2<$S extends $State> =
+  [$Store8<$S[0], $Inc10<$S[19]>, '00000000000000000000000000001010'>, ...$Rest<$S>]
+
 export type $b3_16<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `11${infer $F1}`
-  ? $Dec5<$l3> extends infer $t0 extends WasmValue
-    ? $Inc7<$t0> extends infer $t1 extends WasmValue
-    ? $Store8<$M, $Inc10<$t1>, '00000000000000000000000000001010'> extends infer $m2 extends $Node
-    ? $b3_15<$F1, $K, $m2, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $Inc0<$l3>, $l5, $l7>
-    : never
-    : never
+  ? $p3_16_2<$p3_16_1<$p3_16_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l5, $l7]>>> extends infer $S extends $State
+    ? $b3_15<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $Inc0<$S[15]>, $S[16], $S[17]>
     : never
   : ['s', [['3_16', '0', $l0, $l1, $l2, $l3, $l5, $l7], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
@@ -1012,10 +1107,13 @@ export type $b3_18<$F extends string, $K extends unknown[], $M extends $Node, $g
 export type $call3<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $p0 extends WasmValue, $p1 extends WasmValue, $p2 extends WasmValue> =
   $b3_0<$F, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $p0, $p1, $p2, '00000000000000000000000000000000', '00000000000000000000000000000000'>
 
+export type $p4_0_0<$S extends $State> =
+  [...$S, $Inc5<$S[1]>]
+
 export type $b4_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Inc5<$g0> extends infer $t0 extends WasmValue
-    ? $b4_2<$F1, $K, $M, $Dec7<$t0>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $Dec7<$t0>, $l2, $l4>
+  ? $p4_0_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l2, $l4]> extends infer $S extends $State
+    ? $b4_2<$F1, $K, $S[0], $Dec7<$S[15]>, $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $Dec7<$S[15]>, $S[13], $S[14]>
     : never
   : ['s', [['4_0', '0', $l0, $l2, $l4], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
@@ -1028,44 +1126,60 @@ export type $b4_1<$F extends string, $K extends unknown[], $M extends $Node, $g0
   : ['s', [['4_1', '0', $l0, $l1], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p4_2_0<$S extends $State> =
+  [...$S, Wasm.I32Add<$S[13], $S[14]>]
+
 export type $b4_2<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l1, $l2> extends infer $t0 extends WasmValue
-    ? $b4_4<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, '00000000000000000000000000000000', $l4, $t0>
+  ? $p4_2_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l4]> extends infer $S extends $State
+    ? $b4_4<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], '00000000000000000000000000000000', $S[15], $S[16]>
     : never
   : ['s', [['4_2', '0', $l0, $l1, $l2, $l4], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p4_3_0<$S extends $State> =
+  [...$S, $Inc0<$S[14]>]
+
+export type $p4_3_1<$S extends $State> =
+  [...$S, $Inc0<$S[15]>]
+
+export type $p4_3_2<$S extends $State> =
+  [...$S, $Ne<$S[17], '00000000000000000000000000001001'>]
+
 export type $b4_3<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l4 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Inc0<$l2> extends infer $t0 extends WasmValue
-    ? $Inc0<$l4> extends infer $t1 extends WasmValue
-    ? $Ne<$t1, '00000000000000000000000000001001'> extends infer $t2 extends WasmValue
-    ? $t2 extends '00000000000000000000000000000000'
-    ? $b4_6<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1>
-    : $b4_2<$F1, $K, $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $Inc3<$t0>, $Inc0<$l4>>
-    : never
-    : never
+  ? $p4_3_2<$p4_3_1<$p4_3_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l4]>>> extends infer $S extends $State
+    ? $S[18] extends '00000000000000000000000000000000'
+      ? $b4_6<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13]>
+      : $b4_2<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $Inc3<$S[16]>, $Inc0<$S[15]>>
     : never
   : ['s', [['4_3', '0', $l0, $l1, $l2, $l4], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p4_4_0<$S extends $State> =
+  [...$S, Wasm.I32Add<$S[15], $S[17]>]
+
+export type $p4_4_1<$S extends $State> =
+  [...$S, Wasm.I32Add<$S[14], $S[15]>]
+
+export type $p4_4_2<$S extends $State> =
+  [...$S, $Load8U<$S[0], $Inc10<$S[19]>>]
+
+export type $p4_4_3<$S extends $State> =
+  [$Store8<$S[0], $S[18], $S[20]>, ...$Rest<$S>]
+
+export type $p4_4_4<$S extends $State> =
+  [...$S, $Inc0<$S[15]>]
+
+export type $p4_4_5<$S extends $State> =
+  [...$S, $Ne<$S[21], '00000000000000000000000000001001'>]
+
 export type $b4_4<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue> =
   $F extends `11${infer $F1}`
-  ? Wasm.I32Add<$l3, $l5> extends infer $t0 extends WasmValue
-    ? Wasm.I32Add<$l2, $l3> extends infer $t1 extends WasmValue
-    ? $Load8U<$M, $Inc10<$t1>> extends infer $t2 extends WasmValue
-    ? $Store8<$M, $t0, $t2> extends infer $m3 extends $Node
-    ? $Inc0<$l3> extends infer $t4 extends WasmValue
-    ? $Ne<$t4, '00000000000000000000000000001001'> extends infer $t5 extends WasmValue
-    ? $t5 extends '00000000000000000000000000000000'
-    ? $b4_5<$F1, $K, $m3, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l4>
-    : $b4_4<$F1, $K, $m3, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $Inc0<$l3>, $l4, $l5>
-    : never
-    : never
-    : never
-    : never
-    : never
+  ? $p4_4_5<$p4_4_4<$p4_4_3<$p4_4_2<$p4_4_1<$p4_4_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l0, $l1, $l2, $l3, $l4, $l5]>>>>>> extends infer $S extends $State
+    ? $S[22] extends '00000000000000000000000000000000'
+      ? $b4_5<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $S[16]>
+      : $b4_4<$F1, $K, $S[0], $S[1], $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], $S[12], $S[13], $S[14], $Inc0<$S[15]>, $S[16], $S[17]>
     : never
   : ['s', [['4_4', '0', $l0, $l1, $l2, $l3, $l4, $l5], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
@@ -1134,10 +1248,13 @@ export type $b4_13<$F extends string, $K extends unknown[], $M extends $Node, $g
   : ['s', [['4_13', '0', $l1], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 
 
+export type $p4_14_0<$S extends $State> =
+  [...$S, $Dec5<$S[12]>]
+
 export type $b4_14<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l1 extends WasmValue, $k0 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Dec5<$l1> extends infer $t0 extends WasmValue
-    ? ['r', $F1, $M, $Inc7<$t0>, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, '00000000000000000000010001100000']
+  ? $p4_14_0<[$M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $l1, $k0]> extends infer $S extends $State
+    ? ['r', $F1, $S[0], $Inc7<$S[14]>, $S[2], $S[3], $S[4], $S[5], $S[6], $S[7], $S[8], $S[9], $S[10], $S[11], '00000000000000000000010001100000']
     : never
   : ['s', [['4_14', '0', $l1, $k0], ...$K], $M, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10]
 

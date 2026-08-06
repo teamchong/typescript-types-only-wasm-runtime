@@ -482,126 +482,180 @@ export type $Kid61<$M> = $M extends [unknown, unknown, unknown, unknown, unknown
 export type $Kid62<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $c62, unknown] ? $c62 : $M
 export type $Kid63<$M> = $M extends [unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, infer $c63] ? $c63 : $M
 
+export type $p0_0_0<$S extends $State> =
+  [...$S, Wasm.I64ExtendI32S<$S[2]>]
+
+export type $p0_0_1<$S extends $State> =
+  [...$S, Wasm.I64ExtendI32S<$S[3]>]
+
+export type $p0_0_2<$S extends $State> =
+  [...$S, $Mul64<$S[4], $S[5]>]
+
+export type $p0_0_3<$S extends $State> =
+  [...$S, Wasm.I64ShrU<$S[6], '0000000000000000000000000000000000000000000000000000000000010000'>]
+
+export type $p0_0_4<$S extends $State> =
+  [...$S, Wasm.I32WrapI64<$S[7]>]
+
 export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I64ExtendI32S<$l0> extends infer $t0 extends WasmValue
-    ? Wasm.I64ExtendI32S<$l1> extends infer $t1 extends WasmValue
-    ? $Mul64<$t0, $t1> extends infer $t2 extends WasmValue
-    ? Wasm.I64ShrU<$t2, '0000000000000000000000000000000000000000000000000000000000010000'> extends infer $t3 extends WasmValue
-    ? Wasm.I32WrapI64<$t3> extends infer $t4 extends WasmValue
-    ? ['r', $F1, $M, $g0, $t4]
-    : never
-    : never
-    : never
-    : never
+  ? $p0_0_4<$p0_0_3<$p0_0_2<$p0_0_1<$p0_0_0<[$M, $g0, $l0, $l1]>>>>> extends infer $S extends $State
+    ? ['r', $F1, $S[0], $S[1], $S[8]]
     : never
   : ['s', [['0_0', '0', $l0, $l1], ...$K], $M, $g0]
 
 
+export type $p1_0_0<$S extends $State> =
+  [...$S, Wasm.I64ExtendI32S<$S[2]>]
+
+export type $p1_0_1<$S extends $State> =
+  [...$S, Wasm.I64ExtendI32S<$S[3]>]
+
+export type $p1_0_2<$S extends $State> =
+  [...$S, $Add64<$S[4], $S[5]>]
+
+export type $p1_0_3<$S extends $State> =
+  [...$S, Wasm.I32WrapI64<$S[6]>]
+
 export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I64ExtendI32S<$l0> extends infer $t0 extends WasmValue
-    ? Wasm.I64ExtendI32S<$l1> extends infer $t1 extends WasmValue
-    ? $Add64<$t0, $t1> extends infer $t2 extends WasmValue
-    ? Wasm.I32WrapI64<$t2> extends infer $t3 extends WasmValue
-    ? ['r', $F1, $M, $g0, $t3]
-    : never
-    : never
-    : never
+  ? $p1_0_3<$p1_0_2<$p1_0_1<$p1_0_0<[$M, $g0, $l0, $l1]>>>> extends infer $S extends $State
+    ? ['r', $F1, $S[0], $S[1], $S[7]]
     : never
   : ['s', [['1_0', '0', $l0, $l1], ...$K], $M, $g0]
 
 
+export type $p2_0_0<$S extends $State> =
+  [...$S, Wasm.I64ExtendI32S<$S[2]>]
+
+export type $p2_0_1<$S extends $State> =
+  [...$S, Wasm.I64ExtendI32S<$S[3]>]
+
+export type $p2_0_2<$S extends $State> =
+  [...$S, $Sub64<$S[4], $S[5]>]
+
+export type $p2_0_3<$S extends $State> =
+  [...$S, Wasm.I32WrapI64<$S[6]>]
+
 export type $b2_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I64ExtendI32S<$l0> extends infer $t0 extends WasmValue
-    ? Wasm.I64ExtendI32S<$l1> extends infer $t1 extends WasmValue
-    ? $Sub64<$t0, $t1> extends infer $t2 extends WasmValue
-    ? Wasm.I32WrapI64<$t2> extends infer $t3 extends WasmValue
-    ? ['r', $F1, $M, $g0, $t3]
-    : never
-    : never
-    : never
+  ? $p2_0_3<$p2_0_2<$p2_0_1<$p2_0_0<[$M, $g0, $l0, $l1]>>>> extends infer $S extends $State
+    ? ['r', $F1, $S[0], $S[1], $S[7]]
     : never
   : ['s', [['2_0', '0', $l0, $l1], ...$K], $M, $g0]
 
 
+export type $p3_0_0<$S extends $State> =
+  [...$S, $Zx64<$S[2]>]
+
+export type $p3_0_1<$S extends $State> =
+  [...$S, $Zx64<$S[3]>]
+
+export type $p3_0_2<$S extends $State> =
+  [...$S, $Add64<$S[4], $S[5]>]
+
+export type $p3_0_3<$S extends $State> =
+  [...$S, Wasm.I64ShrU<$S[6], '0000000000000000000000000000000000000000000000000000000000100000'>]
+
+export type $p3_0_4<$S extends $State> =
+  [...$S, Wasm.I32WrapI64<$S[7]>]
+
 export type $b3_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Zx64<$l0> extends infer $t0 extends WasmValue
-    ? $Zx64<$l1> extends infer $t1 extends WasmValue
-    ? $Add64<$t0, $t1> extends infer $t2 extends WasmValue
-    ? Wasm.I64ShrU<$t2, '0000000000000000000000000000000000000000000000000000000000100000'> extends infer $t3 extends WasmValue
-    ? Wasm.I32WrapI64<$t3> extends infer $t4 extends WasmValue
-    ? ['r', $F1, $M, $g0, $t4]
-    : never
-    : never
-    : never
-    : never
+  ? $p3_0_4<$p3_0_3<$p3_0_2<$p3_0_1<$p3_0_0<[$M, $g0, $l0, $l1]>>>>> extends infer $S extends $State
+    ? ['r', $F1, $S[0], $S[1], $S[8]]
     : never
   : ['s', [['3_0', '0', $l0, $l1], ...$K], $M, $g0]
 
 
+export type $p4_0_0<$S extends $State> =
+  [...$S, $Zx64<$S[2]>]
+
+export type $p4_0_1<$S extends $State> =
+  [...$S, $Zx64<$S[3]>]
+
+export type $p4_0_2<$S extends $State> =
+  [...$S, $Mul64<$S[4], $S[5]>]
+
+export type $p4_0_3<$S extends $State> =
+  [...$S, Wasm.I64ShrU<$S[6], '0000000000000000000000000000000000000000000000000000000000100000'>]
+
+export type $p4_0_4<$S extends $State> =
+  [...$S, Wasm.I32WrapI64<$S[7]>]
+
 export type $b4_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Zx64<$l0> extends infer $t0 extends WasmValue
-    ? $Zx64<$l1> extends infer $t1 extends WasmValue
-    ? $Mul64<$t0, $t1> extends infer $t2 extends WasmValue
-    ? Wasm.I64ShrU<$t2, '0000000000000000000000000000000000000000000000000000000000100000'> extends infer $t3 extends WasmValue
-    ? Wasm.I32WrapI64<$t3> extends infer $t4 extends WasmValue
-    ? ['r', $F1, $M, $g0, $t4]
-    : never
-    : never
-    : never
-    : never
+  ? $p4_0_4<$p4_0_3<$p4_0_2<$p4_0_1<$p4_0_0<[$M, $g0, $l0, $l1]>>>>> extends infer $S extends $State
+    ? ['r', $F1, $S[0], $S[1], $S[8]]
     : never
   : ['s', [['4_0', '0', $l0, $l1], ...$K], $M, $g0]
 
 
+export type $p5_0_0<$S extends $State> =
+  [...$S, Wasm.I32Add<$S[2], '00000000000000001010011111001110'>]
+
+export type $p5_0_1<$S extends $State> =
+  [...$S, $Zx64<$S[3]>]
+
+export type $p5_0_2<$S extends $State> =
+  [...$S, $Mul64<$S[4], '0000000000000000000000000000000000000000100000000000000000000000'>]
+
+export type $p5_0_3<$S extends $State> =
+  [...$S, Wasm.I64ShrU<$S[5], '0000000000000000000000000000000000000000000000000000000000010000'>]
+
+export type $p5_0_4<$S extends $State> =
+  [...$S, Wasm.I32WrapI64<$S[6]>]
+
 export type $b5_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l0, '00000000000000001010011111001110'> extends infer $t0 extends WasmValue
-    ? $Zx64<$t0> extends infer $t1 extends WasmValue
-    ? $Mul64<$t1, '0000000000000000000000000000000000000000100000000000000000000000'> extends infer $t2 extends WasmValue
-    ? Wasm.I64ShrU<$t2, '0000000000000000000000000000000000000000000000000000000000010000'> extends infer $t3 extends WasmValue
-    ? Wasm.I32WrapI64<$t3> extends infer $t4 extends WasmValue
-    ? ['r', $F1, $M, $g0, $t4]
-    : never
-    : never
-    : never
-    : never
+  ? $p5_0_4<$p5_0_3<$p5_0_2<$p5_0_1<$p5_0_0<[$M, $g0, $l0]>>>>> extends infer $S extends $State
+    ? ['r', $F1, $S[0], $S[1], $S[7]]
     : never
   : ['s', [['5_0', '0', $l0], ...$K], $M, $g0]
 
 
+export type $p6_0_0<$S extends $State> =
+  [...$S, Wasm.I32Add<$S[2], '00010010001101000101011001111000'>]
+
+export type $p6_0_1<$S extends $State> =
+  [...$S, $Zx64<$S[3]>]
+
+export type $p6_0_2<$S extends $State> =
+  [...$S, $Zx64<'10011010101111001101111011110000'>]
+
+export type $p6_0_3<$S extends $State> =
+  [...$S, $Mul64<$S[4], $S[5]>]
+
+export type $p6_0_4<$S extends $State> =
+  [...$S, Wasm.I64ShrU<$S[6], '0000000000000000000000000000000000000000000000000000000000100000'>]
+
+export type $p6_0_5<$S extends $State> =
+  [...$S, Wasm.I32WrapI64<$S[7]>]
+
 export type $b6_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$l0, '00010010001101000101011001111000'> extends infer $t0 extends WasmValue
-    ? $Zx64<$t0> extends infer $t1 extends WasmValue
-    ? $Zx64<'10011010101111001101111011110000'> extends infer $t2 extends WasmValue
-    ? $Mul64<$t1, $t2> extends infer $t3 extends WasmValue
-    ? Wasm.I64ShrU<$t3, '0000000000000000000000000000000000000000000000000000000000100000'> extends infer $t4 extends WasmValue
-    ? Wasm.I32WrapI64<$t4> extends infer $t5 extends WasmValue
-    ? ['r', $F1, $M, $g0, $t5]
-    : never
-    : never
-    : never
-    : never
-    : never
+  ? $p6_0_5<$p6_0_4<$p6_0_3<$p6_0_2<$p6_0_1<$p6_0_0<[$M, $g0, $l0]>>>>>> extends infer $S extends $State
+    ? ['r', $F1, $S[0], $S[1], $S[8]]
     : never
   : ['s', [['6_0', '0', $l0], ...$K], $M, $g0]
 
 
+export type $p7_0_0<$S extends $State> =
+  [...$S, $Zx64<$S[2]>]
+
+export type $p7_0_1<$S extends $State> =
+  [...$S, Wasm.I64Shl<$S[3], '0000000000000000000000000000000000000000000000000000000000101000'>]
+
+export type $p7_0_2<$S extends $State> =
+  [...$S, Wasm.I64ShrU<$S[4], '0000000000000000000000000000000000000000000000000000000000101000'>]
+
+export type $p7_0_3<$S extends $State> =
+  [...$S, Wasm.I32WrapI64<$S[5]>]
+
 export type $b7_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? $Zx64<$l0> extends infer $t0 extends WasmValue
-    ? Wasm.I64Shl<$t0, '0000000000000000000000000000000000000000000000000000000000101000'> extends infer $t1 extends WasmValue
-    ? Wasm.I64ShrU<$t1, '0000000000000000000000000000000000000000000000000000000000101000'> extends infer $t2 extends WasmValue
-    ? Wasm.I32WrapI64<$t2> extends infer $t3 extends WasmValue
-    ? ['r', $F1, $M, $g0, $t3]
-    : never
-    : never
-    : never
+  ? $p7_0_3<$p7_0_2<$p7_0_1<$p7_0_0<[$M, $g0, $l0]>>>> extends infer $S extends $State
+    ? ['r', $F1, $S[0], $S[1], $S[6]]
     : never
   : ['s', [['7_0', '0', $l0], ...$K], $M, $g0]
 

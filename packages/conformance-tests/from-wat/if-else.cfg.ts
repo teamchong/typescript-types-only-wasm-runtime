@@ -490,10 +490,13 @@ export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0
   : ['s', [['0_0', '0', $l0, $l1], ...$K], $M, $g0]
 
 
+export type $p0_1_0<$S extends $State> =
+  [...$S, Wasm.I32Add<$S[2], $S[3]>]
+
 export type $b0_1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $k0 extends WasmValue, $k1 extends WasmValue> =
   $F extends `1${infer $F1}`
-  ? Wasm.I32Add<$k0, $k1> extends infer $t0 extends WasmValue
-    ? ['r', $F1, $M, $g0, $t0]
+  ? $p0_1_0<[$M, $g0, $k0, $k1]> extends infer $S extends $State
+    ? ['r', $F1, $S[0], $S[1], $S[4]]
     : never
   : ['s', [['0_1', '0', $k0, $k1], ...$K], $M, $g0]
 
