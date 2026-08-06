@@ -12,7 +12,7 @@ const median = (xs: number[]) => xs.slice().sort((a, b) => a - b)[xs.length >> 1
 const out: Record<string, Record<string, string>> = {};
 for (const cap of caps) {
   for (const name of names) {
-    execFileSync(root + "/target/debug/doom_but_typescript_types", ["--aot-cfg", dir + name + ".wasm"], { stdio: "pipe", env: { ...process.env, DEPTH_CAP: cap } });
+    execFileSync(root + (process.env.BIN ?? "/target/release/doom_but_typescript_types"), ["--aot-cfg", dir + name + ".wasm"], { stdio: "pipe", env: { ...process.env, DEPTH_CAP: cap } });
     const text = readFileSync(dir + name + ".cfg.ts", "utf8");
     const blocks = (text.match(/^export type \$b/gm) ?? []).length;
     const session = createSession();

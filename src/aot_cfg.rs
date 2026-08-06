@@ -3565,6 +3565,22 @@ fn state_reads(text: &str, slots: &HashMap<String, usize>) -> String {
 ///
 /// A short cap makes each chunk slightly cheaper and buys 592 more of them,
 /// losing 10.4% overall. Chunk count, not chunk cost, is what this cap sets.
+///
+/// Re-measured after `nest_limit()` became 0, since the two-cap split below was
+/// justified by a store-chain cliff measured when memory blocks still rendered
+/// as nested `infer`s. The cliff is softer under pipelining but has not gone
+/// away, so the split stays. 200 iterations, 3 reps, µs/iter:
+///
+///                    d6    d16    d32    d48    d64
+///     8 stores     1014   1125   1329   1305   1311
+///     16 stores    1149   1107   1132   1075   1146
+///     32 stores    2392   2164   2635   2677   2709
+///
+/// 16 is the floor for the long chain and 32+ is 20-25% worse, i.e. letting
+/// memory blocks run to `pipeline_cap()` would cost real time. Doom block
+/// counts flatten out just past this point too -- 11008 blocks at cap 8, 10282
+/// at 16, 10169 at 24, 10129 at 64 -- so raising the cap buys progressively
+/// fewer hops while making the chain each load walks longer.
 fn depth_cap() -> usize {
     std::env::var("DEPTH_CAP")
         .ok()

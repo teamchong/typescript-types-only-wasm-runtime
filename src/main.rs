@@ -1560,7 +1560,20 @@ fn main() {
         }
         match compiler.compile(&bytes) {
             Ok(output) => {
-                let out_path = std::path::Path::new(wasm_path).with_extension("cfg.ts");
+                // `-o dest` writes somewhere else. A sweep that varies a cap and
+                // compares outputs needs this; without it every run of the sweep
+                // overwrites the one checked-in path and the comparison is
+                // between a file and itself.
+                let out_path = match args.iter().position(|a| a == "-o" || a == "--output") {
+                    Some(index) => match args.get(index + 1) {
+                        Some(dest) => std::path::PathBuf::from(dest),
+                        None => {
+                            eprintln!("{} needs a path after it", args[index]);
+                            std::process::exit(1);
+                        }
+                    },
+                    None => std::path::Path::new(wasm_path).with_extension("cfg.ts"),
+                };
                 std::fs::write(&out_path, output).expect("could not write the output");
                 println!("wrote {}", out_path.display());
             }
