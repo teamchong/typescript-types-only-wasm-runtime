@@ -928,7 +928,13 @@ pub struct SourceFile {
     // MemoryData by id
     data: RefCell<IndexMap<String, MemoryData>>,
 
-    /// the arguments constraint to the entry function
+    /// Type of the `entry` export's argument tuple, e.g. `[number, number]`.
+    ///
+    /// Defaults to the empty tuple rather than the empty string: a module with no
+    /// function named `entry` never calls `set_args`, and interpolating "" here
+    /// emitted `arguments extends ,` - a syntax error that stops tsc parsing the
+    /// file, and so stops it checking the whole project. `i64-arith.ts` shipped
+    /// like that and `tsc --noEmit` reported only TS1110 for the entire repo.
     args: RefCell<String>,
 
     // module types.  rarely needed, but unfortunately not never needed
@@ -1086,7 +1092,7 @@ impl Default for SourceFile {
 impl SourceFile {
     pub fn new(preview_bytes: bool) -> Self {
         SourceFile {
-            args: RefCell::new(String::from("")),
+            args: RefCell::new(String::from("[]")),
             data: RefCell::new(IndexMap::new()),
             globals: RefCell::new(IndexMap::new()),
             imports: RefCell::new(IndexMap::new()),
@@ -1727,5 +1733,57 @@ mod tests {
             let source_file = parse_wat_and_dump(dir_entry);
             create_ts(&source_file, dir_entry);
         }
+    }
+
+    /// Every generated `.ts` has to be syntactically valid TypeScript.
+    ///
+    /// A parse error in one generated file is not a local problem: `tsc` stops at
+    /// the first one, so the project's build gate (`pnpm test` ends in `tsc`)
+    /// reports that single error and checks nothing else. `i64-arith.ts` shipped
+    /// with `arguments extends ,` - the entry-args string is only set for a
+    /// function named `entry`, and this module has none - and for as long as it
+    /// was there `tsc --noEmit` finished in 3 seconds having type-checked none of
+    /// the repo. It hid 156 failing type assertions in ts-type-math.
+    ///
+    /// This checks the shape rather than running tsc, so it stays a fast unit
+    /// test: an unsatisfied `extends` is exactly what an empty interpolation
+    /// leaves behind, and it is the failure mode that actually happened.
+    #[test]
+    fn generated_typescript_has_no_empty_constraints() {
+        let dirs = [
+            "./packages/conformance-tests/from-wat/",
+            "./packages/conformance-tests/from-wat-single/",
+            "./packages/conformance-tests/from-c/",
+        ];
+        let mut bad = Vec::new();
+        for dir in dirs {
+            let Ok(entries) = fs::read_dir(dir) else { continue };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(OsStr::to_str) != Some("ts") {
+                    continue;
+                }
+                // .cfg.ts comes from the CFG backend, which is covered elsewhere
+                if path.to_string_lossy().ends_with(".cfg.ts") {
+                    continue;
+                }
+                let Ok(text) = fs::read_to_string(&path) else { continue };
+                for (number, line) in text.lines().enumerate() {
+                    let trimmed = line.trim_end();
+                    if trimmed.ends_with("extends ,")
+                        || trimmed.ends_with("extends ")
+                        || trimmed.ends_with("extends >")
+                    {
+                        bad.push(format!("{}:{}: {}", path.display(), number + 1, trimmed.trim()));
+                    }
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "generated TypeScript has an empty `extends` constraint, which stops \
+             tsc parsing the file and so stops it checking the whole project:\n  {}",
+            bad.join("\n  ")
+        );
     }
 }

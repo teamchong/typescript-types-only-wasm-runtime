@@ -154,7 +154,7 @@ export type funcs = {
 }
 
 export type entry<
-  arguments extends ,
+  arguments extends [],
   debugMode extends boolean = false,
   stopAt extends number = number,
 > = bootstrap<
