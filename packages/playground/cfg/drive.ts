@@ -1160,9 +1160,28 @@ ${splitReaders}
     // while the state stays byte for byte identical.
     const d0 = performance.now();
     const bad = degraded(tag, state, live, value, globals);
+    if (process.env.DUMP_BAD && bad) {
+      process.stderr.write(`\n[DUMP_BAD] ${bad}\n  tag=${tag}\n  live=${live.slice(0, 4000)}\n  state=${state.slice(0, 400)}\n`);
+    }
     degMs += performance.now() - d0;
     mark("degraded");
     if (bad) {
+      // A bare `any` is the checker having hit its own instantiation budget on
+      // a block that is too big to resolve at all - the compile-time caps, not
+      // anything about this run. It is deterministic: every retry below (fresh
+      // compiler, then fuel halving all the way to minFuel) reproduces it, so
+      // the ladder just turns one wrong answer into a long one. arith120 at
+      // PIPELINE_CAP=64 walked fuel 20000 -> 4 reporting a fuel problem the
+      // whole way. Say what it is and stop.
+      if (/\bany\b/.test(bad)) {
+        failed = `chunk ${chunks}: ${bad}
+  the checker gave up on a block rather than running out of fuel - a block is
+  too large to resolve, so lower DEPTH_CAP or PIPELINE_CAP and recompile.
+  (a bare \`tsc\` on the generated module reports this as TS2589.)`;
+        writeFileSync(join(__dirname, "failing-chunk.ts"), file);
+        writeFileSync(join(__dirname, "failing-output.txt"), `tag ${tag}\nvalue ${value}\nlive ${live}\nstate ${state}`);
+        break;
+      }
       // An approximation handed back quietly is not a fuel problem: the same
       // chunk that came back never at fuel 1024 still came back never at fuel
       // 4, then evaluated correctly in a new compiler. So replace the compiler

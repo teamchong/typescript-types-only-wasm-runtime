@@ -3615,11 +3615,24 @@ fn nest_limit() -> usize {
         .unwrap_or(0)
 }
 
+/// Longest pure-arithmetic run rendered as one pipelined block.
+///
+/// 64 was chosen from a nested-vs-pipelined timing crossover, but never
+/// checked against the checker's instantiation budget. It is over the cliff:
+/// at cap 35 and above `bench/arith120` type-checks to `any` (TS2589 under a
+/// bare `tsc`), and the driver reports that as "live value is not a word: any"
+/// while halving fuel from 20000 down to 4 chasing a fuel bug that isn't
+/// there. The last cap that resolves is 34.
+///
+/// The cliff is also the only thing this knob does. Verified against V8 on
+/// arith120, caps 6/8/12/16/20/24/28/32/34 all land within noise of each
+/// other - 2465-2707 us/iter - while the block count falls 15 -> 6. Longer
+/// pipelines buy no time, so take the margin instead of the cliff edge.
 fn pipeline_cap() -> usize {
     std::env::var("PIPELINE_CAP")
         .ok()
         .and_then(|text| text.parse().ok())
-        .unwrap_or(64)
+        .unwrap_or(24)
 }
 
 /// fresh names for a block's incoming stack slots
