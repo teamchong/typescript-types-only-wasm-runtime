@@ -76,7 +76,52 @@ type _MultiplyI32<a extends string, b extends string> =
         >
   : never
 
+/// Low and high 32 characters of a 64-character word, each widened back to 64.
+type _Lo64<s extends string> =
+  s extends `${infer _h0}${infer _h1}${infer _h2}${infer _h3}${infer _h4}${infer _h5}${infer _h6}${infer _h7}${infer _h8}${infer _h9}${infer _h10}${infer _h11}${infer _h12}${infer _h13}${infer _h14}${infer _h15}${infer _h16}${infer _h17}${infer _h18}${infer _h19}${infer _h20}${infer _h21}${infer _h22}${infer _h23}${infer _h24}${infer _h25}${infer _h26}${infer _h27}${infer _h28}${infer _h29}${infer _h30}${infer _h31}${infer lo}`
+  ? lo
+  : never
+type _Hi64<s extends string> =
+  s extends `${infer h0}${infer h1}${infer h2}${infer h3}${infer h4}${infer h5}${infer h6}${infer h7}${infer h8}${infer h9}${infer h10}${infer h11}${infer h12}${infer h13}${infer h14}${infer h15}${infer h16}${infer h17}${infer h18}${infer h19}${infer h20}${infer h21}${infer h22}${infer h23}${infer h24}${infer h25}${infer h26}${infer h27}${infer h28}${infer h29}${infer h30}${infer h31}${string}`
+  ? `${h0}${h1}${h2}${h3}${h4}${h5}${h6}${h7}${h8}${h9}${h10}${h11}${h12}${h13}${h14}${h15}${h16}${h17}${h18}${h19}${h20}${h21}${h22}${h23}${h24}${h25}${h26}${h27}${h28}${h29}${h30}${h31}`
+  : never
+
+/// Assemble the 64-bit product out of 32-bit multiplies.
+///
+/// The partial-product loop costs one add over the whole accumulator per one bit
+/// of the multiplier, so at 64 characters it exhausts the checker's budget on
+/// almost anything: 5 * 3 was already TS2589, and every test case whose narrower
+/// operand was wider than one bit failed. Only the low 64 bits survive, so
+///
+///   a * b = aLo*bLo + ((aHi*bLo + aLo*bHi) << 32)
+///
+/// and each piece is a 32-bit multiply, which already works and is already
+/// half-split internally. The three cross terms above the low 64 bits are
+/// discarded, exactly as the CFG backend's `$Mul64` does - that one is checked
+/// against V8 on `i64-arith.wasm`, 24 exports matching, so this mirrors a
+/// structure known to be right.
+///
+/// Written as a chain of `infer` bindings rather than nested calls: each step
+/// hands the next a name that is already resolved, so the checker does not
+/// re-walk the prefix.
 type _Magnitude64<a extends string, b extends string> =
+  Wasm.I32Mul<_Lo64<a>, _Lo64<b>> extends infer lolo extends string
+  ? _MulWide<_Lo64<a>, _Lo64<b>> extends infer full extends string
+    ? Wasm.I32Mul<_Hi64<a>, _Lo64<b>> extends infer ahbl extends string
+      ? Wasm.I32Mul<_Lo64<a>, _Hi64<b>> extends infer albh extends string
+        ? Wasm.I32Add<Wasm.I32Add<ahbl, albh>, _Hi64<full>> extends infer hi extends string
+          ? `${hi}${lolo}`
+          : never
+        : never
+      : never
+    : never
+  : never
+
+/// Full 64-bit product of two 32-bit values, needed for the carry out of the
+/// low half. Both operands have at most 32 significant characters, so the
+/// partial-product loop stays inside budget where a 64-character multiplier
+/// does not.
+type _MulWide<a extends string, b extends string> =
   Ensure.I64<_MultiplyNarrowest<a, b>>
 
 /// A zero bit costs the partial-product loop nothing, but a one bit costs an add
