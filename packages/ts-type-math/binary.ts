@@ -315,10 +315,21 @@ export type ToDecimalUnsignedBigInt<
   _ToDecimalUnsignedBigInt<ReverseString8Segments<T>>
 >;
 
+/// Sum the set bits' place values, carrying the running total *down* the
+/// recursion rather than wrapping an `AddBigInt` around the result on the way
+/// back up.
+///
+/// The wrapping version nested one add per one bit, so a value with many set
+/// bits blew the checker's budget: `11111111111111111111111111111100` - the low
+/// half of a shifted negative, an ordinary result - was TS2589, while a small
+/// value like `100` was fine. That is why every failing 64-bit shift case had a
+/// negative operand. An accumulator keeps the nesting flat, and the recursion
+/// depth is the string length either way.
 type _ToDecimalUnsignedBigInt<
   Binary extends string,
 
   _PowerOfTwo extends bigint = 0n,
+  _Acc extends bigint = 0n,
   _NextPowerOfTwo extends bigint = AddBigInt<_PowerOfTwo,  1n>
 > =
   Binary extends `${infer Head}${infer Tail}`
@@ -326,20 +337,19 @@ type _ToDecimalUnsignedBigInt<
   ? Head extends '0'
     ? _ToDecimalUnsignedBigInt<
         Tail,
-        _NextPowerOfTwo
+        _NextPowerOfTwo,
+        _Acc
       >
 
     : Head extends '1'
-      ? AddBigInt<
-          _ToDecimalUnsignedBigInt<
-            Tail,
-            _NextPowerOfTwo
-          >,
-          PowersOfTwoBigInt[Convert.TSBigInt.ToTSNumber<_PowerOfTwo>]
+      ? _ToDecimalUnsignedBigInt<
+          Tail,
+          _NextPowerOfTwo,
+          AddBigInt<_Acc, PowersOfTwoBigInt[Convert.TSBigInt.ToTSNumber<_PowerOfTwo>]>
         >
 
       : never
-  : 0n
+  : _Acc
 
 /** '0' or '1' */
 export type Bit = string;
