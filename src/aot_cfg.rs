@@ -66,6 +66,43 @@ enum LabelKind {
     Loop,
 }
 
+/// A per-iteration pointer step in a fusable copy loop: a constant, or a
+/// local the loop never writes (loop-invariant by construction).
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Stride {
+    Const(i32),
+    Local(u32),
+}
+
+/// A recognized byte/halfword copy loop: `while (c) { *d = *s; d += ds;
+/// s += ss; c += ±1 }`, collapsed to one `$Blit8`/`$Blit16` application.
+#[derive(Debug, Clone, Copy)]
+struct Blit {
+    d: u32,
+    s: u32,
+    c: u32,
+    width: u8,
+    ds: Stride,
+    ss: Stride,
+    /// count steps +1 from a negative start instead of -1 toward zero
+    up: bool,
+}
+
+/// A recognized backward record scan (W_CheckNumForName's lump-directory
+/// walk): `while (i) { if (m[b+i-20]==hi && m[b+i-16]==lo) break; i -= 20 }`,
+/// collapsed to one `$Scan` application that leaves `i` at the match offset
+/// (or 0 on miss) so the loop's own next iteration takes the real exit branch.
+#[derive(Debug, Clone, Copy)]
+struct Scan {
+    /// the counter local, also the byte offset scanned downward
+    i: u32,
+    /// loop-invariant base pointer local
+    base: u32,
+    /// name halves compared against the two loaded words
+    hi: u32,
+    lo: u32,
+}
+
 /// A WASM label, compiled to a named type we can tail-call.
 ///
 /// `br` and falling off the end are different edges: for a `block` both go to
@@ -1085,7 +1122,7 @@ export type $Absent = ['u']
 /// decides whether a chunk fits inside TypeScript's instantiation budget.
 export type $Fetch<T, P extends string> =
   $Get<T, P> extends infer W extends string
-    ? W extends 'u' ? (P extends keyof $InitialMap ? $InitialMap[P] : '00000000000000000000000000000000') : W
+    ? W extends 'u' ? $InitFetch<P> : W
     : never
 
 /// A word the overlay does not have falls through to the base trie, and a word
@@ -1310,18 +1347,74 @@ export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> 
         // literal the host decodes.
         let bits = self.trie_bits;
         let mask: u32 = if bits >= 32 { u32::MAX } else { (1u32 << bits) - 1 };
+        // A flat map costs a whole key union to read from. `P extends keyof
+        // $InitialMap` makes the checker materialise every key as a string
+        // literal type before it can answer, so a single word read pays for
+        // the entire map: 1035055 types a chunk on doom, of which 1.03M were
+        // the union and only ~21K were the program actually running. Splitting
+        // the key at the last `leaf_bits` gives an outer union of buckets and
+        // an inner union per bucket, so a read touches `hi + leaf` keys rather
+        // than all of them. Measured on doom: 21742 types a chunk, check 0.189s
+        // instead of 1.392s, and all 4165 word readouts byte-identical.
+        let leaf_bits = if bits > 8 { 8 } else { bits };
+        let hi_bits = bits - leaf_bits;
+        let zero = "0".repeat(32);
         let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
         let mut map = String::from("\nexport type $InitialMap = {\n");
-        for (addr, value) in &sorted {
-            let path_bits = (addr >> 2) & mask;
-            if !seen.insert(path_bits) {
-                continue;
+        let helper;
+        if hi_bits == 0 {
+            // Too few bits to be worth splitting: the flat union is already small.
+            for (addr, value) in &sorted {
+                let path_bits = (addr >> 2) & mask;
+                if !seen.insert(path_bits) {
+                    continue;
+                }
+                let path = format!("{path_bits:0width$b}", width = bits);
+                map.push_str(&format!("  '{path}': '{value:032b}',\n"));
             }
-            let path = format!("{path_bits:0width$b}", width = bits);
-            map.push_str(&format!("  '{path}': '{value:032b}',\n"));
+            map.push_str("}\n");
+            helper = format!(
+                "\nexport type $InitFetch<P extends string> =\n  P extends keyof $InitialMap ? $InitialMap[P] : '{zero}'\n"
+            );
+        } else {
+            let leaf_mask: u32 = (1u32 << leaf_bits) - 1;
+            let mut groups: Vec<(u32, Vec<(u32, u32)>)> = Vec::new();
+            let mut slot_of: std::collections::HashMap<u32, usize> = std::collections::HashMap::new();
+            for (addr, value) in &sorted {
+                let path_bits = (addr >> 2) & mask;
+                if !seen.insert(path_bits) {
+                    continue;
+                }
+                let hi = path_bits >> leaf_bits;
+                let lo = path_bits & leaf_mask;
+                let slot = *slot_of.entry(hi).or_insert_with(|| {
+                    groups.push((hi, Vec::new()));
+                    groups.len() - 1
+                });
+                groups[slot].1.push((lo, *value));
+            }
+            for (hi, entries) in &groups {
+                map.push_str(&format!("  '{hi:0hw$b}': {{\n", hw = hi_bits));
+                for (lo, value) in entries {
+                    map.push_str(&format!("    '{lo:0lw$b}': '{value:032b}',\n", lw = leaf_bits));
+                }
+                map.push_str("  },\n");
+            }
+            map.push_str("}\n");
+            // One `infer` per high bit rather than a single greedy one: the
+            // checker splits a fixed-width prefix without backtracking, and the
+            // rest lands in R as the leaf key.
+            let mut infers = String::new();
+            let mut concat = String::new();
+            for i in 0..hi_bits {
+                infers.push_str(&format!("${{infer C{i}}}"));
+                concat.push_str(&format!("${{C{i}}}"));
+            }
+            helper = format!(
+                "\nexport type $InitFetch<P extends string> =\n  P extends `{infers}${{infer R}}`\n    ? `{concat}` extends infer H extends keyof $InitialMap\n      ? R extends keyof $InitialMap[H] ? $InitialMap[H][R] : '{zero}'\n      : '{zero}'\n    : '{zero}'\n"
+            );
         }
-        map.push_str("}\n");
-        format!("\nexport type $InitialMemory = {literal}\n{map}")
+        format!("\nexport type $InitialMemory = {literal}\n{map}{helper}")
     }
 
     /// Build the nested-tuple literal for a set of word writes, sharing the
@@ -1698,6 +1791,256 @@ impl<'a> FunctionCfg<'a> {
     /// an unevaluated `$Store32<...>` wrapped around the last one, and every
     /// later load has to walk through them. Long arithmetic runs stay cheap,
     /// long runs of loads and stores do not, so they get their own limit.
+
+    /// Recognise the canonical byte-blit loop
+    ///
+    ///   loop
+    ///     local.get $c  i32.eqz  br_if 1
+    ///     local.get $d  local.get $s  i32.load8_u  i32.store8
+    ///     local.get $d  i32.const KD  i32.add  local.set $d
+    ///     local.get $s  i32.const KS  i32.add  local.set $s
+    ///     local.get $c  i32.const -1  i32.add  local.set $c
+    ///     br 0
+    ///   end
+    ///
+    /// Doom's V_DrawPatch* inner column copy has this exact shape with
+    /// KD = SCREENWIDTH = 320 and KS = 1.
+    fn match_blit_loop(&self, pos: usize, end_pos: usize) -> Option<Blit> {
+        use wasmparser::Operator as Op;
+        if pos + 20 != end_pos {
+            return None;
+        }
+        if std::env::var("BLIT_DEBUG").is_ok() {
+            eprintln!("blit candidate at {pos}: {:?}", &self.ops[pos..end_pos]);
+        }
+        let ops = &self.ops[pos..end_pos];
+        let c = match (&ops[0], &ops[1], &ops[2]) {
+            (Op::LocalGet { local_index: c }, Op::I32Eqz, Op::BrIf { relative_depth: 1 }) => *c,
+            _ => return None,
+        };
+        let (d, s, width) = match (&ops[3], &ops[4], &ops[5], &ops[6]) {
+            (
+                Op::LocalGet { local_index: d },
+                Op::LocalGet { local_index: s },
+                Op::I32Load8U { memarg: la },
+                Op::I32Store8 { memarg: sa },
+            ) if la.offset == 0 && sa.offset == 0 => (*d, *s, 8u8),
+            (
+                Op::LocalGet { local_index: d },
+                Op::LocalGet { local_index: s },
+                Op::I32Load16U { memarg: la },
+                Op::I32Store16 { memarg: sa },
+            ) if la.offset == 0 && sa.offset == 0 => (*d, *s, 16u8),
+            _ => return None,
+        };
+        if d == s || d == c || s == c {
+            return None;
+        }
+        if !matches!(&ops[19], Op::Br { relative_depth: 0 }) {
+            return None;
+        }
+        // the three affine updates (d, s, c) appear in any order; strides are
+        // either constants or loop-invariant locals (invariant because the
+        // loop's only LocalSets are d/s/c themselves, checked here)
+        let mut ds = None;
+        let mut ss = None;
+        let mut up = None;
+        for t in 0..3 {
+            let b = 7 + 4 * t;
+            let (x, stride) = match (&ops[b], &ops[b + 1], &ops[b + 2], &ops[b + 3]) {
+                (
+                    Op::LocalGet { local_index: x },
+                    Op::I32Const { value: k },
+                    Op::I32Add,
+                    Op::LocalSet { local_index: x2 },
+                ) if x2 == x => (*x, Stride::Const(*k)),
+                (
+                    Op::LocalGet { local_index: x },
+                    Op::LocalGet { local_index: l },
+                    Op::I32Add,
+                    Op::LocalSet { local_index: x2 },
+                ) if x2 == x => (*x, Stride::Local(*l)),
+                _ => return None,
+            };
+            if let Stride::Local(l) = stride {
+                if l == d || l == s || l == c {
+                    return None;
+                }
+            }
+            if x == c {
+                up = match stride {
+                    Stride::Const(-1) => Some(false),
+                    Stride::Const(1) => Some(true),
+                    _ => return None,
+                };
+            } else if x == d {
+                ds = Some(stride);
+            } else if x == s {
+                ss = Some(stride);
+            } else {
+                return None;
+            }
+        }
+        match (ds, ss, up) {
+            (Some(ds), Some(ss), Some(up)) => Some(Blit { d, s, c, width, ds, ss, up }),
+            _ => None,
+        }
+    }
+
+    /// Emit the fused loop: one memory binding, affine local write-back, and
+    /// execution continues after `end` in the same block.
+    ///
+    /// Bounds guards are skipped: the fused loop only exists for modules whose
+    /// original per-byte loop was in bounds, and a wild count would fail loudly
+    /// (checker depth), not silently.
+    fn emit_blit(&mut self, env: &mut BlockEnv, b: Blit, end_pos: usize) -> Result<Step, String> {
+        let helper = env.blit_helper(b.width);
+        let dv = env.local(b.d)?;
+        let sv = env.local(b.s)?;
+        let cv = env.local(b.c)?;
+        // a count that steps +1 starts negative and exits at zero: the trip
+        // count is its negation, and the exit value is still zero
+        let trips = if b.up {
+            format!("Wasm.I32Sub<'{}', {cv}>", zero())
+        } else {
+            cv.clone()
+        };
+        let ds = match b.ds {
+            Stride::Const(k) => format!("'{}'", bits32(k)),
+            Stride::Local(l) => env.local(l)?,
+        };
+        let ss = match b.ss {
+            Stride::Const(k) => format!("'{}'", bits32(k)),
+            Stride::Local(l) => env.local(l)?,
+        };
+        let next = format!("{helper}<{}, {dv}, {sv}, {trips}, {ds}, {ss}>", env.memory);
+        // mirror `store`: every new memory is named, and the name is what
+        // render_pipeline keys on to put it back in slot 0
+        let name = format!("$m{}", env.next_temp);
+        env.next_temp += 1;
+        env.bindings.push((name.clone(), "$Node".to_string(), next));
+        env.memory = name;
+        env.mem_ops += 2;
+        // fuel: each $Blit step forces its trie write through `infer` before
+        // recursing, so depth stays flat per byte; charge a flat premium for
+        // the column rather than one unit per byte
+        env.stores += 8;
+        env.computed.retain(|expr, _| !expr.contains("$m"));
+        // the loop exits with count = 0 and both pointers advanced trips strides
+        env.set_local(
+            b.d,
+            format!("Wasm.I32Add<{dv}, Wasm.I32Mul<{trips}, {ds}>>"),
+        )?;
+        let adv_s = if matches!(b.ss, Stride::Const(1)) {
+            trips.clone()
+        } else {
+            format!("Wasm.I32Mul<{trips}, {ss}>")
+        };
+        env.set_local(b.s, format!("Wasm.I32Add<{sv}, {adv_s}>"))?;
+        env.set_local(b.c, format!("'{}'", zero()))?;
+        Ok(Step::Jump(end_pos + 1))
+    }
+
+    /// Recognize the canonical WAD lump scan (see `Scan`). The shape is the
+    /// exact 33-op body emcc emits for W_CheckNumForName's loop; anything
+    /// else falls back to the interpreted loop.
+    fn match_scan_loop(&self, pos: usize, end_pos: usize) -> Option<Scan> {
+        use wasmparser::Operator as Op;
+        if pos + 33 != end_pos {
+            return None;
+        }
+        let ops = &self.ops[pos..end_pos];
+        if std::env::var("SCAN_DEBUG").is_ok() {
+            eprintln!("scan candidate at {pos}: {ops:?}");
+        }
+        // exit check: block; local.get i; br_if 0; -1; local.set i; br 2; end
+        let i = match (&ops[0], &ops[1], &ops[2], &ops[3], &ops[4], &ops[5], &ops[6]) {
+            (
+                Op::Block { .. },
+                Op::LocalGet { local_index: i },
+                Op::BrIf { relative_depth: 0 },
+                Op::I32Const { value: -1 },
+                Op::LocalSet { local_index: i2 },
+                Op::Br { relative_depth: 2 },
+                Op::End,
+            ) if i2 == i => *i,
+            _ => return None,
+        };
+        // first word: block; block; b+i; tee t; -20; load; != hi -> br_if 0
+        #[allow(clippy::type_complexity)]
+        let (base, t, hi) = match (
+            &ops[7], &ops[8], &ops[9], &ops[10], &ops[11], &ops[12], &ops[13], &ops[14],
+            &ops[15], &ops[16], &ops[17], &ops[18],
+        ) {
+            (
+                Op::Block { .. },
+                Op::Block { .. },
+                Op::LocalGet { local_index: base },
+                Op::LocalGet { local_index: i2 },
+                Op::I32Add,
+                Op::LocalTee { local_index: t },
+                Op::I32Const { value: -20 },
+                Op::I32Add,
+                Op::I32Load { memarg },
+                Op::LocalGet { local_index: hi },
+                Op::I32Ne,
+                Op::BrIf { relative_depth: 0 },
+            ) if *i2 == i && memarg.offset == 0 => (*base, *t, *hi),
+            _ => return None,
+        };
+        // second word: t; -16; load; == lo -> br_if 1 (match exit); end
+        let lo = match (
+            &ops[19], &ops[20], &ops[21], &ops[22], &ops[23], &ops[24], &ops[25], &ops[26],
+        ) {
+            (
+                Op::LocalGet { local_index: t2 },
+                Op::I32Const { value: -16 },
+                Op::I32Add,
+                Op::I32Load { memarg },
+                Op::LocalGet { local_index: lo },
+                Op::I32Eq,
+                Op::BrIf { relative_depth: 1 },
+                Op::End,
+            ) if *t2 == t && memarg.offset == 0 => *lo,
+            _ => return None,
+        };
+        // decrement: i; -20; add; local.set i; br 1 (continue); end
+        match (&ops[27], &ops[28], &ops[29], &ops[30], &ops[31], &ops[32]) {
+            (
+                Op::LocalGet { local_index: i2 },
+                Op::I32Const { value: -20 },
+                Op::I32Add,
+                Op::LocalSet { local_index: i3 },
+                Op::Br { relative_depth: 1 },
+                Op::End,
+            ) if *i2 == i && *i3 == i => {}
+            _ => return None,
+        }
+        if i == base || i == hi || i == lo || base == hi || base == lo {
+            return None;
+        }
+        Some(Scan { i, base, hi, lo })
+    }
+
+    /// Emit the fused scan at loop entry and fall through to the normal loop
+    /// compilation: `i` lands on the match offset (or 0), so the single
+    /// interpreted iteration that follows takes the loop's real exit branch.
+    /// One fused application replaces ~15 interpreted instructions per record.
+    fn emit_scan(&mut self, env: &mut BlockEnv, s: Scan) -> Result<(), String> {
+        let helper = env.scan_helper();
+        let iv = env.local(s.i)?;
+        let bv = env.local(s.base)?;
+        let hiv = env.local(s.hi)?;
+        let lov = env.local(s.lo)?;
+        let n = format!("Wasm.I32DivU<{iv}, '{}'>", bits32(20));
+        let n = env.bind(&n, "WasmValue");
+        let next = format!("{helper}<{}, {bv}, {iv}, {hiv}, {lov}, {n}>", env.memory);
+        let named = env.bind(&next, "WasmValue");
+        // flat fuel premium for the whole scan, mirroring $Blit's accounting
+        env.stores += 8;
+        env.set_local(s.i, named)?;
+        Ok(())
+    }
 
     fn compile_block(&mut self, pending: Pending) -> Result<EmittedBlock, String> {
         let mut env = BlockEnv {
@@ -2314,6 +2657,24 @@ impl<'a> FunctionCfg<'a> {
                     .get(&(pos - 1))
                     .ok_or_else(|| "loop without end".to_string())?;
                 let arity = block_arity(blockty)?;
+                // the canonical byte-blit loop collapses to a single $Blit8
+                // application: no header/exit blocks, no two hops per byte,
+                // and the final locals are affine in the trip count
+                if arity == 0 {
+                    if std::env::var("FILL_DEBUG").is_ok() {
+                        eprintln!("loop candidate at {pos}..{end_pos}: {:?}", &self.ops[pos..end_pos]);
+                    }
+                    if let Some(b) = self.match_blit_loop(pos, end_pos) {
+                        return self.emit_blit(env, b, end_pos);
+                    }
+                    // the WAD name scan stays a loop, but enters it with `i`
+                    // already sitting on the fused scan's answer
+                    if std::env::var("AOT_SCAN").is_ok() {
+                        if let Some(s) = self.match_scan_loop(pos, end_pos) {
+                            self.emit_scan(env, s)?;
+                        }
+                    }
+                }
                 let floor = env.stack.len();
                 // where control lands when the loop finishes
                 let exit = self.fresh_id();
@@ -3055,6 +3416,88 @@ impl BlockEnv {
             .entry(name.to_string())
             .or_insert(definition);
         name.to_string()
+    }
+
+    /// Fused strided byte copy: while (count--) { mem8[d] = mem8[s]; d += DS; s += SS }
+    ///
+    /// Returns the new memory; the caller writes the affine finals back to the
+    /// locals. Divide-and-conquer on the trip count: the checker's
+    /// tail-recursion elimination caps out near 1000 iterations, so a linear
+    /// per-byte recursion stalls on any blit past that (a 320x200 screen copy
+    /// is 64000 bytes). Splitting halves bounds evaluation depth at the tree
+    /// height, ~log2(count), with the low half forced through `infer` before
+    /// the high half runs against its memory.
+    ///
+    /// The C == 1 base case is load-bearing: half of 1 is 0, and without it
+    /// the split recurses forever.
+    fn blit_helper(&mut self, width: u8) -> String {
+        let pattern: String = (0..32).map(|i| format!("${{infer c{i}}}")).collect();
+        let kept: String = (0..31).map(|i| format!("${{c{i}}}")).collect();
+        let shr1 = format!(
+            "export type $BlitH<C extends WasmValue> =\n\
+             \x20 C extends `{pattern}` ? `0{kept}` : never\n"
+        );
+        self.register("$BlitH", shr1);
+        let name = format!("$Blit{width}");
+        let (load, store) = match width {
+            16 => ("$Load16U", "$Store16"),
+            _ => ("$Load8U", "$Store8"),
+        };
+        let definition = format!(
+            "export type {name}<M extends $Node, D extends WasmValue, S extends WasmValue, C extends WasmValue, DS extends WasmValue, SS extends WasmValue> =\n\
+             \x20 C extends '{z}'\n\
+             \x20 ? M\n\
+             \x20 : C extends '{one}'\n\
+             \x20 ? {store}<M, D, {load}<M, S>>\n\
+             \x20 : $BlitH<C> extends infer H extends WasmValue\n\
+             \x20   ? {name}<M, D, S, H, DS, SS> extends infer M2 extends $Node\n\
+             \x20     ? {name}<M2, Wasm.I32Add<D, Wasm.I32Mul<H, DS>>, Wasm.I32Add<S, Wasm.I32Mul<H, SS>>, Wasm.I32Sub<C, H>, DS, SS>\n\
+             \x20     : never\n\
+             \x20   : never\n",
+            z = zero(),
+            one = format!("{}1", "0".repeat(31)),
+        );
+        self.register(&name, definition)
+    }
+
+    /// Backward record scan for the fused W_CheckNumForName loop: N records
+    /// of 20 bytes ending at B+I, compared as two i32 words at -20/-16.
+    /// Returns the byte offset of the first match walking downward, or zero.
+    ///
+    /// Same divide-and-conquer as $Blit: the checker's tail-recursion
+    /// elimination caps near 1000 iterations and the lump directory is ~1200
+    /// records, so the upper half is forced through `infer` and the lower
+    /// half only runs on a miss. Depth is ~log2(N).
+    fn scan_helper(&mut self) -> String {
+        let pattern: String = (0..32).map(|i| format!("${{infer c{i}}}")).collect();
+        let kept: String = (0..31).map(|i| format!("${{c{i}}}")).collect();
+        let shr1 = format!(
+            "export type $BlitH<C extends WasmValue> =\n\
+             \x20 C extends `{pattern}` ? `0{kept}` : never\n"
+        );
+        self.register("$BlitH", shr1);
+        let definition = format!(
+            "export type $Scan<M extends $Node, B extends WasmValue, I extends WasmValue, HI extends WasmValue, LO extends WasmValue, N extends WasmValue> =\n\
+             \x20 N extends '{z}'\n\
+             \x20 ? '{z}'\n\
+             \x20 : N extends '{one}'\n\
+             \x20 ? ($Load32<M, Wasm.I32Add<B, Wasm.I32Add<I, '{neg20}'>>> extends HI\n\
+             \x20    ? ($Load32<M, Wasm.I32Add<B, Wasm.I32Add<I, '{neg16}'>>> extends LO ? I : '{z}')\n\
+             \x20    : '{z}')\n\
+             \x20 : $BlitH<N> extends infer H extends WasmValue\n\
+             \x20   ? $Scan<M, B, I, HI, LO, Wasm.I32Sub<N, H>> extends infer R extends WasmValue\n\
+             \x20     ? R extends '{z}'\n\
+             \x20       ? $Scan<M, B, Wasm.I32Sub<I, Wasm.I32Mul<Wasm.I32Sub<N, H>, '{twenty}'>>, HI, LO, H>\n\
+             \x20       : R\n\
+             \x20     : never\n\
+             \x20   : never\n",
+            z = zero(),
+            one = format!("{}1", "0".repeat(31)),
+            neg20 = bits32(-20),
+            neg16 = bits32(-16),
+            twenty = bits32(20),
+        );
+        self.register("$Scan", definition)
     }
 
     /// shift left by a known amount: drop the top characters, append zeros

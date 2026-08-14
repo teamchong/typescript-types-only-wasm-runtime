@@ -494,7 +494,7 @@ export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0
 
 
 export type $p1_0_0<$S extends $State> =
-  [$Store32<$S[0], $S[17], '00000000000000000000000000000000'>, ...$Rest<$S>]
+  [(($S[17] extends `000000000000000${string}` ? ($S[17] extends `${string}11111111111111101` | `${string}11111111111111110` | `${string}11111111111111111` ? '00000000000000000000000000000000' : '00000000000000000000000000000001') : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Store32<$S[0], $S[17], '00000000000000000000000000000000'> : never), ...$Rest<$S>]
 
 export type $p1_0_1<$S extends $State> =
   [...$S, Wasm.I32Add<$S[15], $Shl3<$S[15]>>]
@@ -625,7 +625,7 @@ export type $p1_7_0<$S extends $State> =
   [...$S, Wasm.I32Add<$S[16], $S[18]>]
 
 export type $p1_7_1<$S extends $State> =
-  [...$S, $Load8U<$S[0], $S[23]>]
+  [...$S, (($S[23] extends `000000000000000${string}` ? '00000000000000000000000000000001' : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Load8U<$S[0], $S[23]> : never)]
 
 export type $p1_7_2<$S extends $State> =
   [...$S, $Eq<$S[24], '00000000000000000000000000000000'>]
@@ -641,7 +641,7 @@ export type $b1_7<$F extends string, $K extends unknown[], $M extends $Node, $g0
 
 
 export type $p1_8_0<$S extends $State> =
-  [$Store32<$S[0], $S[17], $Inc0<$S[19]>>, ...$Rest<$S>]
+  [(($S[17] extends `000000000000000${string}` ? ($S[17] extends `${string}11111111111111101` | `${string}11111111111111110` | `${string}11111111111111111` ? '00000000000000000000000000000000' : '00000000000000000000000000000001') : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Store32<$S[0], $S[17], $Inc0<$S[19]>> : never), ...$Rest<$S>]
 
 export type $b1_8<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue, $l10 extends WasmValue> =
   $F extends `11${infer $F1}`
@@ -776,7 +776,7 @@ export type $p2_10_1<$S extends $State> =
   [...$S, $Dec2<$S[19]>]
 
 export type $p2_10_2<$S extends $State> =
-  [...$S, $Load32<$S[0], $Inc4<$S[22]>>]
+  [...$S, (($Inc4<$S[22]> extends `000000000000000${string}` ? ($Inc4<$S[22]> extends `${string}11111111111111101` | `${string}11111111111111110` | `${string}11111111111111111` ? '00000000000000000000000000000000' : '00000000000000000000000000000001') : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Load32<$S[0], $Inc4<$S[22]>> : never)]
 
 export type $p2_10_3<$S extends $State> =
   [...$S, $AndFFFFFFFE<$S[23]>]
@@ -791,13 +791,13 @@ export type $p2_10_6<$S extends $State> =
   [...$S, Wasm.I32Add<$S[15], $S[18]>]
 
 export type $p2_10_7<$S extends $State> =
-  [...$S, $Load8U<$S[0], $S[27]>]
+  [...$S, (($S[27] extends `000000000000000${string}` ? '00000000000000000000000000000001' : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Load8U<$S[0], $S[27]> : never)]
 
 export type $p2_10_8<$S extends $State> =
   [...$S, ($S[28] extends '00000000000000000000000000000000' ? $S[26] : $S[25])]
 
 export type $p2_10_9<$S extends $State> =
-  [$Store8<$S[0], $S[21], $S[29]>, ...$Rest<$S>]
+  [(($S[21] extends `000000000000000${string}` ? '00000000000000000000000000000001' : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Store8<$S[0], $S[21], $S[29]> : never), ...$Rest<$S>]
 
 export type $p2_10_10<$S extends $State> =
   [...$S, $Inc0<$S[15]>]
@@ -893,10 +893,10 @@ export type $b2_19<$F extends string, $K extends unknown[], $M extends $Node, $g
 
 
 export type $p2_20_0<$S extends $State> =
-  [...$S, $Load8U<$S[0], $S[15]>]
+  [...$S, (($S[15] extends `000000000000000${string}` ? '00000000000000000000000000000001' : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Load8U<$S[0], $S[15]> : never)]
 
 export type $p2_20_1<$S extends $State> =
-  [$Store8<$S[0], $S[20], $S[22]>, ...$Rest<$S>]
+  [(($S[20] extends `000000000000000${string}` ? '00000000000000000000000000000001' : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Store8<$S[0], $S[20], $S[22]> : never), ...$Rest<$S>]
 
 export type $b2_20<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue, $l8 extends WasmValue, $l9 extends WasmValue> =
   $F extends `11${infer $F1}`
@@ -938,7 +938,7 @@ export type $p3_1_1<$S extends $State> =
   [...$S, $Inc7<$S[13]>]
 
 export type $p3_1_2<$S extends $State> =
-  [$Store8<$S[0], $Inc10<$S[14]>, '00000000000000000000000000000000'>, ...$Rest<$S>]
+  [(($Inc10<$S[14]> extends `000000000000000${string}` ? '00000000000000000000000000000001' : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Store8<$S[0], $Inc10<$S[14]>, '00000000000000000000000000000000'> : never), ...$Rest<$S>]
 
 export type $b3_1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l3 extends WasmValue> =
   $F extends `11${infer $F1}`
@@ -1028,13 +1028,13 @@ export type $p3_12_1<$S extends $State> =
   [...$S, $Inc7<$S[20]>]
 
 export type $p3_12_2<$S extends $State> =
-  [...$S, $Load8U<$S[0], $S[16]>]
+  [...$S, (($S[16] extends `000000000000000${string}` ? '00000000000000000000000000000001' : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Load8U<$S[0], $S[16]> : never)]
 
 export type $p3_12_3<$S extends $State> =
   [...$S, ($S[22] extends '00000000000000000000000000000000' ? '00000000000000000000000000101110' : '00000000000000000000000000100100')]
 
 export type $p3_12_4<$S extends $State> =
-  [$Store8<$S[0], $Inc10<$S[21]>, $S[23]>, ...$Rest<$S>]
+  [(($Inc10<$S[21]> extends `000000000000000${string}` ? '00000000000000000000000000000001' : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Store8<$S[0], $Inc10<$S[21]>, $S[23]> : never), ...$Rest<$S>]
 
 export type $b3_12<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue, $l5 extends WasmValue, $l6 extends WasmValue, $l7 extends WasmValue> =
   $F extends `11${infer $F1}`
@@ -1082,7 +1082,7 @@ export type $p3_16_1<$S extends $State> =
   [...$S, $Inc7<$S[18]>]
 
 export type $p3_16_2<$S extends $State> =
-  [$Store8<$S[0], $Inc10<$S[19]>, '00000000000000000000000000001010'>, ...$Rest<$S>]
+  [(($Inc10<$S[19]> extends `000000000000000${string}` ? '00000000000000000000000000000001' : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Store8<$S[0], $Inc10<$S[19]>, '00000000000000000000000000001010'> : never), ...$Rest<$S>]
 
 export type $b3_16<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $g1 extends WasmValue, $g2 extends WasmValue, $g3 extends WasmValue, $g4 extends WasmValue, $g5 extends WasmValue, $g6 extends WasmValue, $g7 extends WasmValue, $g8 extends WasmValue, $g9 extends WasmValue, $g10 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l5 extends WasmValue, $l7 extends WasmValue> =
   $F extends `11${infer $F1}`
@@ -1163,10 +1163,10 @@ export type $p4_4_1<$S extends $State> =
   [...$S, Wasm.I32Add<$S[14], $S[15]>]
 
 export type $p4_4_2<$S extends $State> =
-  [...$S, $Load8U<$S[0], $Inc10<$S[19]>>]
+  [...$S, (($Inc10<$S[19]> extends `000000000000000${string}` ? '00000000000000000000000000000001' : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Load8U<$S[0], $Inc10<$S[19]>> : never)]
 
 export type $p4_4_3<$S extends $State> =
-  [$Store8<$S[0], $S[18], $S[20]>, ...$Rest<$S>]
+  [(($S[18] extends `000000000000000${string}` ? '00000000000000000000000000000001' : '00000000000000000000000000000000') extends '00000000000000000000000000000001' ? $Store8<$S[0], $S[18], $S[20]> : never), ...$Rest<$S>]
 
 export type $p4_4_4<$S extends $State> =
   [...$S, $Inc0<$S[15]>]

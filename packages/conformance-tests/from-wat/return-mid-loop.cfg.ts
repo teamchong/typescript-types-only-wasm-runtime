@@ -511,7 +511,7 @@ export type $b0_2<$F extends string, $K extends unknown[], $M extends $Node, $g0
 
 
 export type $p0_3_0<$S extends $State> =
-  [$Store8<$S[0], $S[5], $S[6]>, ...$Rest<$S>]
+  [((Wasm.I32LtU<$S[5], $S[5]> extends '00000000000000000000000000000001' ? '00000000000000000000000000000000' : Wasm.I32LtU<$S[5], '00000000000001110000000000000000'>) extends '00000000000000000000000000000001' ? $Store8<$S[0], $S[5], $S[6]> : never), ...$Rest<$S>]
 
 export type $b0_3<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue, $l4 extends WasmValue> =
   $F extends `11${infer $F1}`
@@ -536,7 +536,7 @@ export type $p0_5_0<$S extends $State> =
   [...$S, Wasm.I32Add<$S[3], $S[4]>]
 
 export type $p0_5_1<$S extends $State> =
-  [...$S, $Load8U<$S[0], $S[6]>]
+  [...$S, ((Wasm.I32LtU<$S[6], $S[6]> extends '00000000000000000000000000000001' ? '00000000000000000000000000000000' : Wasm.I32LtU<$S[6], '00000000000001110000000000000000'>) extends '00000000000000000000000000000001' ? $Load8U<$S[0], $S[6]> : never)]
 
 export type $b0_5<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue> =
   $F extends `1${infer $F1}`
@@ -589,7 +589,7 @@ export type $p0_11_0<$S extends $State> =
   [...$S, Wasm.I32Add<$S[3], $S[4]>]
 
 export type $p0_11_1<$S extends $State> =
-  [$Store8<$S[0], $S[5], '00000000000000000000000000000000'>, ...$Rest<$S>]
+  [((Wasm.I32LtU<$S[5], $S[5]> extends '00000000000000000000000000000001' ? '00000000000000000000000000000000' : Wasm.I32LtU<$S[5], '00000000000001110000000000000000'>) extends '00000000000000000000000000000001' ? $Store8<$S[0], $S[5], '00000000000000000000000000000000'> : never), ...$Rest<$S>]
 
 export type $b0_11<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue, $l2 extends WasmValue, $l3 extends WasmValue> =
   $F extends `11${infer $F1}`

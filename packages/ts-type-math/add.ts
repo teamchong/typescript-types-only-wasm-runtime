@@ -131793,6 +131793,27 @@ export type Add32Nibble<A extends string, B extends string> =
   ? `${s0}${s1}${s2}${s3}`
  : never : never : never : never : never : never : never : never : never : never
 
+export type Add64Byte<A extends string, B extends string> =
+  A extends `${infer a0 extends string}${infer a1 extends string}${infer a2 extends string}${infer a3 extends string}${infer a4 extends string}${infer a5 extends string}${infer a6 extends string}${infer a7 extends string}${infer a8 extends string}${infer a9 extends string}${infer a10 extends string}${infer a11 extends string}${infer a12 extends string}${infer a13 extends string}${infer a14 extends string}${infer a15 extends string}${infer a16 extends string}${infer a17 extends string}${infer a18 extends string}${infer a19 extends string}${infer a20 extends string}${infer a21 extends string}${infer a22 extends string}${infer a23 extends string}${infer a24 extends string}${infer a25 extends string}${infer a26 extends string}${infer a27 extends string}${infer a28 extends string}${infer a29 extends string}${infer a30 extends string}${infer a31 extends string}${infer a32 extends string}${infer a33 extends string}${infer a34 extends string}${infer a35 extends string}${infer a36 extends string}${infer a37 extends string}${infer a38 extends string}${infer a39 extends string}${infer a40 extends string}${infer a41 extends string}${infer a42 extends string}${infer a43 extends string}${infer a44 extends string}${infer a45 extends string}${infer a46 extends string}${infer a47 extends string}${infer a48 extends string}${infer a49 extends string}${infer a50 extends string}${infer a51 extends string}${infer a52 extends string}${infer a53 extends string}${infer a54 extends string}${infer a55 extends string}${infer a56 extends string}${infer a57 extends string}${infer a58 extends string}${infer a59 extends string}${infer a60 extends string}${infer a61 extends string}${infer a62 extends string}${infer a63 extends string}` ? B extends `${infer b0 extends string}${infer b1 extends string}${infer b2 extends string}${infer b3 extends string}${infer b4 extends string}${infer b5 extends string}${infer b6 extends string}${infer b7 extends string}${infer b8 extends string}${infer b9 extends string}${infer b10 extends string}${infer b11 extends string}${infer b12 extends string}${infer b13 extends string}${infer b14 extends string}${infer b15 extends string}${infer b16 extends string}${infer b17 extends string}${infer b18 extends string}${infer b19 extends string}${infer b20 extends string}${infer b21 extends string}${infer b22 extends string}${infer b23 extends string}${infer b24 extends string}${infer b25 extends string}${infer b26 extends string}${infer b27 extends string}${infer b28 extends string}${infer b29 extends string}${infer b30 extends string}${infer b31 extends string}${infer b32 extends string}${infer b33 extends string}${infer b34 extends string}${infer b35 extends string}${infer b36 extends string}${infer b37 extends string}${infer b38 extends string}${infer b39 extends string}${infer b40 extends string}${infer b41 extends string}${infer b42 extends string}${infer b43 extends string}${infer b44 extends string}${infer b45 extends string}${infer b46 extends string}${infer b47 extends string}${infer b48 extends string}${infer b49 extends string}${infer b50 extends string}${infer b51 extends string}${infer b52 extends string}${infer b53 extends string}${infer b54 extends string}${infer b55 extends string}${infer b56 extends string}${infer b57 extends string}${infer b58 extends string}${infer b59 extends string}${infer b60 extends string}${infer b61 extends string}${infer b62 extends string}${infer b63 extends string}` ?
+  `${a56}${a57}${a58}${a59}${a60}${a61}${a62}${a63}${b56}${b57}${b58}${b59}${b60}${b61}${b62}${b63}0` extends infer k7 extends keyof AddByte
+  ? AddByte[k7] extends [infer s7 extends string, infer c7 extends string]
+  ? `${a48}${a49}${a50}${a51}${a52}${a53}${a54}${a55}${b48}${b49}${b50}${b51}${b52}${b53}${b54}${b55}${c7}` extends infer k6 extends keyof AddByte
+  ? AddByte[k6] extends [infer s6 extends string, infer c6 extends string]
+  ? `${a40}${a41}${a42}${a43}${a44}${a45}${a46}${a47}${b40}${b41}${b42}${b43}${b44}${b45}${b46}${b47}${c6}` extends infer k5 extends keyof AddByte
+  ? AddByte[k5] extends [infer s5 extends string, infer c5 extends string]
+  ? `${a32}${a33}${a34}${a35}${a36}${a37}${a38}${a39}${b32}${b33}${b34}${b35}${b36}${b37}${b38}${b39}${c5}` extends infer k4 extends keyof AddByte
+  ? AddByte[k4] extends [infer s4 extends string, infer c4 extends string]
+  ? `${a24}${a25}${a26}${a27}${a28}${a29}${a30}${a31}${b24}${b25}${b26}${b27}${b28}${b29}${b30}${b31}${c4}` extends infer k3 extends keyof AddByte
+  ? AddByte[k3] extends [infer s3 extends string, infer c3 extends string]
+  ? `${a16}${a17}${a18}${a19}${a20}${a21}${a22}${a23}${b16}${b17}${b18}${b19}${b20}${b21}${b22}${b23}${c3}` extends infer k2 extends keyof AddByte
+  ? AddByte[k2] extends [infer s2 extends string, infer c2 extends string]
+  ? `${a8}${a9}${a10}${a11}${a12}${a13}${a14}${a15}${b8}${b9}${b10}${b11}${b12}${b13}${b14}${b15}${c2}` extends infer k1 extends keyof AddByte
+  ? AddByte[k1] extends [infer s1 extends string, infer c1 extends string]
+  ? `${a0}${a1}${a2}${a3}${a4}${a5}${a6}${a7}${b0}${b1}${b2}${b3}${b4}${b5}${b6}${b7}${c1}` extends infer k0 extends keyof AddByte
+  ? AddByte[k0] extends [infer s0 extends string, infer c0 extends string]
+  ? `${s0}${s1}${s2}${s3}${s4}${s5}${s6}${s7}`
+ : never : never : never : never : never : never : never : never : never : never : never : never : never : never : never : never : never : never
+
 export type I32AddBinary<
   a extends WasmValue,
   b extends WasmValue
@@ -131804,7 +131825,7 @@ export type I64AddBinary<
   a extends WasmValue,
   b extends WasmValue
 > = Satisfies<WasmValue,
-  AddBinaryFixed<a, b>
+  Add64Byte<a, b>
 >
 
 export type I32AddDecimal<
