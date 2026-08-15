@@ -504,6 +504,16 @@ const SEGMENTS = 0;
 
 const DEFAULT_FUEL = 655360;
 
+/// How long one chunk may take before its fuel counts as over the edge.
+///
+/// The ceiling above is a cap on instructions, not on time, and the two came
+/// apart on doom: a chunk that retires 655,360 fuel in ~1.1s at one state sat
+/// for 56 minutes at another. Keys reach the game between chunks, so a chunk
+/// that runs for minutes is indistinguishable from a hang at the keyboard.
+/// 6s keeps a frame's worth of chunks answering input while leaving room for
+/// the 2-4s chunks a busy in-level state costs at fuel 640.
+const SLOW_CHUNK_MS = 6000;
+
 const TRUNCATED = /\bany\b/;
 
 /// Read the memory, splitting it into branches only if the printer truncated.
@@ -1173,8 +1183,30 @@ ${splitReaders}
       failed = `chunk ${chunks}: ${message}`;
       break;
     }
-    evalMs += performance.now() - e0;
+    const chunkMs = performance.now() - e0;
+    evalMs += chunkMs;
     mark("eval");
+
+    // The ladder below climbs on success and only backs off when a chunk
+    // *fails*. A chunk that merely takes forever never fails, so the climb can
+    // walk into a fuel where one evaluation runs for an hour: measured live,
+    // the checkpoint at 18:34 carried fuel 640, the ladder doubled from there,
+    // and the compiler then sat on one chunk for 56 minutes at 99% CPU. Keys
+    // are only posted between chunks, so the game stops answering the keyboard.
+    // The same state runs 2.5s/chunk at fuel 640.
+    //
+    // Time is the thing that matters here, so bound it: a chunk slower than
+    // this marks its fuel as over the edge, the same as a failure would.
+    if (chunkMs > SLOW_CHUNK_MS && fuel > minFuel) {
+      capFail = Math.min(capFail, fuel);
+      fuel = Math.max(minFuel, Math.floor(fuel / 2));
+      settled = 0;
+      if (!options.quiet) {
+        process.stdout.write(
+          `\r  chunk ${chunks}: slow (${(chunkMs / 1000).toFixed(1)}s); fuel -> ${fuel}    \n`,
+        );
+      }
+    }
 
     // The chunk counter only advances on a chunk that was accepted. Counting a
     // retry as a chunk moves `chunks` out from under the `recycled !== chunks`
