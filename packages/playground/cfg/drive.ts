@@ -640,18 +640,42 @@ export const run = async (
   // The evaluation itself is 11,461 instantiations, 0.4% of either number.
   // A declaration file with no top-level import or export is global, so the
   // chunk sees every name in it without importing anything - hence rewriting
-  // the one import to inline `import('ts-type-math').X` types.
+  // the one import to `import('ts-type-math').X` types.
+  //
+  // One alias per imported name, not one `import()` per use site. Every
+  // `import(...)` in a file is a dynamic import as far as the compiler is
+  // concerned, and it rescans the whole file to locate each one
+  // (ForEachDynamicImportOrRequireCall -> GetNodeAtPosition, which walks the
+  // AST from the root per occurrence). doom's module inlined 92,751 of them,
+  // and the program is rebuilt once per chunk. Measured on a gameplay chunk:
+  //
+  //     per use site   parse 6.322s   check 0.771s   total 7.312s
+  //     one alias      parse 0.806s   check 0.993s   total 2.021s
+  //
+  // The resulting tag, globals and frames are identical.
   const globalModuleText = (() => {
     const found = /^import type \{([^}]*)\} from ['"]ts-type-math['"];?\n/m.exec(moduleText);
     if (!found) return moduleText;
     let text = moduleText.slice(0, found.index) + moduleText.slice(found.index + found[0].length);
+    const aliases: string[] = [];
     for (const raw of found[1].split(",")) {
       const name = raw.trim();
       if (!name) continue;
+      // A type alias cannot stand in for a namespace, and `import X =
+      // import('m').Y` is not legal here, so only the bare uses collapse to an
+      // alias; a qualified head (`Wasm.I32Add`) keeps its inline import. Bare
+      // uses are 89,140 of doom's 92,751, so the rescan cost goes with them.
+      const alias = `$TTM_${name}`;
+      let used = false;
       // not `Convert.WasmValue.ToTSNumber`: only the head of a qualified name
-      text = text.replace(new RegExp(`(?<![.\\w$])${name}\\b`, "g"), `import('ts-type-math').${name}`);
+      text = text.replace(new RegExp(`(?<![.\\w$])${name}\\b(\\.)?`, "g"), (_m, dot: string | undefined) => {
+        if (dot) return `import('ts-type-math').${name}.`;
+        used = true;
+        return alias;
+      });
+      if (used) aliases.push(`type ${alias} = import('ts-type-math').${name};`);
     }
-    return text;
+    return aliases.join("\n") + "\n" + text;
   })();
   // the emitter writes these with an `export` in front; a pattern that misses
   // them silently reports a flat memory, and the host then reads `$Out_Mem`
