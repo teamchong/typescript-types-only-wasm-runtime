@@ -285,11 +285,26 @@ const INPUT_BITS = [
 ];
 
 /// Where that word lives, as a word index, read off the module's own data
-/// table rather than hardcoded: the address moves whenever doom is rebuilt.
-const inputWordOf = (moduleText: string) => {
-  const found = moduleText.match(new RegExp(`'([01]+)': '${INPUT_SENTINEL}'`));
-  if (!found) return undefined;
-  return { word: parseInt(found[1]!, 2), levels: found[1]!.length };
+/// rather than hardcoded: the address moves whenever doom is rebuilt.
+///
+/// It has to come out of the trie the host writes into, not out of a regex over
+/// the module text. `$InitialMap` prints the same word as a key nested one page
+/// deep - `'0..010010': '0101101..'` - so a flat match reads back the index
+/// within the page (18) and its key length as the depth (8 bits, which is not
+/// even a whole number of trie levels). setWord then wrote the keys into word
+/// 18, the game never saw a keypress, and the menu never opened. Walking
+/// `$InitialMemory` gives the whole path: word 50962, byte 203848, which is
+/// where the native module holds `ts_input_mask`.
+const inputWordOf = (base: Trie, fanout: number) => {
+  const walk = (node: Trie, word: number, depth: number): { word: number; levels: number } | undefined => {
+    if (!Array.isArray(node)) return node === INPUT_SENTINEL ? { word, levels: depth * Math.log2(fanout) } : undefined;
+    for (const [index, child] of node.entries()) {
+      const found = walk(child, word * node.length + index, depth + 1);
+      if (found) return found;
+    }
+    return undefined;
+  };
+  return walk(base, 0, 0);
 };
 
 const inputMaskWord = (keys: string[]) => {
@@ -692,7 +707,7 @@ export const run = async (
   // whole instead of the split readers and never sees a write land
   const fanout = (moduleText.match(/^(?:export )?type \$Kid\d+</gm) ?? []).length;
   const base = initialMemory(moduleText);
-  const inputSlot = inputWordOf(moduleText);
+  const inputSlot = inputWordOf(base, fanout);
   const inputPath = options.save ? `${options.save}.input` : "";
   let inputRev = -1;
   // Held keys are a level, but a tap is an edge the poll never sees: a chunk is
@@ -918,7 +933,13 @@ function sbrkWord(moduleText: string) {
   // (852/814/799/803ms), 1120 and 1280 come back never. Cost per chunk barely
   // moves with fuel, so the instructions covered per chunk is set by how close
   // the fuel sits to that edge, and doubling past it wastes a whole evaluation.
-  let capFail = options.resume?.capFail ?? Infinity;
+  // The cap is not inherited across a restart. It is one chunk's verdict, and
+  // the chunk it failed on is long gone: the live checkpoint carried
+  // capFail 240 and so ran at fuel 210, while the same state re-probed from
+  // scratch holds 960 (measured on 3 chunks each: 107 units/s at 210,
+  // 233 at 480, 497 at 960, and only then the cliff - 42 at 1920). Re-deriving
+  // costs one slow chunk per restart; keeping a stale cap cost 4.6x forever.
+  let capFail = Infinity;
   // The fuel we are resuming at already landed for the run that saved it, so
   // it is a floor to back off to, not an unknown to re-derive.
   let lastGood = options.fuel === undefined && options.resume?.fuel !== undefined
@@ -1197,7 +1218,16 @@ ${splitReaders}
     //
     // Time is the thing that matters here, so bound it: a chunk slower than
     // this marks its fuel as over the edge, the same as a failure would.
-    if (chunkMs > SLOW_CHUNK_MS && fuel > minFuel) {
+    //
+    // Only fuel that has not landed yet can be blamed for the time. Most of a
+    // chunk is not the fuel: at fuel 157-315 the same state still costs
+    // 4.3-4.5s a chunk, while at 960 it costs 1.9-2.9s. Charging that floor to
+    // the fuel makes the guard cut a fuel that was never the cost, and each cut
+    // buys fewer instructions for the same 4.4s - the live session walked
+    // itself down to 157 and 49 units/s that way. `lastGood` is the last fuel
+    // that produced an accepted chunk, so `fuel > lastGood` is true only on the
+    // first chunk after a climb - the one that can actually run for an hour.
+    if (chunkMs > SLOW_CHUNK_MS && fuel > minFuel && fuel > lastGood) {
       capFail = Math.min(capFail, fuel);
       fuel = Math.max(minFuel, Math.floor(fuel / 2));
       settled = 0;
