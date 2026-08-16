@@ -297,7 +297,7 @@ export type $Absent = ['u']
 /// decides whether a chunk fits inside TypeScript's instantiation budget.
 export type $Fetch<T, P extends string> =
   $Get<T, P> extends infer W extends string
-    ? W extends 'u' ? (P extends keyof $InitialMap ? $InitialMap[P] : '00000000000000000000000000000000') : W
+    ? W extends 'u' ? $InitFetch<P> : W
     : never
 
 /// A word the overlay does not have falls through to the base trie, and a word
@@ -392,12 +392,21 @@ export type $Ne<A extends string, B extends string> =
 export type $InitialMemory = [[[$Zero, $Zero, $Zero, $Zero, [['00000000000000000000000100000001'], $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, ['00000001000000000000000000000000'], $Zero, ['00000001000000000000000000000000'], ['00000000000000000000000100000001'], $Zero, ['00000000000000000000000100000000'], $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero], $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero], $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero], $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero, $Zero]
 
 export type $InitialMap = {
-  '000000000000000100000000': '00000000000000000000000100000001',
-  '000000000000000100000111': '00000001000000000000000000000000',
-  '000000000000000100001001': '00000001000000000000000000000000',
-  '000000000000000100001010': '00000000000000000000000100000001',
-  '000000000000000100001100': '00000000000000000000000100000000',
+  '0000000000000001': {
+    '00000000': '00000000000000000000000100000001',
+    '00000111': '00000001000000000000000000000000',
+    '00001001': '00000001000000000000000000000000',
+    '00001010': '00000000000000000000000100000001',
+    '00001100': '00000000000000000000000100000000',
+  },
 }
+
+export type $InitFetch<P extends string> =
+  P extends `${infer C0}${infer C1}${infer C2}${infer C3}${infer C4}${infer C5}${infer C6}${infer C7}${infer C8}${infer C9}${infer C10}${infer C11}${infer C12}${infer C13}${infer C14}${infer C15}${infer R}`
+    ? `${C0}${C1}${C2}${C3}${C4}${C5}${C6}${C7}${C8}${C9}${C10}${C11}${C12}${C13}${C14}${C15}` extends infer H extends keyof $InitialMap
+      ? R extends keyof $InitialMap[H] ? $InitialMap[H][R] : '00000000000000000000000000000000'
+      : '00000000000000000000000000000000'
+    : '00000000000000000000000000000000'
 
 /// what the host reads: memory flushed back to a plain trie
 export type $Exit<$R> =
