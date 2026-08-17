@@ -89,10 +89,27 @@ const inFlight = (latch: Latch): string[] =>
 /// message that would have cleared it never went out. The driver owes
 /// `presses - seen` presses for a key; when that is zero there is nothing
 /// queued, whichever messages were missed.
+const owed = (latch: Latch, code: string): number =>
+  Math.max(0, (pending.presses[code] ?? 0) - (latch.seen?.[code] ?? 0));
 const queuedKeys = (latch: Latch): string[] =>
-  Object.keys(pending.presses).filter(
-    (code) => (pending.presses[code] ?? 0) - (latch.seen?.[code] ?? 0) > 0,
-  );
+  Object.keys(pending.presses).filter((code) => owed(latch, code) > 0);
+
+/// The presses still waiting, oldest first. `order` remembers every press in
+/// the order it was made; the game consumes a key's presses oldest first, so
+/// the ones still owed are the last `owed` occurrences of that key.
+const queueLeft = (latch: Latch): string[] => {
+  const left: Record<string, number> = {};
+  for (const code of Object.keys(pending.presses)) left[code] = owed(latch, code);
+  const out: string[] = [];
+  for (let i = pending.order.length - 1; i >= 0; i--) {
+    const code = pending.order[i]!;
+    if ((left[code] ?? 0) > 0) {
+      left[code]!--;
+      out.unshift(code);
+    }
+  }
+  return out;
+};
 
 /// What each key does once the game has it, so the pad says why to press it.
 /// Menu meaning first: the game boots into the menu, which is where a new
@@ -147,6 +164,13 @@ const page = `<!doctype html>
   .key.live { border-color: #6cf; box-shadow: inset 0 0 0 1px #6cf }
   .key.live b em { color: #6cf }
   .key.on b em { color: #04180c }
+  .key small { display: block; font: 10px ui-monospace, monospace; color: #7aa2f7 }
+  .key.on small { color: #04180c }
+  #queue { color: #ffd166 }
+  #queue b { color: #6cf; font-weight: 600 }
+  button { font: 11px ui-monospace, monospace; background: #222; color: #ccc; border: 1px solid #444;
+           border-radius: 3px; padding: 2px 8px; cursor: pointer; margin-top: 4px }
+  button:hover { border-color: #888 }
   #log { height: 190px; overflow: hidden; border: 1px solid #262626; border-radius: 3px;
          background: #0d0d0d; padding: 6px; font-size: 11px; line-height: 1.5; color: #8a8a8a }
   #log b { color: #3ddc84; font-weight: 600 }
@@ -159,12 +183,14 @@ const page = `<!doctype html>
   <canvas id=screen width=${WIDTH} height=${HEIGHT}></canvas>
   <div id=pad>
     <div><h2>keys</h2><div id=keys></div>
-      <div class=meta style="margin-top:6px">click a key or press it. these ten are the
-        whole input word; the mouse and the rest of the keyboard have no bits in it yet.</div>
+      <div class=meta style="margin-top:6px">click a key or press its keyboard key (shown in blue). a press
+        queues until the game takes it - a frame is minutes - and the queue is worked oldest first.</div>
     </div>
     <div><h2>sent to checker</h2>
       <div class=meta>rev <span id=rev>0</span> acked <span id=ack>0</span></div>
       <div class=meta>queued at chunk <span id=qchunk>-</span></div>
+      <div class=meta>queue (oldest first): <span id=queue>empty</span></div>
+      <button id=clearq title="drop every press the game has not taken yet">clear queue</button>
     </div>
     <div><h2>events</h2><div id=log></div></div>
   </div>
@@ -198,9 +224,12 @@ const page = `<!doctype html>
       var badge = document.createElement("em");
       b.appendChild(badge);
       badges[code] = badge;
+      var k = document.createElement("small");
+      k.textContent = code;
       var s = document.createElement("i");
       s.textContent = hint;
       cell.appendChild(b);
+      cell.appendChild(k);
       cell.appendChild(s);
       /// The pad is the only input on a phone and the only one that shows what
       /// a key is for, so a cell presses the same key the keyboard does.
@@ -221,6 +250,8 @@ const page = `<!doctype html>
   var waiting = {};
   var live = {};
   var linger = {};
+  var queued = {};   // presses of each key still owed, from the server
+  var sending = null; // the press the driver is holding for the game right now
   /// three facts per key, because they are minutes apart: the browser holds it,
   /// the checker has not read it back yet, the game itself is holding it
   var paint = function (code) {
@@ -229,8 +260,37 @@ const page = `<!doctype html>
     cell.classList.toggle("on", !!held[code]);
     cell.classList.toggle("wait", !!waiting[code] && !live[code]);
     cell.classList.toggle("live", !!live[code]);
-    badges[code].textContent = live[code] ? "in game" : waiting[code] ? "queued" : "";
+    var n = queued[code] || 0;
+    badges[code].textContent = live[code] ? "in game"
+      : sending === code ? "sending" + (n > 1 ? " +" + (n - 1) : "")
+      : n > 0 ? "queued" + (n > 1 ? " \u00d7" + n : "")
+      : waiting[code] ? "queued" : "";
   };
+  var paintQueue = function (list) {
+    var el = document.getElementById("queue");
+    if (!list || list.length === 0) { el.textContent = "empty"; return; }
+    var parts = [];
+    for (var i = 0; i < list.length; i++) {
+      var code = list[i];
+      var what = (KEYS.filter(function (k) { return k[0] === code; })[0] || [code, code])[1];
+      var text = what + " (" + code + ")";
+      parts.push(i === 0 && sending === code ? "<b>" + text + " \u2190 sending</b>" : text);
+    }
+    el.innerHTML = parts.join(" \u2192 ");
+  };
+  document.getElementById("clearq").addEventListener("click", function () {
+    if (ws.readyState !== 1) return;
+    rev++;
+    document.getElementById("rev").textContent = rev;
+    var down = [];
+    for (var k in held) if (held[k]) down.push(k);
+    ws.send(JSON.stringify({ rev: rev, keys: down, presses: {}, clear: true }));
+    for (var c in cells) { waiting[c] = false; queued[c] = 0; }
+    sending = null;
+    paintQueue([]);
+    for (var c2 in cells) paint(c2);
+    log("up", "queue cleared");
+  });
   /// A chunk is ~1.5s and the driver reads this file once per chunk, so a 100ms
   /// tap is invisible to it: measured 0 of 10 Enter taps reaching the state,
   /// while a 5s hold landed. Send the keydown as an edge. A cumulative object
@@ -304,6 +364,15 @@ const page = `<!doctype html>
         return;
       }
       if (msg.seen) {
+        /// the server's queue is the truth about what is still owed: it only
+        /// changes when the game takes a press (or the queue is cleared), so
+        /// the pad and the picture move together however slow the frames are
+        if (msg.queue) {
+          queued = {};
+          for (var qi = 0; qi < msg.queue.length; qi++) queued[msg.queue[qi]] = (queued[msg.queue[qi]] || 0) + 1;
+          sending = msg.sending || null;
+          paintQueue(msg.queue);
+        }
         /// the checkpoint is the only honest answer to "did that register":
         /// once the key shows up in the game's own input word, the queue mark
         /// comes off, and a key that is still queued is still queued
@@ -426,18 +495,32 @@ const server = createServer((_req, res) => {
 let inputRev = 0;
 let pending = {
   keys: [] as string[],
+  /// presses per key since this server started, never lowered while any of
+  /// them is still owed: the driver retires them against its own `seen`
   presses: {} as Record<string, number>,
+  /// every press in the order it was made; see `queueLeft`
+  order: [] as string[],
 };
 
 const writeInput = () => {
+  const latch = readLatch();
   writeFileSync(
     inputPath,
-    JSON.stringify({ rev: inputRev, chunk: lastChunk, ...pending }),
+    JSON.stringify({
+      rev: inputRev,
+      chunk: lastChunk,
+      keys: pending.keys,
+      presses: pending.presses,
+      // oldest first: the driver takes the head, so two different keys land
+      // in the order they were pressed rather than the order they were first
+      // ever pressed
+      queue: queueLeft(latch),
+    }),
   );
 };
 
 const acceptInput = (text: string) => {
-  let message: { rev: number; keys: string[]; presses?: Record<string, number> };
+  let message: { rev: number; keys: string[]; presses?: Record<string, number>; clear?: boolean };
   try {
     message = JSON.parse(text);
   } catch {
@@ -446,39 +529,36 @@ const acceptInput = (text: string) => {
   if (!Array.isArray(message.keys)) return;
   inputRev++;
   pending.keys = message.keys;
-  // The page sends what it counted since its last message, not a running
-  // total: a total that only ever grows cannot be retired once the game has
-  // the press, and retiring it is what keeps a restart quiet.
-  // A newer press cancels older waiting ones. The queue drains one key per
-  // chunk and a chunk is minutes, so a queue that keeps every press replays
-  // stale intent long after the player gave up on it: four Enters stacked
-  // behind an Escape means four menus toggled before the Enter the player
-  // actually wants. Only the last press survives, and it survives at count 1.
-  const fresh = Object.entries(message.presses ?? {}).filter(([, c]) => c > 0);
-  if (fresh.length > 0) {
+  if (message.clear) {
+    // the player gave up on what is waiting: nothing owed, nothing ordered.
+    // The driver reseats its `seen` when a count drops below it, so a press
+    // it has latched but the game has not taken yet is dropped too.
     pending.presses = {};
-    const [code] = fresh[fresh.length - 1]!;
-    pending.presses[code] = 1;
+    pending.order = [];
+  }
+  // Every press queues, oldest first, and stays queued until the game takes
+  // it: a frame is minutes, and a press that vanished because a later one
+  // arrived read as a dropped press. The page's clear button is the way out.
+  for (const [code, count] of Object.entries(message.presses ?? {})) {
+    for (let i = 0; i < count; i++) {
+      pending.presses[code] = (pending.presses[code] ?? 0) + 1;
+      pending.order.push(code);
+    }
   }
   writeInput();
   const ack = Buffer.from(JSON.stringify({ rev: inputRev, chunk: lastChunk }));
   for (const socket of clients) socket.write(wsFrame(ack, 0x1));
 };
 
-/// A press is retired when the game is seen holding that key: the driver has
-/// latched it, so the count has done its job and can go back to zero. Lowering
-/// a count is safe against the driver's `owed = count - seen` - it lowers
-/// `seen` to match and owes nothing - and it means the file a restarting driver
-/// reads describes what is still waiting, not everything ever pressed.
-const retirePresses = (seen: string[]) => {
-  let changed = false;
-  for (const code of seen) {
-    if ((pending.presses[code] ?? 0) > 0) {
-      pending.presses[code] = 0;
-      changed = true;
-    }
-  }
-  if (!changed) return;
+/// A press is retired by the driver's own count of what it delivered (its
+/// latch `seen`), not by the key being seen held: two queued Enters would
+/// otherwise both vanish the moment the first one landed. Here the order list
+/// just drops what is no longer owed, so it does not grow for ever; the file
+/// the driver reads is rewritten only when that changes what is queued.
+const retirePresses = (latch: Latch) => {
+  const before = pending.order.length;
+  pending.order = queueLeft(latch);
+  if (pending.order.length === before) return;
   inputRev++;
   writeInput();
 };
@@ -682,8 +762,10 @@ const poll = () => {
   lastChunk = checkpoint.chunks;
   const latch = readLatch();
   const nowSeen = [...new Set([...seenKeys(checkpoint.memory), ...inFlight(latch)])];
-  retirePresses(nowSeen);
+  retirePresses(latch);
   const nowQueued = queuedKeys(latch);
+  const nowQueue = queueLeft(latch);
+  const nowSending = latch.phase === "sent" && latch.code ? latch.code : null;
   const started = performance.now();
   const { rgb, painted } = frameFrom(checkpoint.memory, initial, screenOf(checkpoint));
   last = encodePng(rgb, WIDTH, HEIGHT);
@@ -715,6 +797,8 @@ const poll = () => {
     painted: `${painted}/${WIDTH * HEIGHT} (${percent}%)`,
     seen: nowSeen,
     queued: nowQueued,
+    queue: nowQueue,
+    sending: nowSending,
     chunk: checkpoint.chunks,
   });
   for (const socket of clients) {

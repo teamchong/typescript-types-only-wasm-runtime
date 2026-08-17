@@ -815,6 +815,7 @@ export const run = async (
     if (latchPath) writeFileSync(latchPath, JSON.stringify({ seen: pressesSeen, phase, code: sending }));
   };
   let pressCounts: Record<string, number> = {};
+  let pressOrder: string[] = [];
   let inputMask = "";
   // Readers for the memory a branch at a time, two levels down. They cost
   // nothing until one is asked for: a type alias is only instantiated when
@@ -1117,11 +1118,16 @@ function sbrkWord(moduleText: string) {
           rev: number;
           keys: string[];
           presses?: Record<string, number>;
+          queue?: string[];
         };
         if (sent.rev !== inputRev) {
           inputRev = sent.rev;
           heldKeys = sent.keys ?? [];
           pressCounts = sent.presses ?? {};
+          // the presses still owed, oldest first: two different keys land in
+          // the order they were pressed, not the order they were first ever
+          // pressed. An older server writes no queue; then per-key order.
+          pressOrder = sent.queue ?? Object.keys(pressCounts);
           reseatSeen(pressCounts);
         }
         // What the game says it last took, read out of the state the same way
@@ -1141,13 +1147,18 @@ function sbrkWord(moduleText: string) {
         /// this run - the stale live state carried `Enter` high - would read
         /// as an instant landing for a press the game never saw. Both cases
         /// are the same rule: only send a key whose ack bit is low.
+        const owedFor = (code: string) => (pressCounts[code] ?? 0) - (pressesSeen[code] ?? 0);
         const nextPress = () =>
-          Object.keys(pressCounts).find(
-            (code) =>
-              INPUT_BITS.includes(code) &&
-              pressCounts[code]! - (pressesSeen[code] ?? 0) > 0 &&
-              (ack & bitOf(code)) === 0,
+          [...pressOrder, ...Object.keys(pressCounts)].find(
+            (code) => INPUT_BITS.includes(code) && owedFor(code) > 0 && (ack & bitOf(code)) === 0,
           );
+        // the queue was cleared under a press the game has not taken yet:
+        // nothing owes it any more, so stop holding it
+        if (phase === "sent" && sending && owedFor(sending) <= 0 && (ack & bitOf(sending)) === 0) {
+          phase = "idle";
+          sending = undefined;
+          saveLatch();
+        }
         // The server keeps only the newest intent. If another key arrives
         // before the game acknowledges this keydown, replace it now instead
         // of making the player wait a whole frame for an obsolete press. Once
