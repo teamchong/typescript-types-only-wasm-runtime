@@ -571,9 +571,13 @@ const DEFAULT_FUEL = 32768;
 /// apart on doom: a chunk that retires 655,360 fuel in ~1.1s at one state sat
 /// for 56 minutes at another. Keys reach the game between chunks, so a chunk
 /// that runs for minutes is indistinguishable from a hang at the keyboard.
-/// 6s keeps a frame's worth of chunks answering input while leaving room for
-/// the 2-4s chunks a busy in-level state costs at fuel 640.
-const SLOW_CHUNK_MS = 6000;
+/// Keys are latched by the host until the game acks them, and the game only
+/// reads them once per frame, so chunk length is not key latency: it is the
+/// unit of state round trip (~1-3s of print/parse per chunk on a 4MB level
+/// state). Measured on an E1M1 frame, chunk cost is ~linear in fuel (10752 ->
+/// 27s, 21504 -> 50s standalone) while the round trips are not, so the guard
+/// only has to catch a genuine hang: 30s.
+const SLOW_CHUNK_MS = 30000;
 
 const TRUNCATED = /\bany\b/;
 
