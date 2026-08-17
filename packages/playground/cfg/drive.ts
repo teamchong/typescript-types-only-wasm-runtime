@@ -260,7 +260,7 @@ const ACK_WORD = 4410172 / 4;
 /// View window size, 11 = fullscreen, 3 = smallest; detail 1 is low (columns
 /// doubled). The renderer's cost is per pixel drawn, so this is the one knob
 /// that scales the whole frame.
-const VIEW_BLOCKS = Number(process.env.VIEW_BLOCKS ?? 6);
+const VIEW_BLOCKS = Number(process.env.VIEW_BLOCKS ?? 3);
 const VIEW_DETAIL = Number(process.env.VIEW_DETAIL ?? 1);
 
 /// Bit order is the select chain `ts_post_input` walks: bit 0 ESC, 1 ENTER,
@@ -1025,9 +1025,17 @@ function sbrkWord(moduleText: string) {
   if (inputSlot) {
     const levels = inputSlot.levels / Math.log2(fanout);
     const bits = (n: number) => n.toString(2).padStart(32, "0");
+    // setblocks/setdetail drive the renderer; screenblocks/detailLevel are the
+    // Options menu's copies, so the menu shows what is drawn. snd_SfxVolume and
+    // snd_MusicVolume at 0 make S_StartSoundAtVolume return before touching
+    // channels (`if (volume < 1) return`).
     const want = [
       [4463604 / 4, VIEW_BLOCKS],
       [4463608 / 4, VIEW_DETAIL],
+      [4410852 / 4, VIEW_BLOCKS],
+      [4410840 / 4, VIEW_DETAIL],
+      [132960 / 4, 0],
+      [132964 / 4, 0],
     ] as const;
     if (want.some(([word, value]) => getWord(memoryTrie, base, word, fanout, levels) !== bits(value))) {
       for (const [word, value] of [...want, [4463600 / 4, 1] as const]) {
