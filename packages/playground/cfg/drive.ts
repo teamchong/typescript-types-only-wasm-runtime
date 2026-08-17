@@ -439,10 +439,6 @@ export const parseFrames = (printed: string): Frame[] => {
 const printFrame = (f: Frame) =>
   `['${f.block}', '${f.wantsValue ? 1 : 0}'${f.saved.length ? ", " + f.saved.join(", ") : ""}]`;
 
-/// Aliases `enter` needs in the chunk file (see there); reset by each call.
-export let unwindPrelude = "";
-export const setUnwindPrelude = (p: string) => { unwindPrelude = p; };
-
 export const enter = (
   frame: Frame,
   below: Frame[],
@@ -451,40 +447,20 @@ export const enter = (
 ): string => {
   // the value only goes on when the frame asked for one: a void call leaves the
   // stack as it was, and the blocks after it were compiled for that stack
-  const callOf = (f: Frame, rest: Frame[], fuel: string, mem: string, gs: string[], val?: string) => {
-    const returned = f.wantsValue && val !== undefined ? [val] : [];
-    const args = [fuel, `[${rest.map(printFrame).join(", ")}]`, mem, ...gs, ...f.saved, ...returned];
-    return `$b${f.block}<${args.join(", ")}>`;
-  };
-  const inner = callOf(frame, below, "$FUEL", "$Buf<$IN>", globals, value);
-  // A frame's return has no inline caller waiting for it - the caller's match
-  // was in a chunk that is over - so each frame below is re-entered from the
-  // returned tuple right here, in the same chunk. Before this every return
-  // out of a suspension was its own chunk: measured on an E1M1 frame, 14 of
-  // its 17 chunks did nothing but pop one frame each (14 instantiations of
-  // checking, ~3.5s of state round trip apiece).
-  //
-  // One alias per frame, each re-entry in tail position: nesting the whole
-  // chain in one expression stacked the frames' evaluation depth and tripped
-  // "excessively deep" at a fuel the flat form retires (measured: 21504 ->
-  // 5376, 82s frame -> 169s).
-  const gs = globals.map((_, k) => `$G${k}`);
-  const pattern = [
-    "'r'",
-    "infer $F extends string",
-    "infer $M extends $Node",
-    ...gs.map((g) => `infer ${g} extends $TTM_WasmValue`),
-    "infer $V extends $TTM_WasmValue",
-  ].join(", ");
-  let prelude = "";
-  for (let i = 0; i < below.length; i++) {
-    const f = below[i]!;
-    const next = callOf(f, below.slice(i + 1), "$F", "$M", gs, "$V");
-    prelude += `type $U${i}<$R> = $R extends [${pattern}] ? $U${i + 1}<${next}> : $R\n`;
-  }
-  prelude += `type $U${below.length}<$R> = $R\n`;
-  unwindPrelude = prelude;
-  return `$Exit<$U0<${inner}>>`;
+  const returned = frame.wantsValue && value !== undefined ? [value] : [];
+  const rest = `[${below.map(printFrame).join(", ")}]`;
+  const args = [`$FUEL`, rest, `$Buf<$IN>`, ...globals, ...frame.saved, ...returned];
+  // Each frame below is re-entered by the host, one chunk per return. Tried:
+  // re-entering them in-type as a chain of tail aliases ($U0..$Un), so a
+  // suspension's whole stack unwinds in one chunk. At a fixed 10752 fuel that
+  // was 97s against 136s for this frame; but a chunk that unwinds a deep
+  // stack and then recurses back into the renderer trips the checker's depth
+  // limit at the fuel that otherwise lands (21504), and the failed attempt
+  // costs its full evaluation before it fails: adaptive fuel came in at 140s
+  // against 80s. Until calls stop nesting evaluations (a return that jumps
+  // to its continuation instead of matching inline), the host round trip
+  // is the cheaper of the two.
+  return `$Exit<$b${frame.block}<${args.join(", ")}>>`;
 };
 
 /// Did the printer give up part way through?
@@ -645,8 +621,6 @@ export interface Checkpoint {
   entryChunks: number;
   evalMs: number;
   split: string[];
-  /// the `$U` aliases a suspended `call` refers to (see `enter`)
-  unwind?: string;
   /// The fuel search state, which is a property of the module and not of the
   /// process that found it. Nine evaluations at chunk 0 are spent walking
   /// 655360 down to the edge, and a cold resume that starts at DEFAULT_FUEL
@@ -945,7 +919,9 @@ function sbrkWord(moduleText: string) {
     if (!options.resume.done) {
       call = options.resume.call;
       frames = options.resume.frames;
-      setUnwindPrelude(options.resume.unwind ?? "");
+      // a checkpoint written by the short-lived in-type unwinding wraps the
+      // call in `$U0<...>`: the frame it enters is the same, so unwrap it
+      if (call.startsWith("$Exit<$U0<")) call = `$Exit<${call.slice("$Exit<$U0<".length, -1)}`;
     } else {
       // $entry bakes the module-initial globals into its own call, so calling it
       // again rewinds the stack pointer while memory keeps a heap grown past it:
@@ -1240,7 +1216,7 @@ function sbrkWord(moduleText: string) {
     env.createFile(statePathDts, stateText);
     const file = `type $FUEL = ${fuelType(fuel)}
 type $OUTER = ${fuelType(SEGMENTS)}
-${call.includes("$U0<") ? unwindPrelude : ""}type $Result = $Drive<$OUTER, $FUEL, ${call}>
+type $Result = $Drive<$OUTER, $FUEL, ${call}>
 export type $Out_Tag = $Tag<$Result>
 export type $Out_Frames = $Frames<$Result>
 export type $Out_Globals = $GlobalsOf<$Result>
@@ -1318,9 +1294,14 @@ ${splitReaders}
         // Strictly below the fuel that just failed, or the run livelocks: a
         // chunk that lands at 1280 sets lastGood there, and a later chunk that
         // fails at 1280 asks for 1280 again forever (seen at chunk 186).
+        // A fuel that landed before and fails now hit the checker's depth
+        // limit where this chunk's calls nest deepest, not a cost edge: step
+        // down a quarter, not half. Measured on an E1M1 frame: 21504 landed
+        // twice, failed once, and the halving to 10752 for the rest of the
+        // frame cost 142s against 98s at a steady 10752 and 80s at 31360.
         fuel = lastGood > 0 && lastGood < fuel
           ? lastGood
-          : Math.max(minFuel, Math.floor(fuel / 2));
+          : Math.max(minFuel, Math.floor((fuel * 3) / 4));
         if (lastGood >= fuel) lastGood = 0;
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: too deep; fuel -> ${fuel}    \n`);
         mark("retry");
@@ -1427,9 +1408,14 @@ ${splitReaders}
         // Strictly below the fuel that just failed, or the run livelocks: a
         // chunk that lands at 1280 sets lastGood there, and a later chunk that
         // fails at 1280 asks for 1280 again forever (seen at chunk 186).
+        // A fuel that landed before and fails now hit the checker's depth
+        // limit where this chunk's calls nest deepest, not a cost edge: step
+        // down a quarter, not half. Measured on an E1M1 frame: 21504 landed
+        // twice, failed once, and the halving to 10752 for the rest of the
+        // frame cost 142s against 98s at a steady 10752 and 80s at 31360.
         fuel = lastGood > 0 && lastGood < fuel
           ? lastGood
-          : Math.max(minFuel, Math.floor(fuel / 2));
+          : Math.max(minFuel, Math.floor((fuel * 3) / 4));
         if (lastGood >= fuel) lastGood = 0;
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: ${bad}; fuel -> ${fuel}    \n`);
         mark("retry");
@@ -1538,7 +1524,6 @@ ${splitReaders}
         entryChunks: chunks,
         evalMs,
         split: [...split],
-        unwind: next.includes("$U0<") ? unwindPrelude : undefined,
         fuel,
         capFail: capFail === Infinity ? undefined : capFail,
         // each `entry` call allocates its own screen and returns it, so a fixed
@@ -1552,24 +1537,27 @@ ${splitReaders}
     };
 
     if (tag === '"r"') {
-      // A return out of a suspension has no inline caller waiting: `enter`
-      // re-enters every pending frame inside the chunk (see there), so a return
-      // that reaches the host is the whole call coming back.
-      // (a checkpoint written before `enter` unwound in-type still returns one
-      // frame at a time: its call has no `$U0`, so pop the frame here)
-      if (frames.length > 0 && !call.includes("$U0<")) {
-        const [resume, ...rest] = frames;
-        frames = rest;
-        call = enter(resume!, rest, globalValues, toSource(value));
-        checkpoint(call);
-        mark("frames");
-        if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: returned into ${resume!.block}, ${rest.length} frames left, ${eta()}   `);
-        continue;
+      // A return with frames still pending is a call coming back after
+      // something inside it suspended: the caller's inline match is long gone,
+      // so the host is what pops the frame and carries on. This is the only
+      // reason a return costs a round trip, and it only happens on the way out
+      // of a suspension.
+      if (frames.length === 0) {
+        value_ = value === '"void"' ? undefined : value.replace(/"/g, "");
+        checkpoint(call, true);
+        break;
       }
-      frames = [];
-      value_ = value === '"void"' ? undefined : value.replace(/"/g, "");
-      checkpoint(call, true);
-      break;
+      const [resume, ...rest] = frames;
+      frames = rest;
+      call = enter(resume!, rest, globalValues, toSource(value));
+      checkpoint(call);
+      mark("frames");
+      if (!options.quiet) {
+        process.stdout.write(
+          `\r  chunk ${chunks}: returned into ${resume!.block}, ${rest.length} frames left, ${eta()}   `,
+        );
+      }
+      continue;
     }
 
     // suspended: the innermost frame is where to pick up, the rest is the
