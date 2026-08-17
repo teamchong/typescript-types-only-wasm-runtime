@@ -143,6 +143,7 @@ const page = `<!doctype html>
   body { background: #111; color: #ccc; font: 13px ui-monospace, monospace;
          display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 20px }
   #stage { display: flex; gap: 16px; align-items: flex-start }
+  #left { display: flex; flex-direction: column; gap: 8px; max-width: ${WIDTH * 3}px }
   canvas { width: ${WIDTH * 3}px; height: ${HEIGHT * 3}px; image-rendering: pixelated;
            background: #000; cursor: crosshair }
   #pad { width: 260px; display: flex; flex-direction: column; gap: 10px }
@@ -180,7 +181,13 @@ const page = `<!doctype html>
   #status { min-height: 18px }
 </style>
 <div id=stage>
-  <canvas id=screen width=${WIDTH} height=${HEIGHT}></canvas>
+  <div id=left>
+    <canvas id=screen width=${WIDTH} height=${HEIGHT}></canvas>
+    <div id=status>connecting to the stream server</div>
+    <div class=meta>fps <span id=fps>-</span> | frame time <span id=ftime>-</span> | chunk time
+      <span id=ctime>-</span> | next frame in <span id=eta>-</span> | this frame
+      <span id=inframe>-</span> | painted <span id=painted>-</span></div>
+  </div>
   <div id=pad>
     <div><h2>keys</h2><div id=keys></div>
       <div class=meta style="margin-top:6px">click a key or press its keyboard key (shown in blue). a press
@@ -195,10 +202,6 @@ const page = `<!doctype html>
     <div><h2>events</h2><div id=log></div></div>
   </div>
 </div>
-<div id=status>connecting to the stream server</div>
-<div class=meta>fps <span id=fps>-</span> | frame time <span id=ftime>-</span> | chunk time
-  <span id=ctime>-</span> | next frame in <span id=eta>-</span> | this frame
-  <span id=inframe>-</span> | painted <span id=painted>-</span></div>
 <script>
   var ctx = document.getElementById("screen").getContext("2d");
   var canvas = document.getElementById("screen");
