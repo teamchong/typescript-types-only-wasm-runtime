@@ -257,6 +257,12 @@ const INPUT_SENTINEL = "01011010000100000000000000000000";
 /// restarted between frames, which it is - one process is one frame.
 const ACK_WORD = 4410172 / 4;
 
+/// View window size, 11 = fullscreen, 3 = smallest; detail 1 is low (columns
+/// doubled). The renderer's cost is per pixel drawn, so this is the one knob
+/// that scales the whole frame.
+const VIEW_BLOCKS = Number(process.env.VIEW_BLOCKS ?? 6);
+const VIEW_DETAIL = Number(process.env.VIEW_DETAIL ?? 1);
+
 /// Bit order is the select chain `ts_post_input` walks: bit 0 ESC, 1 ENTER,
 /// 2..5 the arrows, 6 use, 7 fire, 8 y, 9 n, 10..16 the weapon digits, 17 run,
 /// 18 strafe, 19 map. The names are KeyboardEvent.code, which is what stream.ts
@@ -772,7 +778,20 @@ export const run = async (
   };
   let phase: "idle" | "sent" | "release" = latchState.phase ?? "idle";
   let sending: string | undefined = latchState.code;
+  /// `ts_post_input` runs once per `entry` call, so the ack word only moves at
+  /// a frame boundary: measured 40 chunks of a 72-chunk frame with the bit
+  /// already cleared and ack still holding the keydown. Waiting for the keyup
+  /// ack before accepting the next press therefore costs a second whole frame
+  /// (~2.5 min measured), and the page has already retired the count by then,
+  /// so the player sees the badge clear and the key do nothing. The keyup does
+  /// not need an ack: the bit is cleared in the state, so the game posts it on
+  /// its own next frame either way. Go idle as soon as the keydown lands and
+  /// only hold back a repeat of that same key until its release is seen - a
+  /// same-key press written before the keyup is posted is no edge at all. The
+  /// ack word itself says which keys those are, so nothing needs to be latched.
   const saveLatch = () => {
+    if (process.env.TRACE_LATCH)
+      process.stderr.write(`\nLATCH phase=${phase} code=${sending} seen=${JSON.stringify(pressesSeen)} counts=${JSON.stringify(pressCounts)}\n`);
     if (latchPath) writeFileSync(latchPath, JSON.stringify({ seen: pressesSeen, phase, code: sending }));
   };
   let pressCounts: Record<string, number> = {};
@@ -980,6 +999,42 @@ function sbrkWord(moduleText: string) {
   // So a failure that survives all the way down to the minimum fuel is treated
   // as the instance being worn out rather than the work being too big.
   let { env, path } = session;
+  // Doom renders the view window, not the screen: R_ExecuteSetViewSize sizes it
+  // from `setblocks`, and every pixel loop below it costs per pixel. Measured on
+  // the native module, 3000 frames, blocks/detail against ms/frame:
+  //
+  //   11/0 0.105 (1.00x)  9/1 0.084 (1.25x)  7/1 0.062 (1.69x)
+  //   6/1 ~0.055 (~1.9x)  5/1 0.038 (2.76x)  3/1 0.033 (3.14x)
+  //
+  // The same instructions run in the type runtime, so the ratio carries. These
+  // are the three words the menu's own size handler writes; `setsizeneeded` is
+  // consumed by the next D_Display and the window then stays where it is put.
+  if (inputSlot && process.env.VIEW_SIZE) {
+    const levels = inputSlot.levels / Math.log2(fanout);
+    const bits = (n: number) => n.toString(2).padStart(32, "0");
+    for (const [word, value] of [
+      [4463604 / 4, VIEW_BLOCKS],
+      [4463608 / 4, VIEW_DETAIL],
+      [4463600 / 4, 1], // setsizeneeded
+    ] as const) {
+      memoryTrie = setWord(memoryTrie, word, bits(value), fanout, levels);
+    }
+    memoryTrie = prune(memoryTrie, base, fanout);
+    memory = printTrie(memoryTrie);
+    if (process.env.VIEW_PROBE)
+      for (const w of [4463600 / 4, 4463604 / 4, 4463608 / 4])
+        process.stderr.write(`VIEW word=${w} val=${getWord(memoryTrie, base, w, fanout, levels)}\n`);
+  }
+  if (inputSlot && process.env.ACK_ZERO) {
+    const levels = inputSlot.levels / Math.log2(fanout);
+    memoryTrie = prune(
+      setWord(memoryTrie, ACK_WORD, "0".repeat(32), fanout, levels),
+      base,
+      fanout,
+    );
+    memory = printTrie(memoryTrie);
+    process.stderr.write(`ACKZERO ${getWord(memoryTrie, base, ACK_WORD, fanout, levels)}\n`);
+  }
   const modulePathDts = join(__dirname, `module-${process.pid}.d.ts`);
   const statePathDts = join(__dirname, `state-${process.pid}.d.ts`);
   // The module text never changes, so it is written once per compiler instance.
@@ -1035,9 +1090,22 @@ function sbrkWord(moduleText: string) {
           2,
         );
         const bitOf = (code: string) => 1 << INPUT_BITS.indexOf(code);
+        if (process.env.TRACE_LATCH)
+          process.stderr.write(
+            `\nACK chunk=${chunks} ack=${ack.toString(2)} word=${getWord(memoryTrie, base, inputSlot.word, fanout, inputSlot.levels / Math.log2(fanout))} phase=${phase} code=${sending} counts=${JSON.stringify(pressCounts)} seen=${JSON.stringify(pressesSeen)}\n`,
+          );
+        /// A key whose ack bit is still high is one the game has posted a
+        /// keydown for and not yet a keyup. Writing that bit again is not an
+        /// edge, so the press would vanish; and a bit left high from before
+        /// this run - the stale live state carried `Enter` high - would read
+        /// as an instant landing for a press the game never saw. Both cases
+        /// are the same rule: only send a key whose ack bit is low.
         const nextPress = () =>
           Object.keys(pressCounts).find(
-            (code) => pressCounts[code]! - (pressesSeen[code] ?? 0) > 0 && INPUT_BITS.includes(code),
+            (code) =>
+              INPUT_BITS.includes(code) &&
+              pressCounts[code]! - (pressesSeen[code] ?? 0) > 0 &&
+              (ack & bitOf(code)) === 0,
           );
         // The server keeps only the newest intent. If another key arrives
         // before the game acknowledges this keydown, replace it now instead
@@ -1062,11 +1130,14 @@ function sbrkWord(moduleText: string) {
             saveLatch();
           }
         } else if (phase === "sent" && sending && (ack & bitOf(sending)) !== 0) {
-          // keydown landed
-          phase = "release";
+          // keydown landed: the press is spent. Clearing the bit here is the
+          // keyup; the game posts it next frame with no further help.
+          pressesSeen[sending] = (pressesSeen[sending] ?? 0) + 1;
+          phase = "idle";
+          sending = undefined;
           saveLatch();
-        } else if (phase === "release" && sending && (ack & bitOf(sending)) === 0) {
-          // keyup landed: the press is spent, the next one can go out
+        } else if (phase === "release" && sending) {
+          // a latch written by the older two-ack machine
           pressesSeen[sending] = (pressesSeen[sending] ?? 0) + 1;
           phase = "idle";
           sending = undefined;

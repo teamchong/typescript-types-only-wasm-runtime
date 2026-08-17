@@ -1,4 +1,4 @@
-import { StringAddArbitraryReversed } from "./add";
+import { Add32Nibble, Add64Byte, StringAddArbitraryReversed } from "./add";
 import { IsNegativeBinary, ReverseString8Segments, ReverseStringTheWorstWayPossible, TwosComplementFlip } from "./binary";
 import { Ensure } from "./ensure";
 import { Wasm, WasmValue } from "./wasm";
@@ -40,41 +40,33 @@ type _MultiplyNarrowest<a extends string, b extends string> =
   ? _MultiplyBinary<ReverseString8Segments<a>, ReverseString8Segments<b>, '', ''>
   : _MultiplyBinary<ReverseString8Segments<b>, ReverseString8Segments<a>, '', ''>
 
-/// Swapping is not enough when both operands are wide: 65536 * 393480 has no
-/// narrow side and still comes back an error type. A 16-bit multiplier always
-/// finishes, so split the multiplier instead of hoping one side is small.
+/// Only the low 32 bits of an i32 product survive, so the accumulator never
+/// needs more than 32 characters and every partial product is one fixed-width
+/// `Add32Nibble` (8 table lookups, ~10 instantiations deep). The arbitrary-width
+/// adder used for the 64-bit path is a non-tail recursion two levels deep per
+/// character, so a 48-character accumulator alone was ~96 levels: measured,
+/// -31 * 0xC082 came back TS2589 / `never` (doom's R_DrawColumn frac, killing
+/// the first frame), while 0xC000 and 0x82 each worked. Bounding the width
+/// bounds the depth regardless of how many one bits the multiplier has.
 ///
-///   a * b = a*bLo + ((a*bHi) << 16)
-///
-/// Only the low 32 bits survive, so a*bHi needs no more than its low 16 bits
-/// and the shifted-out half costs nothing.
-type _Halves<s extends string> =
-  s extends `${infer c0}${infer c1}${infer c2}${infer c3}${infer c4}${infer c5}${infer c6}${infer c7}${infer c8}${infer c9}${infer c10}${infer c11}${infer c12}${infer c13}${infer c14}${infer c15}${infer lo}`
-  ? [`0000000000000000${c0}${c1}${c2}${c3}${c4}${c5}${c6}${c7}${c8}${c9}${c10}${c11}${c12}${c13}${c14}${c15}`, `0000000000000000${lo}`]
-  : never
+/// `aShift` is the multiplicand shifted left by the current digit's place: drop
+/// the top character, append a zero. Cheaper than I32Shl and needs no place
+/// counter.
+type _Shl1<s extends string> = s extends `${string}${infer rest}` ? `${rest}0` : never
 
-/// Splitting the multiplier costs two multiplies, an add and a shift even when
-/// one half is zero, and most multipliers doom runs are small. Measured per
-/// I32Mul, on 32 distinct operand pairs:
-///
-///     b = 3        2127 instantiations -> 1153
-///     b = 0x00ff   3796                -> 2822
-///     b = 0xffff   7600                -> 6626
-///     b = 0x10000  1937                -> 1647
-///
-/// A one bit in the multiplier costs ~335, so skipping a zero half saves about
-/// what three of them cost.
+type _MulLoop<aShift extends string, revB extends string, acc extends string> =
+  revB extends `${infer digit}${infer tail}`
+  ? (digit extends '1' ? Add32Nibble<acc, aShift> : acc) extends infer next extends string
+    ? tail extends `${string}1${string}`
+      ? _MulLoop<_Shl1<aShift>, tail, next>
+      : next
+    : never
+  : acc
+
 type _MultiplyI32<a extends string, b extends string> =
-  _Halves<b> extends [infer hi extends string, infer lo extends string]
-  ? hi extends Wasm.I32False
-    ? _MultiplyNarrowest<a, lo>
-    : lo extends Wasm.I32False
-      ? Wasm.I32Shl<Ensure.I32<_MultiplyNarrowest<a, hi>>, '00000000000000000000000000010000'>
-      : Wasm.I32Add<
-          Ensure.I32<_MultiplyNarrowest<a, lo>>,
-          Wasm.I32Shl<Ensure.I32<_MultiplyNarrowest<a, hi>>, '00000000000000000000000000010000'>
-        >
-  : never
+  _NoWider<_Significant<b>, _Significant<a>> extends true
+  ? _MulLoop<a, ReverseString8Segments<b>, Wasm.I32False>
+  : _MulLoop<b, ReverseString8Segments<a>, Wasm.I32False>
 
 /// Low and high 32 characters of a 64-character word, each widened back to 64.
 type _Lo64<s extends string> =
@@ -86,7 +78,7 @@ type _Hi64<s extends string> =
   ? `${h0}${h1}${h2}${h3}${h4}${h5}${h6}${h7}${h8}${h9}${h10}${h11}${h12}${h13}${h14}${h15}${h16}${h17}${h18}${h19}${h20}${h21}${h22}${h23}${h24}${h25}${h26}${h27}${h28}${h29}${h30}${h31}`
   : never
 
-/// Assemble the 64-bit product out of 32-bit multiplies.
+/// Assemble the 64-bit product out of 32-bit pieces.
 ///
 /// The partial-product loop costs one add over the whole accumulator per one bit
 /// of the multiplier, so at 64 characters it exhausts the checker's budget on
@@ -95,34 +87,47 @@ type _Hi64<s extends string> =
 ///
 ///   a * b = aLo*bLo + ((aHi*bLo + aLo*bHi) << 32)
 ///
-/// and each piece is a 32-bit multiply, which already works and is already
-/// half-split internally. The three cross terms above the low 64 bits are
-/// discarded, exactly as the CFG backend's `$Mul64` does - that one is checked
-/// against V8 on `i64-arith.wasm`, 24 exports matching, so this mirrors a
-/// structure known to be right.
+/// aLo*bLo is the one piece that needs all 64 bits (its high half is the carry
+/// into the top word). The cross terms only need their low 32, which is
+/// `I32Mul`. The three cross terms above the low 64 bits are discarded, exactly
+/// as the CFG backend's `$Mul64` does - that one is checked against V8 on
+/// `i64-arith.wasm`, 24 exports matching, so this mirrors a structure known to
+/// be right.
 ///
 /// Written as a chain of `infer` bindings rather than nested calls: each step
 /// hands the next a name that is already resolved, so the checker does not
 /// re-walk the prefix.
 type _Magnitude64<a extends string, b extends string> =
-  Wasm.I32Mul<_Lo64<a>, _Lo64<b>> extends infer lolo extends string
-  ? _MulWide<_Lo64<a>, _Lo64<b>> extends infer full extends string
-    ? Wasm.I32Mul<_Hi64<a>, _Lo64<b>> extends infer ahbl extends string
-      ? Wasm.I32Mul<_Lo64<a>, _Hi64<b>> extends infer albh extends string
-        ? Wasm.I32Add<Wasm.I32Add<ahbl, albh>, _Hi64<full>> extends infer hi extends string
-          ? `${hi}${lolo}`
-          : never
+  _MulWide<_Lo64<a>, _Lo64<b>> extends infer full extends string
+  ? Wasm.I32Mul<_Hi64<a>, _Lo64<b>> extends infer ahbl extends string
+    ? Wasm.I32Mul<_Lo64<a>, _Hi64<b>> extends infer albh extends string
+      ? Wasm.I32Add<Wasm.I32Add<ahbl, albh>, _Hi64<full>> extends infer hi extends string
+        ? `${hi}${_Lo64<full>}`
         : never
       : never
     : never
   : never
 
 /// Full 64-bit product of two 32-bit values, needed for the carry out of the
-/// low half. Both operands have at most 32 significant characters, so the
-/// partial-product loop stays inside budget where a 64-character multiplier
-/// does not.
+/// low half. Same shape as `_MulLoop`, over a fixed 64-character accumulator
+/// with `Add64Byte` (8 table lookups). The arbitrary-width adder it replaced is
+/// a non-tail recursion two levels deep per character; at 64 characters that
+/// was TS2589 on every wide-by-wide case (4248100 * 83719208 and nine more in
+/// the i64 table), and those are what FixedMul feeds it. Fixed width bounds the
+/// depth regardless of how many one bits the multiplier has.
+type _MulLoop64<aShift extends string, revB extends string, acc extends string> =
+  revB extends `${infer digit}${infer tail}`
+  ? (digit extends '1' ? Add64Byte<acc, aShift> : acc) extends infer next extends string
+    ? tail extends `${string}1${string}`
+      ? _MulLoop64<_Shl1<aShift>, tail, next>
+      : next
+    : never
+  : acc
+
 type _MulWide<a extends string, b extends string> =
-  Ensure.I64<_MultiplyNarrowest<a, b>>
+  _NoWider<_Significant<b>, _Significant<a>> extends true
+  ? _MulLoop64<`${Wasm.I32False}${a}`, ReverseString8Segments<b>, Wasm.I64False>
+  : _MulLoop64<`${Wasm.I32False}${b}`, ReverseString8Segments<a>, Wasm.I64False>
 
 /// A zero bit costs the partial-product loop nothing, but a one bit costs an add
 /// over the whole accumulator - and a sign-extended negative i32 carries 32
