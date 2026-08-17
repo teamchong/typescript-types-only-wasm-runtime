@@ -523,7 +523,13 @@ export const enter = (
 /// So a chunk is one segment until `$Resume` can thread the base through.
 const SEGMENTS = 0;
 
-const DEFAULT_FUEL = 655360;
+/// A probe that fails costs time in proportion to its fuel, and the big ones
+/// cost minutes: from the mid-level state in /tmp/prof.json, walking down from
+/// 655360 (655360, 327680, 163840, 81920 all "too deep") took 547s before the
+/// first chunk landed at 20480; starting at 40960 landed in 25s. The same
+/// state runs 2754 units/s at 8640 against 1342 at 1080, so the ceiling only
+/// needs to sit above the sweet spot, not at the top of the ladder.
+const DEFAULT_FUEL = 32768;
 
 /// How long one chunk may take before its fuel counts as over the edge.
 ///
@@ -952,13 +958,18 @@ function sbrkWord(moduleText: string) {
   // (852/814/799/803ms), 1120 and 1280 come back never. Cost per chunk barely
   // moves with fuel, so the instructions covered per chunk is set by how close
   // the fuel sits to that edge, and doubling past it wastes a whole evaluation.
-  // The cap is not inherited across a restart. It is one chunk's verdict, and
-  // the chunk it failed on is long gone: the live checkpoint carried
-  // capFail 240 and so ran at fuel 210, while the same state re-probed from
-  // scratch holds 960 (measured on 3 chunks each: 107 units/s at 210,
-  // 233 at 480, 497 at 960, and only then the cliff - 42 at 1920). Re-deriving
-  // costs one slow chunk per restart; keeping a stale cap cost 4.6x forever.
-  let capFail = Infinity;
+  // The cap is inherited across a restart, doubled. Not inheriting it replayed
+  // the whole ladder every frame: from 1414 the driver settled up through
+  // 2828, 5656, 11312, 22624, 32768, then failed "too deep" at 16384, 8192,
+  // 4096, 2048, 1024 and landed back at ~1200 - profiled at 90.7s of retries
+  // in a 125.3s frame (eval 25.5s). Inheriting it exactly can pin a stale low
+  // edge (a checkpoint once carried capFail 240 where the state held 960), so
+  // the doubled cap leaves the midpoint probe one step of headroom above the
+  // saved edge: from lastGood 1232 / cap 1408 it tries ~2000 once, at low
+  // fuel, rather than 32768.
+  let capFail = options.fuel === undefined && options.resume?.capFail !== undefined
+    ? options.resume.capFail * 2
+    : Infinity;
   // The fuel we are resuming at already landed for the run that saved it, so
   // it is a floor to back off to, not an unknown to re-derive.
   let lastGood = options.fuel === undefined && options.resume?.fuel !== undefined
@@ -1009,18 +1020,23 @@ function sbrkWord(moduleText: string) {
   // The same instructions run in the type runtime, so the ratio carries. These
   // are the three words the menu's own size handler writes; `setsizeneeded` is
   // consumed by the next D_Display and the window then stays where it is put.
-  if (inputSlot && process.env.VIEW_SIZE) {
+  // Written only when the words differ, so a resume does not re-trigger the
+  // resize (and its wipe) that the previous run already paid for.
+  if (inputSlot) {
     const levels = inputSlot.levels / Math.log2(fanout);
     const bits = (n: number) => n.toString(2).padStart(32, "0");
-    for (const [word, value] of [
+    const want = [
       [4463604 / 4, VIEW_BLOCKS],
       [4463608 / 4, VIEW_DETAIL],
-      [4463600 / 4, 1], // setsizeneeded
-    ] as const) {
-      memoryTrie = setWord(memoryTrie, word, bits(value), fanout, levels);
+    ] as const;
+    if (want.some(([word, value]) => getWord(memoryTrie, base, word, fanout, levels) !== bits(value))) {
+      for (const [word, value] of [...want, [4463600 / 4, 1] as const]) {
+        memoryTrie = setWord(memoryTrie, word, bits(value), fanout, levels);
+      }
+      memoryTrie = prune(memoryTrie, base, fanout);
+      memory = printTrie(memoryTrie);
+      process.stderr.write(`view: blocks ${VIEW_BLOCKS} detail ${VIEW_DETAIL} (setsizeneeded)\n`);
     }
-    memoryTrie = prune(memoryTrie, base, fanout);
-    memory = printTrie(memoryTrie);
     if (process.env.VIEW_PROBE)
       for (const w of [4463600 / 4, 4463604 / 4, 4463608 / 4])
         process.stderr.write(`VIEW word=${w} val=${getWord(memoryTrie, base, w, fanout, levels)}\n`);
@@ -1263,7 +1279,9 @@ ${splitReaders}
       }
       if (recycled !== chunks) {
         recycled = chunks;
-        fuel = options.fuel ?? DEFAULT_FUEL;
+        // Keep the fuel that was landing: resetting to the ceiling here paid
+        // the whole run of halvings again on every replacement.
+        fuel = lastGood > 0 ? lastGood : options.fuel ?? DEFAULT_FUEL;
         lifetime = Math.max(1, worked - 1);
         since = 0;
         worked = 0;

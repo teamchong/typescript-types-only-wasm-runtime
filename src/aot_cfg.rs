@@ -899,36 +899,13 @@ impl CfgCompiler {
         let digit_value: String = (0..digit).map(|i| format!("${{d{i}}}")).collect();
 
         // $Sel / $Set: pick and replace one child of a branch node
+        // $Sel indexes through a digit table instead of walking a chain of
+        // {fanout} conditionals: two property lookups instead of ~fanout/2
+        // conditional instantiations per trie level.
         let sel_arms: String = (0..fanout)
-            .map(|i| {
-                format!(
-                    "  D extends '{:0width$b}' ? T[{i}] :\n",
-                    i,
-                    width = digit,
-                    i = i
-                )
-            })
-            .collect();
-        let set_arms: String = (0..fanout)
-            .map(|i| {
-                let elements: Vec<String> = (0..fanout)
-                    .map(|j| if j == i { "X".to_string() } else { format!("T[{j}]") })
-                    .collect();
-                format!(
-                    "  D extends '{:0width$b}' ? [{}] :\n",
-                    i,
-                    elements.join(", "),
-                    width = digit
-                )
-            })
+            .map(|i| format!("  '{:0width$b}': {i},\n", i, width = digit, i = i))
             .collect();
         let all_same: String = (0..fanout).map(|_| "T").collect::<Vec<_>>().join(", ");
-        // Checking a node's arity does not need its children named: `[unknown,
-        // ...]` is an assignability test, while `[infer c0, ...]` infers eight
-        // subtree types and the callers then rebuilt a tuple out of them just to
-        // index it. $Sel and $Set already work by indexed access, so they can
-        // take T straight.
-        let node_unknowns: String = (0..fanout).map(|_| "unknown").collect::<Vec<_>>().join(", ");
 
         // the write buffer holds one bottom branch: the key is every digit above
         // it, so a store that stays inside the branch is a slot swap
@@ -1000,19 +977,27 @@ export type $SliceWide<A extends string> =
 
 export type $Word<T> = T extends [infer W extends string] ? W : '{z}'
 
+/// digit -> child index
+export type $DIdx = {{
+{sel_arms}}}
+
 /// pick child D of a branch node
-export type $Sel<T extends unknown[], D extends string> =
-{sel_arms}  never
+export type $Sel<T, D extends string> =
+  D extends keyof $DIdx ? T[$DIdx[D] & keyof T] : never
 
-/// replace child D of a branch node with X
-export type $Set<T extends unknown[], D extends string, X> =
-{set_arms}  never
+/// replace child D of a branch node with X. A homomorphic mapped type over a
+/// tuple rebuilds it in one instantiation; a {fanout}-arm conditional that
+/// spelled the new tuple out per arm cost ~fanout/2 arm checks each write.
+export type $Set<T, D extends string, X> =
+  {{ [K in keyof T]: K extends `${{$DIdx[D & keyof $DIdx]}}` ? X : T[K] }}
 
+/// A leaf is `[word]`; a branch has {fanout} slots. Reading `length` tells them
+/// apart without matching T against a {fanout}-wide tuple pattern.
 export type $Get<T, B extends string> =
   B extends `{digit_pattern}${{infer Rest}}`
-    ? T extends [{node_unknowns}]
-      ? $Get<$Sel<T, `{digit_value}`>, Rest>
-      : $Word<T>
+    ? T['length' & keyof T] extends 1
+      ? $Word<T>
+      : $Get<$Sel<T, `{digit_value}`>, Rest>
     : $Word<T>
 
 /// Writing into a leaf that stands for a whole subtree splits it, and every
@@ -1020,9 +1005,9 @@ export type $Get<T, B extends string> =
 /// holds this", which is how all-zero subtrees stay shared and cheap.
 export type $Put<T, B extends string, V extends string> =
   B extends `{digit_pattern}${{infer Rest}}`
-    ? T extends [{node_unknowns}]
-      ? $Set<T, `{digit_value}`, $Put<$Sel<T, `{digit_value}`>, Rest, V>>
-      : $Set<[{all_same}], `{digit_value}`, $Put<T, Rest, V>>
+    ? T['length' & keyof T] extends 1
+      ? $Set<[{all_same}], `{digit_value}`, $Put<T, Rest, V>>
+      : $Set<T, `{digit_value}`, $Put<$Sel<T, `{digit_value}`>, Rest, V>>
     : [V]
 
 export type $AlignAddr<A extends WasmValue> = Wasm.I32And<A, '11111111111111111111111111111100'>
@@ -1060,8 +1045,8 @@ export type $SetByte<W extends string, O extends string, V extends string> =
 export type $ByteOffset<A extends WasmValue> = Wasm.I32And<A, '{three}'>
 
 /// A branch node, expanding a shared leaf into {fanout} copies of itself.
-export type $Node8<T> = T extends [{node_unknowns}]
-  ? T : [{all_same}]
+export type $Node8<T> = T['length' & keyof T] extends 1
+  ? [{all_same}] : T
 
 /// The address split the way the write buffer wants it: the key of the bottom
 /// branch (everything but the last digit), that key as digits, and the digit.
@@ -1238,7 +1223,6 @@ export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> 
             vbyte0 = (24..32).map(|i| format!("${{v{i}}}")).collect::<String>(),
             digit_pattern = digit_pattern,
             digit_value = digit_value,
-            node_unknowns = node_unknowns,
             buf_key = buf_key,
             buf_digits = buf_digits,
             last_digit = last_digit,
@@ -1246,7 +1230,6 @@ export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> 
             merge_slots = merge_slots,
             buf_none = buf_none,
             sel_arms = sel_arms,
-            set_arms = set_arms,
             all_same = all_same,
         )
     }
@@ -3447,8 +3430,10 @@ impl BlockEnv {
             "export type {name}<M extends $Node, D extends WasmValue, S extends WasmValue, C extends WasmValue, DS extends WasmValue, SS extends WasmValue> =\n\
              \x20 C extends '{z}'\n\
              \x20 ? M\n\
-             \x20 : C extends '{one}'\n\
-             \x20 ? {store}<M, D, {load}<M, S>>\n\
+             \x20 : C extends `{small}${{string}}`\n\
+             \x20 ? ({store}<M, D, {load}<M, S>> extends infer M2 extends $Node\n\
+             \x20   ? {name}<M2, Wasm.I32Add<D, DS>, Wasm.I32Add<S, SS>, Wasm.I32Sub<C, '{one}'>, DS, SS>\n\
+             \x20   : never)\n\
              \x20 : $BlitH<C> extends infer H extends WasmValue\n\
              \x20   ? {name}<M, D, S, H, DS, SS> extends infer M2 extends $Node\n\
              \x20     ? {name}<M2, Wasm.I32Add<D, Wasm.I32Mul<H, DS>>, Wasm.I32Add<S, Wasm.I32Mul<H, SS>>, Wasm.I32Sub<C, H>, DS, SS>\n\
@@ -3456,6 +3441,9 @@ impl BlockEnv {
              \x20   : never\n",
             z = zero(),
             one = format!("{}1", "0".repeat(31)),
+            // below 512 the column walks linearly (tail call, no muls); the
+            // checker's tail-recursion cap is ~1000
+            small = "0".repeat(23),
         );
         self.register(&name, definition)
     }
