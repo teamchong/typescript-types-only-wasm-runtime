@@ -103,6 +103,70 @@ struct Scan {
     lo: u32,
 }
 
+/// One term of a fused texture index: `(local >> shift) & mask`, where mask
+/// is a contiguous run of `width` bits starting at bit `lo`. Two terms with
+/// disjoint bit ranges add without carries, so the index is a string splice.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct TexTerm {
+    local: u32,
+    shift: u32,
+    lo: u32,
+    width: u32,
+    /// per-iteration step: a loop-invariant local, or a C global in memory
+    step: TexStep,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum TexStep {
+    Local(u32),
+    Mem(u64),
+}
+
+/// A recognized texture-mapping loop (R_DrawColumn / R_DrawSpan):
+/// `do { m8[d] = m8[m32[CM] + m8[m32[SRC] + idx(a, b)]]; d += kd; a += da;
+/// b += db } while (++c)`, collapsed to one `$Tex` application. The
+/// colormap and source pointers are C globals the loop reloads every pixel;
+/// the fused loop reads them once, which is only equal if the pixel stores
+/// never land on those globals (they are screen buffers, they do not).
+#[derive(Debug, Clone, Copy)]
+struct Tex {
+    d: u32,
+    kd: i32,
+    c: u32,
+    cm: u64,
+    src: u64,
+    a: TexTerm,
+    b: Option<TexTerm>,
+    /// the low-detail variants write each pixel twice
+    pair: TexPair,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum TexPair {
+    None,
+    /// second store at D + k (R_DrawSpanLow: the next byte)
+    Offset(i32),
+    /// second store through another pointer local with its own stride
+    /// (R_DrawColumnLow: the neighbouring column)
+    Local(u32, i32),
+}
+
+/// Doom's FixedDiv2: a hand-written 32-step restoring division of
+/// `(|a| << 16) / |b|` (the port has no i64), whose loop returns the signed
+/// quotient from inside. Collapsed to one `$FDivQ` application plus the sign
+/// select the loop's exit path computes.
+#[derive(Debug, Clone, Copy)]
+struct FDiv {
+    /// the two operands the exit path xors for the sign
+    x: u32,
+    y: u32,
+    /// remainder, dividend bit source, |divisor|, quotient
+    rem: u32,
+    lo: u32,
+    b: u32,
+    q: u32,
+}
+
 /// A WASM label, compiled to a named type we can tail-call.
 ///
 /// `br` and falling off the end are different edges: for a `block` both go to
@@ -1870,6 +1934,447 @@ impl<'a> FunctionCfg<'a> {
         }
     }
 
+    /// Recognise the texture-mapping loops (see `Tex`): R_DrawColumn,
+    /// R_DrawSpan and their low-detail twins. Anything off-shape falls back to
+    /// the interpreted loop.
+    fn match_tex_loop(&self, pos: usize, end_pos: usize) -> Option<Tex> {
+        use wasmparser::Operator as Op;
+        let ops = &self.ops[pos..end_pos];
+        if ops.len() < 28 || ops.len() > 60 {
+            return None;
+        }
+        if std::env::var("TEX_DEBUG").is_ok() {
+            eprintln!("tex candidate at {pos}: {:?}", ops);
+        }
+        let mut i = 0usize;
+        let at = |i: usize| ops.get(i);
+        let d = match at(i)? {
+            Op::LocalGet { local_index } => *local_index,
+            _ => return None,
+        };
+        i += 1;
+        let global_load = |i: usize| -> Option<u64> {
+            match (at(i)?, at(i + 1)?) {
+                (Op::I32Const { value: 0 }, Op::I32Load { memarg }) => Some(memarg.offset),
+                _ => None,
+            }
+        };
+        let cm = global_load(i)?;
+        let src = global_load(i + 2)?;
+        i += 4;
+        // `(local >> s) & m`
+        let term = |i: usize| -> Option<(u32, u32, u32, u32)> {
+            match (at(i)?, at(i + 1)?, at(i + 2)?, at(i + 3)?, at(i + 4)?) {
+                (
+                    Op::LocalGet { local_index },
+                    Op::I32Const { value: s },
+                    Op::I32ShrU,
+                    Op::I32Const { value: m },
+                    Op::I32And,
+                ) => {
+                    let s = *s as u32;
+                    let m = *m as u32;
+                    if m == 0 || s >= 32 {
+                        return None;
+                    }
+                    let lo = m.trailing_zeros();
+                    let run = m >> lo;
+                    if run & (run + 1) != 0 {
+                        return None; // not one contiguous run of bits
+                    }
+                    let width = 32 - run.leading_zeros();
+                    if lo + s + width > 32 {
+                        return None;
+                    }
+                    Some((*local_index, s, lo, width))
+                }
+                _ => None,
+            }
+        };
+        // index: `A add`, `A add B add`, or `A B or tee IDX add`
+        let a_t = term(i)?;
+        i += 5;
+        let mut b_t = None;
+        let mut idx_local = None;
+        match at(i)? {
+            Op::I32Add => {
+                i += 1;
+                if let Some(t) = term(i) {
+                    if matches!(at(i + 5), Some(Op::I32Add)) {
+                        b_t = Some(t);
+                        i += 6;
+                    }
+                }
+            }
+            _ => {
+                let t = term(i)?;
+                i += 5;
+                match (at(i)?, at(i + 1)?, at(i + 2)?) {
+                    (Op::I32Or, Op::LocalTee { local_index }, Op::I32Add) => {
+                        b_t = Some(t);
+                        idx_local = Some(*local_index);
+                        i += 3;
+                    }
+                    _ => return None,
+                }
+            }
+        }
+        if let Some((_, _, b_lo, b_w)) = b_t {
+            // disjoint result bits, so `+`/`|` are the same splice
+            let (_, _, a_lo, a_w) = a_t;
+            if a_lo < b_lo + b_w && b_lo < a_lo + a_w {
+                return None;
+            }
+        }
+        // the pixel: m8[m32[CM] + m8[m32[SRC] + idx]] stored to d
+        let byte0 = |i: usize| -> Option<()> {
+            match (at(i)?, at(i + 1)?, at(i + 2)?) {
+                (Op::I32Load8U { memarg: l1 }, Op::I32Add, Op::I32Load8U { memarg: l2 })
+                    if l1.offset == 0 && l2.offset == 0 =>
+                {
+                    Some(())
+                }
+                _ => None,
+            }
+        };
+        byte0(i)?;
+        i += 3;
+        let store8 = |i: usize| -> Option<()> {
+            match at(i)? {
+                Op::I32Store8 { memarg } if memarg.offset == 0 => Some(()),
+                _ => None,
+            }
+        };
+        let mut pair = TexPair::None;
+        let mut d2 = None;
+        match at(i)? {
+            Op::I32Store8 { .. } => {
+                store8(i)?;
+                i += 1;
+                // R_DrawSpanLow: d+1 gets the same texel, recomputed through IDX
+                if let (Some(Op::LocalGet { local_index: dd }), Some(Op::I32Const { value: k }), Some(Op::I32Add)) =
+                    (at(i), at(i + 1), at(i + 2))
+                {
+                    if *dd == d && idx_local.is_some() {
+                        let j = i + 3;
+                        if global_load(j) == Some(cm) && global_load(j + 2) == Some(src) {
+                            match (at(j + 4)?, at(j + 5)?) {
+                                (Op::LocalGet { local_index: x }, Op::I32Add) if Some(*x) == idx_local => {}
+                                _ => return None,
+                            }
+                            byte0(j + 6)?;
+                            store8(j + 9)?;
+                            pair = TexPair::Offset(*k);
+                            i = j + 10;
+                        }
+                    }
+                }
+            }
+            Op::LocalTee { local_index: v } => {
+                // R_DrawColumnLow: the texel is stored through d and d2
+                let v = *v;
+                store8(i + 1)?;
+                match (at(i + 2)?, at(i + 3)?) {
+                    (Op::LocalGet { local_index: dd2 }, Op::LocalGet { local_index: vv }) if *vv == v && *dd2 != d => {
+                        d2 = Some(*dd2);
+                    }
+                    _ => return None,
+                }
+                store8(i + 4)?;
+                i += 5;
+            }
+            _ => return None,
+        }
+        // affine updates in any order, then the counter
+        let mut kd = None;
+        let mut kd2 = None;
+        let mut a_step = None;
+        let mut b_step = None;
+        let n_updates = 2 + b_t.is_some() as usize + d2.is_some() as usize;
+        if std::env::var("TEX_DEBUG").is_ok() {
+            eprintln!("tex: pixel parsed, updates start at {i}, n_updates {n_updates}, pair {pair:?}, d2 {d2:?}");
+        }
+        for _ in 0..n_updates {
+            let (x, step, len) = match (at(i)?, at(i + 1)?, at(i + 2)?, at(i + 3)?) {
+                (
+                    Op::LocalGet { local_index: x },
+                    Op::I32Const { value: k },
+                    Op::I32Add,
+                    Op::LocalSet { local_index: x2 },
+                ) if x2 == x => (*x, Err(*k), 4),
+                (
+                    Op::LocalGet { local_index: x },
+                    Op::LocalGet { local_index: l },
+                    Op::I32Add,
+                    Op::LocalSet { local_index: x2 },
+                ) if x2 == x => (*x, Ok(TexStep::Local(*l)), 4),
+                (Op::I32Const { value: 0 }, Op::I32Load { memarg }, Op::LocalGet { local_index: x }, Op::I32Add) => {
+                    match at(i + 4)? {
+                        Op::LocalSet { local_index: x2 } if x2 == x => (*x, Ok(TexStep::Mem(memarg.offset)), 5),
+                        _ => return None,
+                    }
+                }
+                _ => return None,
+            };
+            i += len;
+            if x == d {
+                kd = Some(step.err()?);
+            } else if Some(x) == d2 {
+                kd2 = Some(step.err()?);
+            } else if x == a_t.0 {
+                a_step = Some(step.ok()?);
+            } else if b_t.map(|t| t.0) == Some(x) {
+                b_step = Some(step.ok()?);
+            } else {
+                return None;
+            }
+        }
+        let c = match (at(i)?, at(i + 1)?, at(i + 2)?, at(i + 3)?, at(i + 4)?) {
+            (
+                Op::LocalGet { local_index: c },
+                Op::I32Const { value: 1 },
+                Op::I32Add,
+                Op::LocalTee { local_index: c2 },
+                Op::BrIf { relative_depth: 0 },
+            ) if c == c2 => *c,
+            _ => return None,
+        };
+        if i + 5 != ops.len() {
+            return None;
+        }
+        if let Some(dd2) = d2 {
+            pair = TexPair::Local(dd2, kd2?);
+        }
+        // the texel/index temporaries are not written back: refuse if the rest
+        // of the function reads them at all (conservative: no flow analysis)
+        let mut temps = vec![];
+        temps.extend(idx_local);
+        if let Some(Op::LocalTee { local_index: v }) = ops.iter().find(|o| matches!(o, Op::LocalTee { local_index } if Some(*local_index) != idx_local && *local_index != c)) {
+            temps.push(*v);
+        }
+        for op in &self.ops[end_pos + 1..] {
+            if let Op::LocalGet { local_index } | Op::LocalTee { local_index } = op {
+                if temps.contains(local_index) {
+                    return None;
+                }
+            }
+        }
+        // the loop's only writes are d, d2, a, b, c (and the texel/index
+        // temporaries, dead after the loop): any local step is invariant
+        let mut written = vec![d, a_t.0, c];
+        written.extend(d2);
+        written.extend(b_t.map(|t| t.0));
+        for s in [Some(a_step?), b_step].into_iter().flatten() {
+            if let TexStep::Local(l) = s {
+                if written.contains(&l) || Some(l) == idx_local {
+                    return None;
+                }
+            }
+        }
+        let mut uniq = written.clone();
+        uniq.sort_unstable();
+        uniq.dedup();
+        if uniq.len() != written.len() {
+            return None;
+        }
+        let a = TexTerm { local: a_t.0, shift: a_t.1, lo: a_t.2, width: a_t.3, step: a_step? };
+        let b = match b_t {
+            Some((l, sft, lo, w)) => Some(TexTerm { local: l, shift: sft, lo, width: w, step: b_step? }),
+            None => None,
+        };
+        Some(Tex { d, kd: kd?, c, cm, src, a, b, pair })
+    }
+
+    /// Recognise FixedDiv2's loop (see `FDiv`): the exact 54-op body, with the
+    /// bit counter set to 31 at function entry and never written before the loop.
+    fn match_fdiv_loop(&self, pos: usize, end_pos: usize) -> Option<FDiv> {
+        use wasmparser::Operator as Op;
+        let ops = &self.ops[pos..end_pos];
+        if ops.len() != 54 {
+            return None;
+        }
+        if std::env::var("FDIV_DEBUG").is_ok() {
+            eprintln!("fdiv candidate at {pos}: {:?}", ops);
+        }
+        let lg = |i: usize| match &ops[i] {
+            Op::LocalGet { local_index } => Some(*local_index),
+            _ => None,
+        };
+        // exit test: i > -1 else return select(0 - q, q, (y ^ x) < 0)
+        if !matches!(&ops[0], Op::Block { .. }) {
+            return None;
+        }
+        let i_local = lg(1)?;
+        if !matches!(
+            (&ops[2], &ops[3], &ops[4], &ops[5]),
+            (Op::I32Const { value: -1 }, Op::I32GtS, Op::BrIf { relative_depth: 0 }, Op::I32Const { value: 0 })
+        ) {
+            return None;
+        }
+        let q = lg(6)?;
+        if !matches!(&ops[7], Op::I32Sub) || lg(8)? != q {
+            return None;
+        }
+        let y = lg(9)?;
+        let x = lg(10)?;
+        if !matches!(
+            (&ops[11], &ops[12], &ops[13], &ops[14], &ops[15], &ops[16]),
+            (Op::I32Xor, Op::I32Const { value: 0 }, Op::I32LtS, Op::Select, Op::Return, Op::End)
+        ) {
+            return None;
+        }
+        // rem = (rem << 1) | ((lo >> i) & 1)
+        let rem = lg(17)?;
+        if !matches!((&ops[18], &ops[19]), (Op::I32Const { value: 1 }, Op::I32Shl)) {
+            return None;
+        }
+        let lo = lg(20)?;
+        if lg(21)? != i_local
+            || !matches!(
+                (&ops[22], &ops[23], &ops[24], &ops[25]),
+                (Op::I32ShrU, Op::I32Const { value: 1 }, Op::I32And, Op::I32Or)
+            )
+        {
+            return None;
+        }
+        let t = match &ops[26] {
+            Op::LocalTee { local_index } => *local_index,
+            _ => return None,
+        };
+        // rem -= select(0, b, rem > -1 && rem <u b); q |= select(0, 1 << i, keep)
+        if !matches!(&ops[27], Op::I32Const { value: 0 }) {
+            return None;
+        }
+        let b = lg(28)?;
+        if lg(29)? != rem
+            || !matches!((&ops[30], &ops[31]), (Op::I32Const { value: -1 }, Op::I32GtS))
+            || lg(32)? != t
+            || lg(33)? != b
+            || !matches!((&ops[34], &ops[35]), (Op::I32LtU, Op::I32And))
+            || !matches!(&ops[36], Op::LocalTee { local_index } if *local_index == t)
+            || !matches!((&ops[37], &ops[38]), (Op::Select, Op::I32Sub))
+            || !matches!(&ops[39], Op::LocalSet { local_index } if *local_index == rem)
+            || !matches!((&ops[40], &ops[41]), (Op::I32Const { value: 0 }, Op::I32Const { value: 1 }))
+            || lg(42)? != i_local
+            || !matches!(&ops[43], Op::I32Shl)
+            || lg(44)? != t
+            || !matches!(&ops[45], Op::Select)
+            || lg(46)? != q
+            || !matches!(&ops[47], Op::I32Or)
+            || !matches!(&ops[48], Op::LocalSet { local_index } if *local_index == q)
+            || lg(49)? != i_local
+            || !matches!((&ops[50], &ops[51]), (Op::I32Const { value: -1 }, Op::I32Add))
+        {
+            return None;
+        }
+        match (&ops[52], &ops[53]) {
+            (Op::LocalSet { local_index }, Op::Br { relative_depth: 0 }) if *local_index == i_local => {}
+            _ => return None,
+        }
+        // the counter starts at 31 and nothing before the loop rewrites it
+        if !matches!((&self.ops[0], &self.ops[1]), (Op::I32Const { value: 31 }, Op::LocalSet { local_index }) if *local_index == i_local) {
+            return None;
+        }
+        for op in &self.ops[2..pos] {
+            if matches!(op, Op::LocalSet { local_index } | Op::LocalTee { local_index } if *local_index == i_local) {
+                return None;
+            }
+        }
+        let all = [x, y, rem, lo, b, q, t, i_local];
+        let mut uniq = all.to_vec();
+        uniq.sort_unstable();
+        uniq.dedup();
+        if uniq.len() != all.len() {
+            return None;
+        }
+        Some(FDiv { x, y, rem, lo, b, q })
+    }
+
+    /// The loop's only exit is its `return`, so the fused form is a return:
+    /// quotient from `$FDivQ`, negated when the operands' signs differ.
+    fn emit_fdiv(&mut self, env: &mut BlockEnv, f: FDiv) -> Result<Step, String> {
+        let helper = env.fdiv_helper();
+        let rem = env.local(f.rem)?;
+        let lo = env.local(f.lo)?;
+        let b = env.local(f.b)?;
+        let x = env.local(f.x)?;
+        let y = env.local(f.y)?;
+        let q = env.bind_always(&format!("{helper}<{rem}, {lo}, {b}>"), "WasmValue");
+        let neg = env.bind_always(&format!("Wasm.I32Sub<'{}', {q}>", zero()), "WasmValue");
+        let sign = env.bind_always(&format!("Wasm.I32LtS<Wasm.I32Xor<{y}, {x}>, '{}'>", zero()), "WasmValue");
+        let value = format!("({sign} extends '{}' ? {q} : {neg})", zero());
+        let value = env.bind(&value, "WasmValue");
+        env.push(value);
+        let _ = f.q;
+        let text = self.emit_return(env)?;
+        Ok(Step::Terminate(text))
+    }
+
+    /// Emit the fused texture loop: colormap/source pointers and memory-
+    /// resident steps read once, one memory binding, affine write-back.
+    /// Bounds guards are skipped as for `emit_blit`.
+    fn emit_tex(&mut self, env: &mut BlockEnv, t: Tex) -> Result<String, String> {
+        let helper = env.tex_helper(&t);
+        let dv = env.local(t.d)?;
+        let cv = env.local(t.c)?;
+        let av = env.local(t.a.local)?;
+        let bv = match t.b {
+            Some(b) => env.local(b.local)?,
+            None => format!("'{}'", zero()),
+        };
+        let mem = env.memory.clone();
+        let read32 = |env: &mut BlockEnv, addr: u64| -> String {
+            let expr = format!("$Load32<{mem}, '{}'>", bits32(addr as i32));
+            env.bind_always(&expr, "WasmValue")
+        };
+        let cm = read32(env, t.cm);
+        let src = read32(env, t.src);
+        let step_of = |env: &mut BlockEnv, s: TexStep| -> Result<String, String> {
+            match s {
+                TexStep::Local(l) => env.local(l),
+                TexStep::Mem(off) => Ok(read32(env, off)),
+            }
+        };
+        let da = step_of(env, t.a.step)?;
+        let db = match t.b {
+            Some(b) => step_of(env, b.step)?,
+            None => format!("'{}'", zero()),
+        };
+        // the counter steps +1 from a negative start and exits at zero
+        let trips = env.bind_always(&format!("Wasm.I32Sub<'{}', {cv}>", zero()), "WasmValue");
+        let kd = format!("'{}'", bits32(t.kd));
+        let (d2v, kd2) = match t.pair {
+            TexPair::Local(l, k) => (env.local(l)?, format!("'{}'", bits32(k))),
+            TexPair::Offset(k) => (format!("'{}'", bits32(k)), format!("'{}'", zero())),
+            TexPair::None => (format!("'{}'", zero()), format!("'{}'", zero())),
+        };
+        let next = format!("{helper}<{}, {dv}, {kd}, {cm}, {src}, {av}, {da}, {bv}, {db}, {trips}, {d2v}, {kd2}>", env.memory);
+        let name = format!("$m{}", env.next_temp);
+        env.next_temp += 1;
+        env.bindings.push((name.clone(), "$Node".to_string(), next));
+        env.memory = name;
+        env.mem_ops += 4;
+        env.stores += 12;
+        env.computed.retain(|expr, _| !expr.contains("$m"));
+        env.set_local(t.d, format!("Wasm.I32Add<{dv}, Wasm.I32Mul<{trips}, {kd}>>"))?;
+        env.set_local(t.a.local, format!("Wasm.I32Add<{av}, Wasm.I32Mul<{trips}, {da}>>"))?;
+        if let Some(b) = t.b {
+            env.set_local(b.local, format!("Wasm.I32Add<{bv}, Wasm.I32Mul<{trips}, {db}>>"))?;
+        }
+        if let TexPair::Local(l, _) = t.pair {
+            env.set_local(l, format!("Wasm.I32Add<{d2v}, Wasm.I32Mul<{trips}, {kd2}>>"))?;
+        }
+        env.set_local(t.c, format!("'{}'", zero()))?;
+        // fuel: one unit per pixel written, charged by the caller's toll jump.
+        // A flat charge is what let a 96-pixel span slip into a chunk already
+        // near the checker's instantiation limit (measured: "too deep" three
+        // times on one chunk, fuel search backed off 27440 -> 1960).
+        Ok(match t.pair {
+            TexPair::None => trips,
+            _ => format!("Wasm.I32Add<{trips}, {trips}>"),
+        })
+    }
+
     /// Emit the fused loop: one memory binding, affine local write-back, and
     /// execution continues after `end` in the same block.
     ///
@@ -2643,12 +3148,31 @@ impl<'a> FunctionCfg<'a> {
                 // the canonical byte-blit loop collapses to a single $Blit8
                 // application: no header/exit blocks, no two hops per byte,
                 // and the final locals are affine in the trip count
+                if arity == 1 && std::env::var("NO_FDIV").is_err() {
+                    if let Some(f) = self.match_fdiv_loop(pos, end_pos) {
+                        return self.emit_fdiv(env, f);
+                    }
+                }
                 if arity == 0 {
                     if std::env::var("FILL_DEBUG").is_ok() {
                         eprintln!("loop candidate at {pos}..{end_pos}: {:?}", &self.ops[pos..end_pos]);
                     }
                     if let Some(b) = self.match_blit_loop(pos, end_pos) {
                         return self.emit_blit(env, b, end_pos);
+                    }
+                    if std::env::var("NO_TEX").is_err() {
+                        if let Some(t) = self.match_tex_loop(pos, end_pos) {
+                            let toll = self.emit_tex(env, t)?;
+                            // continue after `end` in a fresh block, entered with
+                            // the fuel the pixels cost taken off first
+                            let after = self.fresh_id();
+                            let floor = env.stack.len();
+                            self.push_join(after, end_pos + 1, labels, floor, 0)?;
+                            let burn = env.burn_helper();
+                            let call = self.call_block(after, env, floor, 0);
+                            let call = call.replacen("$F,", &format!("{burn}<$F, {toll}>,"), 1);
+                            return Ok(Step::Terminate(call));
+                        }
                     }
                     // the WAD name scan stays a loop, but enters it with `i`
                     // already sitting on the fused scan's answer
@@ -3446,6 +3970,129 @@ impl BlockEnv {
             small = "0".repeat(23),
         );
         self.register(&name, definition)
+    }
+
+    /// Fused texture loop (see `Tex`): per pixel `m8[D] = m8[CM + m8[SRC +
+    /// idx(A, B)]]`, then D += KD, A += DA, B += DB. The index is a splice of
+    /// A's and B's characters into a zero string, so shift+mask+add cost one
+    /// template match. Same divide-and-conquer as `$Blit8`.
+    fn tex_helper(&mut self, t: &Tex) -> String {
+        let pattern: String = (0..32).map(|i| format!("${{infer c{i}}}")).collect();
+        let kept: String = (0..31).map(|i| format!("${{c{i}}}")).collect();
+        let shr1 = format!(
+            "export type $BlitH<C extends WasmValue> =\n\
+             \x20 C extends `{pattern}` ? `0{kept}` : never\n"
+        );
+        self.register("$BlitH", shr1);
+        // result char (31 - j) is A's char (31 - (j + shift)) for j in [lo, lo+width)
+        let mut chars: Vec<String> = (0..32).map(|_| "0".to_string()).collect();
+        let mut key = String::new();
+        let mut place = |name: &str, term: &TexTerm| {
+            for j in term.lo..term.lo + term.width {
+                chars[(31 - j) as usize] = format!("${{{name}{}}}", 31 - (j + term.shift));
+            }
+            key.push_str(&format!("_{}_{}_{}", term.shift, term.lo, term.width));
+        };
+        place("a", &t.a);
+        if let Some(b) = &t.b {
+            place("b", b);
+        }
+        let apat: String = (0..32).map(|i| format!("${{infer a{i}}}")).collect();
+        let bpat: String = (0..32).map(|i| format!("${{infer b{i}}}")).collect();
+        let spliced: String = chars.concat();
+        let idx_name = format!("$TexIdx{key}");
+        let idx = if t.b.is_some() {
+            format!(
+                "export type {idx_name}<A extends WasmValue, B extends WasmValue> =\n\
+                 \x20 A extends `{apat}` ? B extends `{bpat}` ? `{spliced}` : never : never\n"
+            )
+        } else {
+            format!(
+                "export type {idx_name}<A extends WasmValue, B extends WasmValue> =\n\
+                 \x20 A extends `{apat}` ? `{spliced}` : never\n"
+            )
+        };
+        self.register(&idx_name, idx);
+        // the pixel write: one store, or two of the same texel. D2 is the
+        // second pointer (own stride KD2) or the constant offset from D.
+        let (suffix, write) = match t.pair {
+            TexPair::None => ("", "$Store8<M, D, V>".to_string()),
+            TexPair::Offset(_) => ("_o", "$Store8<$Store8<M, D, V>, Wasm.I32Add<D, D2>, V>".to_string()),
+            TexPair::Local(..) => ("_l", "$Store8<$Store8<M, D, V>, D2, V>".to_string()),
+        };
+        let name = format!("$Tex{key}{suffix}");
+        let d2_step = match t.pair {
+            TexPair::Local(..) => "Wasm.I32Add<D2, KD2>",
+            _ => "D2",
+        };
+        let d2_jump = match t.pair {
+            TexPair::Local(..) => "Wasm.I32Add<D2, Wasm.I32Mul<H, KD2>>",
+            _ => "D2",
+        };
+        let definition = format!(
+            "export type {name}<M extends $Node, D extends WasmValue, KD extends WasmValue, CM extends WasmValue, SRC extends WasmValue, A extends WasmValue, DA extends WasmValue, B extends WasmValue, DB extends WasmValue, C extends WasmValue, D2 extends WasmValue, KD2 extends WasmValue> =\n\
+             \x20 C extends '{z}'\n\
+             \x20 ? M\n\
+             \x20 : C extends `{small}${{string}}`\n\
+             \x20 ? ($Load8U<M, Wasm.I32Add<CM, $Load8U<M, Wasm.I32Add<SRC, {idx_name}<A, B>>>>> extends infer V extends WasmValue\n\
+             \x20   ? {write} extends infer M2 extends $Node\n\
+             \x20     ? {name}<M2, Wasm.I32Add<D, KD>, KD, CM, SRC, Wasm.I32Add<A, DA>, DA, Wasm.I32Add<B, DB>, DB, Wasm.I32Sub<C, '{one}'>, {d2_step}, KD2>\n\
+             \x20     : never\n\
+             \x20   : never)\n\
+             \x20 : $BlitH<C> extends infer H extends WasmValue\n\
+             \x20   ? {name}<M, D, KD, CM, SRC, A, DA, B, DB, H, D2, KD2> extends infer M2 extends $Node\n\
+             \x20     ? {name}<M2, Wasm.I32Add<D, Wasm.I32Mul<H, KD>>, KD, CM, SRC, Wasm.I32Add<A, Wasm.I32Mul<H, DA>>, DA, Wasm.I32Add<B, Wasm.I32Mul<H, DB>>, DB, Wasm.I32Sub<C, H>, {d2_jump}, KD2>\n\
+             \x20     : never\n\
+             \x20   : never\n",
+            z = zero(),
+            one = format!("{}1", "0".repeat(31)),
+            small = "0".repeat(23),
+        );
+        self.register(&name, definition)
+    }
+
+    /// Take N units off the fuel string, N a 32-bit value: powers of two from
+    /// the low nine bits, largest first, and anything above 511 empties it.
+    /// Fuel is a run of '1's, so a prefix match is the subtraction.
+    fn burn_helper(&mut self) -> String {
+        // N as a 32-char string: chars 0..23 must be zero, chars 23..32 are the bits
+        let pattern: String = (0..9).map(|i| format!("${{infer b{i}}}")).collect();
+        let mut chain = String::from("F");
+        for i in 0..9 {
+            // b{i} is bit (8 - i)
+            let ones = "1".repeat(1 << (8 - i));
+            chain = format!("$BurnBit<{chain}, b{i}, '{ones}'>");
+        }
+        let definition = format!(
+            "export type $BurnBit<F extends string, Bit extends string, Ones extends string> =\n\
+             \x20 Bit extends '1' ? (F extends `${{Ones}}${{infer R}}` ? R : '') : F\n\
+             export type $Burn<F extends string, N extends string> =\n\
+             \x20 N extends `{zeros}{pattern}` ? {chain} : ''\n",
+            zeros = "0".repeat(23),
+        );
+        self.register("$Burn", definition)
+    }
+
+    /// Restoring division for FixedDiv2: R is the running remainder (< B on
+    /// entry, so `R << 1 | bit` never overflows 32 bits), LO the 32 dividend
+    /// bits still to shift in, most significant first. One `I32GeU` and at most
+    /// one `I32Sub` per bit; the quotient string grows a character per bit.
+    fn fdiv_helper(&mut self) -> String {
+        let definition = format!(
+            "export type $FDivQ<R extends WasmValue, LO extends WasmValue, B extends WasmValue> = $FDivL<R, B, LO, ''>\n\
+             export type $FDivL<R extends WasmValue, B extends WasmValue, D extends string, Q extends string> =\n\
+             \x20 D extends `${{infer Bit}}${{infer Rest}}`\n\
+             \x20 ? R extends `${{infer _Top}}${{infer Tail}}`\n\
+             \x20   ? `${{Tail}}${{Bit}}` extends infer R2 extends WasmValue\n\
+             \x20     ? Wasm.I32GeU<R2, B> extends '{z}'\n\
+             \x20       ? $FDivL<R2, B, Rest, `${{Q}}0`>\n\
+             \x20       : $FDivL<Wasm.I32Sub<R2, B>, B, Rest, `${{Q}}1`>\n\
+             \x20     : never\n\
+             \x20   : never\n\
+             \x20 : Q\n",
+            z = zero(),
+        );
+        self.register("$FDivQ", definition)
     }
 
     /// Backward record scan for the fused W_CheckNumForName loop: N records

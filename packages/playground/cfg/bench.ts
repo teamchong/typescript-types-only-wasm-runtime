@@ -15,7 +15,7 @@ const session = createSession();
 const cases = process.env.CASES ? process.env.CASES.split(",") : ["hop", "add", "mul", "and1", "lt5", "load", "store", "storeword", "arity2", "arity20", "call"];
 // instructions per iteration, from the .wat: fuel has to cover the whole run or
 // the case reports a partial time.
-const perIter: Record<string, number> = { hop: 6, add: 10, mul: 10, and1: 10, lt5: 22, load: 11, store: 11, storeword: 13, store8s4: 13, store8same: 9, loadword: 13, arity2: 6, arity20: 6, call: 14, blit8: 20, blit64: 20, blit8v: 24, blit64v: 24 };
+const perIter: Record<string, number> = { hop: 6, add: 10, mul: 10, and1: 10, lt5: 22, load: 11, store: 11, storeword: 13, store8s4: 13, store8same: 9, loadword: 13, arity2: 6, arity20: 6, call: 14, blit8: 20, blit64: 20, blit8v: 24, blit64v: 24, col: 230, span: 326 };
 // A single run cannot tell a per-iteration cost from a one-time setup cost:
 // dividing total by N charges the whole prologue to every iteration. Each case
 // runs at N and 2N, so the slope is the real per-iteration cost and the

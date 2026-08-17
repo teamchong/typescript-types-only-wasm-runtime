@@ -439,6 +439,10 @@ export const parseFrames = (printed: string): Frame[] => {
 const printFrame = (f: Frame) =>
   `['${f.block}', '${f.wantsValue ? 1 : 0}'${f.saved.length ? ", " + f.saved.join(", ") : ""}]`;
 
+/// Aliases `enter` needs in the chunk file (see there); reset by each call.
+export let unwindPrelude = "";
+export const setUnwindPrelude = (p: string) => { unwindPrelude = p; };
+
 export const enter = (
   frame: Frame,
   below: Frame[],
@@ -447,10 +451,40 @@ export const enter = (
 ): string => {
   // the value only goes on when the frame asked for one: a void call leaves the
   // stack as it was, and the blocks after it were compiled for that stack
-  const returned = frame.wantsValue && value !== undefined ? [value] : [];
-  const rest = `[${below.map(printFrame).join(", ")}]`;
-  const args = [`$FUEL`, rest, `$Buf<$IN>`, ...globals, ...frame.saved, ...returned];
-  return `$Exit<$b${frame.block}<${args.join(", ")}>>`;
+  const callOf = (f: Frame, rest: Frame[], fuel: string, mem: string, gs: string[], val?: string) => {
+    const returned = f.wantsValue && val !== undefined ? [val] : [];
+    const args = [fuel, `[${rest.map(printFrame).join(", ")}]`, mem, ...gs, ...f.saved, ...returned];
+    return `$b${f.block}<${args.join(", ")}>`;
+  };
+  const inner = callOf(frame, below, "$FUEL", "$Buf<$IN>", globals, value);
+  // A frame's return has no inline caller waiting for it - the caller's match
+  // was in a chunk that is over - so each frame below is re-entered from the
+  // returned tuple right here, in the same chunk. Before this every return
+  // out of a suspension was its own chunk: measured on an E1M1 frame, 14 of
+  // its 17 chunks did nothing but pop one frame each (14 instantiations of
+  // checking, ~3.5s of state round trip apiece).
+  //
+  // One alias per frame, each re-entry in tail position: nesting the whole
+  // chain in one expression stacked the frames' evaluation depth and tripped
+  // "excessively deep" at a fuel the flat form retires (measured: 21504 ->
+  // 5376, 82s frame -> 169s).
+  const gs = globals.map((_, k) => `$G${k}`);
+  const pattern = [
+    "'r'",
+    "infer $F extends string",
+    "infer $M extends $Node",
+    ...gs.map((g) => `infer ${g} extends $TTM_WasmValue`),
+    "infer $V extends $TTM_WasmValue",
+  ].join(", ");
+  let prelude = "";
+  for (let i = 0; i < below.length; i++) {
+    const f = below[i]!;
+    const next = callOf(f, below.slice(i + 1), "$F", "$M", gs, "$V");
+    prelude += `type $U${i}<$R> = $R extends [${pattern}] ? $U${i + 1}<${next}> : $R\n`;
+  }
+  prelude += `type $U${below.length}<$R> = $R\n`;
+  unwindPrelude = prelude;
+  return `$Exit<$U0<${inner}>>`;
 };
 
 /// Did the printer give up part way through?
@@ -607,6 +641,8 @@ export interface Checkpoint {
   entryChunks: number;
   evalMs: number;
   split: string[];
+  /// the `$U` aliases a suspended `call` refers to (see `enter`)
+  unwind?: string;
   /// The fuel search state, which is a property of the module and not of the
   /// process that found it. Nine evaluations at chunk 0 are spent walking
   /// 655360 down to the edge, and a cold resume that starts at DEFAULT_FUEL
@@ -905,6 +941,7 @@ function sbrkWord(moduleText: string) {
     if (!options.resume.done) {
       call = options.resume.call;
       frames = options.resume.frames;
+      setUnwindPrelude(options.resume.unwind ?? "");
     } else {
       // $entry bakes the module-initial globals into its own call, so calling it
       // again rewinds the stack pointer while memory keeps a heap grown past it:
@@ -1199,7 +1236,7 @@ function sbrkWord(moduleText: string) {
     env.createFile(statePathDts, stateText);
     const file = `type $FUEL = ${fuelType(fuel)}
 type $OUTER = ${fuelType(SEGMENTS)}
-type $Result = $Drive<$OUTER, $FUEL, ${call}>
+${call.includes("$U0<") ? unwindPrelude : ""}type $Result = $Drive<$OUTER, $FUEL, ${call}>
 export type $Out_Tag = $Tag<$Result>
 export type $Out_Frames = $Frames<$Result>
 export type $Out_Globals = $GlobalsOf<$Result>
@@ -1497,6 +1534,7 @@ ${splitReaders}
         entryChunks: chunks,
         evalMs,
         split: [...split],
+        unwind: next.includes("$U0<") ? unwindPrelude : undefined,
         fuel,
         capFail: capFail === Infinity ? undefined : capFail,
         // each `entry` call allocates its own screen and returns it, so a fixed
@@ -1510,27 +1548,24 @@ ${splitReaders}
     };
 
     if (tag === '"r"') {
-      // A return with frames still pending is a call coming back after
-      // something inside it suspended: the caller's inline match is long gone,
-      // so the host is what pops the frame and carries on. This is the only
-      // reason a return costs a round trip, and it only happens on the way out
-      // of a suspension.
-      if (frames.length === 0) {
-        value_ = value === '"void"' ? undefined : value.replace(/"/g, "");
-        checkpoint(call, true);
-        break;
+      // A return out of a suspension has no inline caller waiting: `enter`
+      // re-enters every pending frame inside the chunk (see there), so a return
+      // that reaches the host is the whole call coming back.
+      // (a checkpoint written before `enter` unwound in-type still returns one
+      // frame at a time: its call has no `$U0`, so pop the frame here)
+      if (frames.length > 0 && !call.includes("$U0<")) {
+        const [resume, ...rest] = frames;
+        frames = rest;
+        call = enter(resume!, rest, globalValues, toSource(value));
+        checkpoint(call);
+        mark("frames");
+        if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: returned into ${resume!.block}, ${rest.length} frames left, ${eta()}   `);
+        continue;
       }
-      const [resume, ...rest] = frames;
-      frames = rest;
-      call = enter(resume, rest, globalValues, toSource(value));
-      checkpoint(call);
-      mark("frames");
-      if (!options.quiet) {
-        process.stdout.write(
-          `\r  chunk ${chunks}: returned into ${resume.block}, ${rest.length} frames left, ${eta()}   `,
-        );
-      }
-      continue;
+      frames = [];
+      value_ = value === '"void"' ? undefined : value.replace(/"/g, "");
+      checkpoint(call, true);
+      break;
     }
 
     // suspended: the innermost frame is where to pick up, the rest is the
