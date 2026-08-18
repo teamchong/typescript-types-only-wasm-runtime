@@ -231,6 +231,9 @@ pub struct CfgCompiler {
     pub digit_bits: usize,
     func_types: Vec<FuncType>,
     func_type_indices: Vec<u32>,
+    /// defined-function index -> name, from the custom name section. Only used
+    /// to recognise the libc block moves (see `fused_call`).
+    func_names: HashMap<usize, String>,
     /// (offset, bytes) of each active data segment
     data: Vec<(u32, Vec<u8>)>,
     globals: Vec<i64>,
@@ -311,6 +314,7 @@ impl CfgCompiler {
                 .unwrap_or(6),
             func_types: Vec::new(),
             func_type_indices: Vec::new(),
+            func_names: HashMap::new(),
             data: Vec::new(),
             globals: Vec::new(),
             memory_pages: 1,
@@ -332,6 +336,22 @@ impl CfgCompiler {
         let mut bodies = Vec::new();
         for payload in Parser::new(0).parse_all(bytes) {
             match payload.map_err(|e| e.to_string())? {
+                Payload::CustomSection(reader) if reader.name() == "name" => {
+                    let names = wasmparser::NameSectionReader::new(reader.data(), reader.data_offset());
+                    for subsection in names {
+                        if let Ok(wasmparser::Name::Function(map)) = subsection {
+                            for naming in map {
+                                let naming = naming.map_err(|e| e.to_string())?;
+                                if naming.index as usize >= self.num_imports as usize {
+                                    self.func_names.insert(
+                                        naming.index as usize - self.num_imports as usize,
+                                        naming.name.to_string(),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
                 Payload::TypeSection(reader) => {
                     for rec_group in reader {
                         let rec_group = rec_group.map_err(|e| e.to_string())?;
@@ -2338,6 +2358,45 @@ impl<'a> FunctionCfg<'a> {
         Ok(Step::Terminate(text))
     }
 
+    /// `memcpy(d, s, n)` / `memset(d, c, n)` as one fused walk, plus the toll
+    /// jump that charges a unit per byte. `memmove` only differs when the
+    /// regions overlap forwards, which doom's callers do not do.
+    fn emit_libc_move(
+        &mut self,
+        env: &mut BlockEnv,
+        labels: &[Label],
+        pos: usize,
+        args: &[String],
+        is_fill: bool,
+    ) -> Result<Step, String> {
+        let d = args[0].clone();
+        let sv = args[1].clone();
+        let n = args[2].clone();
+        let next = if is_fill {
+            let helper = env.fill_helper();
+            format!("{helper}<{}, {d}, {sv}, {n}>", env.memory)
+        } else {
+            let helper = env.blit_helper(8);
+            let one = format!("'{}'", bits32(1));
+            format!("{helper}<{}, {d}, {sv}, {n}, {one}, {one}>", env.memory)
+        };
+        let name = format!("$m{}", env.next_temp);
+        env.next_temp += 1;
+        env.bindings.push((name.clone(), "$Node".to_string(), next));
+        env.memory = name;
+        env.mem_ops += 2;
+        env.computed.retain(|expr, _| !expr.contains("$m"));
+        // both return the destination
+        env.push(d);
+        let after = self.fresh_id();
+        let floor = env.stack.len();
+        self.push_join(after, pos, labels, floor, 0)?;
+        let burn = env.burn_helper();
+        let call = self.call_block(after, env, floor, 0);
+        let call = call.replacen("$F,", &format!("{burn}<$F, {n}>,"), 1);
+        Ok(Step::Terminate(call))
+    }
+
     /// Emit the fused texture loop: colormap/source pointers and memory-
     /// resident steps read once, one memory binding, affine write-back.
     /// Bounds guards are skipped as for `emit_blit`.
@@ -3396,6 +3455,26 @@ impl<'a> FunctionCfg<'a> {
                     args.push(env.pop());
                 }
                 args.reverse();
+                // libc's block moves are a page of alignment prologues, an
+                // unrolled body and a byte tail - 15% of an E1M1 frame between
+                // them, measured by where chunks land. The type runtime does
+                // not care about alignment, so the whole call collapses to the
+                // fused byte walk the pixel loops already use.
+                if std::env::var("NO_LIBC").is_err() && num_params == 3 && num_results == 1 {
+                    if let Some(kind) = self.module.func_names.get(&defined).map(|n| n.as_str()) {
+                        let fused = match kind {
+                            // not memmove: a forward byte walk is only the same
+                            // thing when the regions do not overlap, and doom
+                            // never calls it anyway
+                            "memcpy" | "ts_memcpy" => Some(false),
+                            "memset" => Some(true),
+                            _ => None,
+                        };
+                        if let Some(is_fill) = fused {
+                            return self.emit_libc_move(env, labels, pos, &args, is_fill);
+                        }
+                    }
+                }
                 // the callee is the unmetered flavour: it runs to completion and
                 // hands back ['r', memory, globals..., value?]
                 let callee_name = format!("$call{defined}");
@@ -4155,6 +4234,38 @@ impl BlockEnv {
         self.register("$FDivQ", definition)
     }
 
+    /// Fused byte fill: while (count--) { mem8[d] = V; d += 1 }. Same
+    /// divide-and-conquer as `$Blit8`, and the same reason: a linear
+    /// per-byte recursion stalls past ~1000 iterations and a memset can be
+    /// the whole screen.
+    fn fill_helper(&mut self) -> String {
+        let pattern: String = (0..32).map(|i| format!("${{infer c{i}}}")).collect();
+        let kept: String = (0..31).map(|i| format!("${{c{i}}}")).collect();
+        let shr1 = format!(
+            "export type $BlitH<C extends WasmValue> =\n\
+             \x20 C extends `{pattern}` ? `0{kept}` : never\n"
+        );
+        self.register("$BlitH", shr1);
+        let definition = format!(
+            "export type $Fill8<M extends $Node, D extends WasmValue, V extends WasmValue, C extends WasmValue> =\n\
+             \x20 C extends '{z}'\n\
+             \x20 ? M\n\
+             \x20 : C extends `{small}${{string}}`\n\
+             \x20 ? ($Store8<M, D, V> extends infer M2 extends $Node\n\
+             \x20   ? $Fill8<M2, Wasm.I32Add<D, '{one}'>, V, Wasm.I32Sub<C, '{one}'>>\n\
+             \x20   : never)\n\
+             \x20 : $BlitH<C> extends infer H extends WasmValue\n\
+             \x20   ? $Fill8<M, D, V, H> extends infer M2 extends $Node\n\
+             \x20     ? $Fill8<M2, Wasm.I32Add<D, H>, V, Wasm.I32Sub<C, H>>\n\
+             \x20     : never\n\
+             \x20   : never\n",
+            z = zero(),
+            one = format!("{}1", "0".repeat(31)),
+            small = "0".repeat(23),
+        );
+        self.register("$Fill8", definition)
+    }
+
     /// Backward record scan for the fused W_CheckNumForName loop: N records
     /// of 20 bytes ending at B+I, compared as two i32 words at -20/-16.
     /// Returns the byte offset of the first match walking downward, or zero.
@@ -4749,10 +4860,11 @@ impl BlockEnv {
             // comes for free.
             let inside = format!("{addr} extends `{zeros}${{string}}`");
             if width == 1 {
-                return Some(format!(
-                    "({inside} ? '{one}' : '{}') extends '{one}' ?",
-                    zero()
-                ));
+                // The pattern match is the test: routing it through
+                // `? '1' : '0'` and then comparing that to '1' is a second
+                // conditional per access, and the checker's own profile is
+                // ~31% walking the conditionals a node sits inside.
+                return Some(format!("{inside} ?"));
             }
             // A `width`-byte access also has to not run off the end, and only
             // the last `width - 1` addresses can. Those are exactly the ones
@@ -4767,10 +4879,11 @@ impl BlockEnv {
                 })
                 .collect();
             let over = overhang.join(" | ");
+            // in bounds when the top bits are clear and it is not one of the
+            // last `width - 1` addresses; both are pattern matches, so the
+            // guard is two conditionals rather than four
             return Some(format!(
-                "({inside} ? ({addr} extends {over} ? '{}' : '{one}') : '{}') extends '{one}' ?",
-                zero(),
-                zero()
+                "{inside} ? {addr} extends {over} ? never :"
             ));
         }
         // Otherwise fall back to comparing. doom declares 11 pages, which is not
