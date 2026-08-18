@@ -345,10 +345,13 @@ export type $InitFetch<P extends string> =
       : '00000000000000000000000000000000'
     : '00000000000000000000000000000000'
 
-/// what the host reads: memory flushed back to a plain trie
-export type $Exit<$R> =
-  $R extends ['r', infer $F1 extends string, infer $M1, ...infer $Rest]
-    ? ['r', $F1, $Flush<$M1>, ...$Rest]
+/// what the host reads: the run carried through every bounce and
+/// every return into a re-entered frame, then the memory flushed back
+/// to a plain trie
+export type $Exit<$R> = $Flushed<$Run<$R>>
+export type $Flushed<$R> =
+  $R extends ['r', infer $F1 extends string, infer $K1 extends unknown[], infer $M1, ...infer $Rest]
+    ? ['r', $F1, $K1, $Flush<$M1>, ...$Rest]
     : $R extends ['s', infer $K1 extends unknown[], infer $M1, ...infer $Rest]
     ? ['s', $K1, $Flush<$M1>, ...$Rest]
     : $R
@@ -358,14 +361,14 @@ export type $Tag<$R> = $R extends [infer $T, ...unknown[]] ? $T : 'bad'
 export type $Frames<$R> = $R extends ['s', infer $Ks extends unknown[], ...unknown[]] ? $Ks : []
 export type $MemOf<$R> =
   $R extends ['s', unknown, infer $M1, ...unknown[]] ? $M1
-  : $R extends ['r', unknown, infer $M1, ...unknown[]] ? $M1
+  : $R extends ['r', unknown, unknown, infer $M1, ...unknown[]] ? $M1
   : never
 export type $GlobalsOf<$R> =
   $R extends ['s', unknown, unknown, infer $h0] ? [$h0]
-  : $R extends ['r', unknown, unknown, infer $h0, unknown] ? [$h0]
+  : $R extends ['r', unknown, unknown, unknown, infer $h0, unknown] ? [$h0]
   : []
 export type $ValueOf<$R> =
-  $R extends ['r', unknown, unknown, unknown, infer $V] ? $V : 'void'
+  $R extends ['r', unknown, unknown, unknown, unknown, infer $V] ? $V : 'void'
 
 /// one trie branch at a time, for a memory too big for the printer
 export type $Kid0<$M> = $M extends [infer $c0, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown] ? $c0 : $M
@@ -439,8 +442,10 @@ export type $p0_0_0<$S extends $State> =
 export type $b0_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $p0_0_0<[$M, $g0, $l0, $l1]> extends infer $S extends $State
-    ? ['r', $F1, $S[0], $S[1], $S[4]]
+    ? ['r', $F1, $K, $S[0], $S[1], $S[4]]
     : never
+  : $F extends `${string}x${infer $Fx}`
+  ? ['b', $Fx, [['0_0', '0', $l0, $l1], ...$K], $M, $g0]
   : ['s', [['0_0', '0', $l0, $l1], ...$K], $M, $g0]
 
 
@@ -453,8 +458,10 @@ export type $p1_0_0<$S extends $State> =
 export type $b1_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $p1_0_0<[$M, $g0, $l0, $l1]> extends infer $S extends $State
-    ? ['r', $F1, $S[0], $S[1], $S[4]]
+    ? ['r', $F1, $K, $S[0], $S[1], $S[4]]
     : never
+  : $F extends `${string}x${infer $Fx}`
+  ? ['b', $Fx, [['1_0', '0', $l0, $l1], ...$K], $M, $g0]
   : ['s', [['1_0', '0', $l0, $l1], ...$K], $M, $g0]
 
 
@@ -464,20 +471,24 @@ export type $call1<$F extends string, $K extends unknown[], $M extends $Node, $g
 export type $b2_0<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $indirect0<'00000000000000000000000000000001', $F1, [['2_1', '1', $l0, $l1], ...$K], $M, $g0, $l0, $l1> extends infer $c0
-    ? $c0 extends ['r', infer $Fr1 extends string, infer $m2 extends $Node, infer $g_3 extends WasmValue, infer $t4 extends WasmValue]
+    ? $c0 extends ['r', infer $Fr1 extends string, unknown, infer $m2 extends $Node, infer $g_3 extends WasmValue, infer $t4 extends WasmValue]
       ? $b2_1<$Fr1, $K, $m2, $g_3, $l0, $l1, $t4>
       : $c0
     : never
+  : $F extends `${string}x${infer $Fx}`
+  ? ['b', $Fx, [['2_0', '0', $l0, $l1], ...$K], $M, $g0]
   : ['s', [['2_0', '0', $l0, $l1], ...$K], $M, $g0]
 
 
 export type $b2_1<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $l0 extends WasmValue, $l1 extends WasmValue, $k0 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $indirect0<'00000000000000000000000000000010', $F1, [['2_2', '1', $k0], ...$K], $M, $g0, $l0, $l1> extends infer $c0
-    ? $c0 extends ['r', infer $Fr1 extends string, infer $m2 extends $Node, infer $g_3 extends WasmValue, infer $t4 extends WasmValue]
+    ? $c0 extends ['r', infer $Fr1 extends string, unknown, infer $m2 extends $Node, infer $g_3 extends WasmValue, infer $t4 extends WasmValue]
       ? $b2_2<$Fr1, $K, $m2, $g_3, $k0, $t4>
       : $c0
     : never
+  : $F extends `${string}x${infer $Fx}`
+  ? ['b', $Fx, [['2_1', '0', $l0, $l1, $k0], ...$K], $M, $g0]
   : ['s', [['2_1', '0', $l0, $l1, $k0], ...$K], $M, $g0]
 
 
@@ -487,8 +498,10 @@ export type $p2_2_0<$S extends $State> =
 export type $b2_2<$F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $k0 extends WasmValue, $k1 extends WasmValue> =
   $F extends `1${infer $F1}`
   ? $p2_2_0<[$M, $g0, $k0, $k1]> extends infer $S extends $State
-    ? ['r', $F1, $S[0], $S[1], $S[4]]
+    ? ['r', $F1, $K, $S[0], $S[1], $S[4]]
     : never
+  : $F extends `${string}x${infer $Fx}`
+  ? ['b', $Fx, [['2_2', '0', $k0, $k1], ...$K], $M, $g0]
   : ['s', [['2_2', '0', $k0, $k1], ...$K], $M, $g0]
 
 
@@ -501,27 +514,40 @@ export type $indirect0<$C extends WasmValue, $F extends string, $K extends unkno
   $C extends '00000000000000000000000000000010' ? $call1<$F, $K, $M, $g0, $p0, $p1> :
   never
 
-/// Re-enter a suspend at type level: the same call `enter()` builds in
-/// the host, so a chunk is no longer a single tail chain and the
-/// 1000-iteration cap stops bounding it. 5 blocks can be resumed.
-export type $Resume<$R, $F extends string> =
-[$Frames<$R>, $GlobalsOf<$R>, $MemOf<$R>] extends [[infer $T, ...infer $B extends unknown[]], [infer $g0 extends WasmValue], infer $MM extends unknown[]]
-? (
-  $T extends ['0_0', unknown, infer $s0 extends WasmValue, infer $s1 extends WasmValue]
-    ? $Exit<$b0_0<$F, $B, $MM, $g0, $s0, $s1>>
-  :   $T extends ['1_0', unknown, infer $s0 extends WasmValue, infer $s1 extends WasmValue]
-    ? $Exit<$b1_0<$F, $B, $MM, $g0, $s0, $s1>>
-  :   $T extends ['2_0', unknown, infer $s0 extends WasmValue, infer $s1 extends WasmValue]
-    ? $Exit<$b2_0<$F, $B, $MM, $g0, $s0, $s1>>
-  :   $T extends ['2_1', unknown, infer $s0 extends WasmValue, infer $s1 extends WasmValue, infer $s2 extends WasmValue]
-    ? $Exit<$b2_1<$F, $B, $MM, $g0, $s0, $s1, $s2>>
-  :   $T extends ['2_2', unknown, infer $s0 extends WasmValue, infer $s1 extends WasmValue]
-    ? $Exit<$b2_2<$F, $B, $MM, $g0, $s0, $s1>>
-  : $R
-)
-: $R
+/// Re-enter a frame at type level: 5 blocks, by function then by block.
+export type $Enter<$T, $F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $V> =
+  $T extends [`0_${string}`, ...unknown[]] ? $Enter0<$T, $F, $K, $M, $g0, $V> :
+  $T extends [`1_${string}`, ...unknown[]] ? $Enter1<$T, $F, $K, $M, $g0, $V> :
+  $T extends [`2_${string}`, ...unknown[]] ? $Enter2<$T, $F, $K, $M, $g0, $V> :
+  never
+export type $Enter0<$T, $F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $V> =
+  $T extends ['0_0', '0', infer $s0 extends WasmValue, infer $s1 extends WasmValue] ? $b0_0<$F, $K, $M, $g0, $s0, $s1> :
+  $T extends ['0_0', '1', infer $s0 extends WasmValue] ? $b0_0<$F, $K, $M, $g0, $s0, $V> :
+  never
+export type $Enter1<$T, $F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $V> =
+  $T extends ['1_0', '0', infer $s0 extends WasmValue, infer $s1 extends WasmValue] ? $b1_0<$F, $K, $M, $g0, $s0, $s1> :
+  $T extends ['1_0', '1', infer $s0 extends WasmValue] ? $b1_0<$F, $K, $M, $g0, $s0, $V> :
+  never
+export type $Enter2<$T, $F extends string, $K extends unknown[], $M extends $Node, $g0 extends WasmValue, $V> =
+  $T extends ['2_0', '0', infer $s0 extends WasmValue, infer $s1 extends WasmValue] ? $b2_0<$F, $K, $M, $g0, $s0, $s1> :
+  $T extends ['2_0', '1', infer $s0 extends WasmValue] ? $b2_0<$F, $K, $M, $g0, $s0, $V> :
+  $T extends ['2_1', '0', infer $s0 extends WasmValue, infer $s1 extends WasmValue, infer $s2 extends WasmValue] ? $b2_1<$F, $K, $M, $g0, $s0, $s1, $s2> :
+  $T extends ['2_1', '1', infer $s0 extends WasmValue, infer $s1 extends WasmValue] ? $b2_1<$F, $K, $M, $g0, $s0, $s1, $V> :
+  $T extends ['2_2', '0', infer $s0 extends WasmValue, infer $s1 extends WasmValue] ? $b2_2<$F, $K, $M, $g0, $s0, $s1> :
+  $T extends ['2_2', '1', infer $s0 extends WasmValue] ? $b2_2<$F, $K, $M, $g0, $s0, $V> :
+  never
 
-/// One segment per outer step, each a fresh tail chain. A segment that
-/// returns or traps ends the chunk: only a suspend can be picked up.
-export type $Drive<$O extends string, $F extends string, $R> =
-$O extends `1${infer $rest}` ? ($Tag<$R> extends 's' ? $Drive<$rest, $F, $Resume<$R, $F>> : $Exit<$R>) : $Exit<$R>
+/// The trampoline: a bounce ('b') is re-entered with the fuel past the
+/// segment mark; a return ('r') with frames still pending is a call
+/// coming back to a frame the host or a bounce re-entered, so it goes
+/// straight into that frame. Both from the top, so nothing nests: the
+/// depth and the tail count start over every segment.
+export type $Run<$R> =
+  $R extends ['b', infer $Fx extends string, [infer $T, ...infer $B extends unknown[]], infer $MM extends $Node, infer $g0 extends WasmValue]
+  ? $Run<$Enter<$T, $Fx, $B, $MM, $g0, never>>
+  : $R extends ['r', infer $F1 extends string, [infer $T, ...infer $B extends unknown[]], infer $MM extends $Node, infer $g0 extends WasmValue, infer $V extends WasmValue]
+  ? $Run<$Enter<$T, $F1, $B, $MM, $g0, $V>>
+  : $R
+
+/// kept for the driver's chunk file: one segment, no outer loop
+export type $Drive<$O extends string, $F extends string, $R> = $R
