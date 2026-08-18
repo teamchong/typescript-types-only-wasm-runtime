@@ -491,47 +491,13 @@ export const enter = (
 /// 5M instantiation budget is worth ~18,000 of them against the ~1000 the cap
 /// allowed.
 ///
-/// `$Drive` re-enters each suspend from an argument position, which starts a
-/// fresh chain, so instructions per chunk becomes segments x fuel and the 0.45s
-/// of fixed cost per chunk (printing, parsing and binding the state) is
-/// amortised over all of them.
-/// One segment per chunk: the type-level trampoline does not agree with the
-/// host's own resume, so it stays off until it does.
-///
-/// `$Resume` re-enters a suspend from an argument position, which is worth
-/// 3x (3,555 units/s at 0 segments against 11,228 at 64), but it executes a
-/// different block than `enter()` does from the same suspend. Cold start,
-/// identical fuel, identical state size:
-///
-///   segments  baseline chunk N      trampoline chunk 1
-///   2         4_2, 2 frames, 36992  4_4, 2 frames, 36992
-///   8         4_2, 2 frames, 36992  4_4, 2 frames, 36992
-///   64        4_2, 2 frames, 36992  4_4, 2 frames, 36992
-///
-/// It diverges on the very first chunk and compounds: by 327,680 fuel the
-/// driven run has `main` returning 0 with SP at 60544 instead of 65536, doom
-/// bailing out of init. The baseline is still initializing at 382,720 fuel
-/// (13_7, 4 frames, 64,982 chars) and goes on to render.
-///
-/// Measured since: it is not the frames, it is the memory. `$Flush` returns the
-/// overlay and drops the base it sat on, because the host is supposed to hold
-/// that base. Inside a chunk there is no host, so every segment boundary throws
-/// the previous segment's stores away:
-///
-///   type M2 = $Store32<$Buf<$Absent>, 174672, 393480>   // pending
-///   $Load32<M2, 174672>              -> 393480
-///   $Load32<$Buf<M2>, 174672>        -> 0    // what $Resume re-enters with
-///   $Load32<$Buf<$Flush<M2>>, 174672> -> 393480
-///
-/// A read falls through a base with `$Fetch`, which expects a trie: `$Get` on a
-/// five-slot buffer answers 'u', so the read skips the overlay under it and
-/// lands on the module's initial memory. Cold init died on exactly this - main
-/// stores the screen it just allocated at 174672, the next segment dropped the
-/// store, Z_Init read 0 back as mainzone, and func 13 walked a null block list
-/// forever (172821 chunks in 13_7, locals `0 1 -4 0 24` never moving).
-///
-/// So a chunk is one segment until `$Resume` can thread the base through.
-const SEGMENTS = 0;
+/// Segments live inside the chunk now: `$Run` in the module re-enters the
+/// innermost frame at every segment mark in the fuel (see `fuelType` and
+/// wrap_block in the compiler), so a chunk is many tail chains rather than
+/// one, and the old host-side `$Drive` loop over segments is gone. The reason
+/// the old one had to stay at one segment is fixed too: it re-entered with a
+/// fresh `$Buf`, which threw away the previous segment's stores, while `$Run`
+/// carries the overlay through untouched.
 
 /// A probe that fails costs time in proportion to its fuel, and the big ones
 /// cost minutes: from the mid-level state in /tmp/prof.json, walking down from
@@ -554,6 +520,9 @@ const DEFAULT_FUEL = 32768;
 /// 27s, 21504 -> 50s standalone) while the round trips are not, so the guard
 /// only has to catch a genuine hang: 30s.
 const SLOW_CHUNK_MS = 30000;
+
+/// see fuelType
+const FUEL_SEGMENT = 400;
 
 const TRUNCATED = /\bany\b/;
 
@@ -872,7 +841,19 @@ function sbrkWord(moduleText: string) {
     /(?:export )?type \$entry<[^=]*=\s*\$Exit<\$b(\d+)_(\d+)<\$F, \[\], \$Buf<\$M>((?:,\s*'[01]+')*)\s*>>/.exec(moduleText);
   const entryFunc = entryShape?.[1] ?? "";
 
-  const fuelType = (n: number) => `'${"1".repeat(n)}'`;
+  // A segment mark every FUEL_SEGMENT units: a block that meets it re-enters
+  // itself nested, which restarts the checker's 1000-iteration tail limit at
+  // one level of depth per segment (see wrap_block in the compiler). Sized so
+  // a segment stays under the tail limit with ~2 tail steps per unit, and a
+  // 30k chunk spends ~75 of the 100 depth levels on segments.
+  const fuelType = (n: number) => {
+    let out = "";
+    for (let left = n; left > 0; left -= FUEL_SEGMENT) {
+      if (out) out += "x";
+      out += "1".repeat(Math.min(FUEL_SEGMENT, left));
+    }
+    return `'${out}'`;
+  };
   // A block whose fuel check asks for a leading `0` is a frame boundary: an
   // ordinary all-ones string cannot match it, so control arriving there suspends
   // and its record reports the loop head's locals. Resuming it needs the one
@@ -1226,8 +1207,7 @@ function sbrkWord(moduleText: string) {
     mark("print");
     env.createFile(statePathDts, stateText);
     const file = `type $FUEL = ${fuelType(fuel)}
-type $OUTER = ${fuelType(SEGMENTS)}
-type $Result = $Drive<$OUTER, $FUEL, ${call}>
+type $Result = ${call}
 export type $Out_Tag = $Tag<$Result>
 export type $Out_Frames = $Frames<$Result>
 export type $Out_Globals = $GlobalsOf<$Result>
@@ -1548,27 +1528,13 @@ ${splitReaders}
     };
 
     if (tag === '"r"') {
-      // A return with frames still pending is a call coming back after
-      // something inside it suspended: the caller's inline match is long gone,
-      // so the host is what pops the frame and carries on. This is the only
-      // reason a return costs a round trip, and it only happens on the way out
-      // of a suspension.
-      if (frames.length === 0) {
-        value_ = value === '"void"' ? undefined : value.replace(/"/g, "");
-        checkpoint(call, true);
-        break;
-      }
-      const [resume, ...rest] = frames;
-      frames = rest;
-      call = enter(resume!, rest, globalValues, toSource(value));
-      checkpoint(call);
-      mark("frames");
-      if (!options.quiet) {
-        process.stdout.write(
-          `\r  chunk ${chunks}: returned into ${resume!.block}, ${rest.length} frames left, ${eta()}   `,
-        );
-      }
-      continue;
+      // `$Run` carries a return into every frame still pending inside the
+      // chunk, so a return that reaches the host is the whole call coming
+      // back (a suspension on the way out comes back as 's' with its frames).
+      frames = [];
+      value_ = value === '"void"' ? undefined : value.replace(/"/g, "");
+      checkpoint(call, true);
+      break;
     }
 
     // suspended: the innermost frame is where to pick up, the rest is the

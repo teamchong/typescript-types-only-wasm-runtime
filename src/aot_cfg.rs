@@ -514,10 +514,13 @@ impl CfgCompiler {
         // through here has to be a flushed trie. `$Flush` of an already-plain
         // trie is the trie, so double-wrapping is a no-op.
         out.push_str(
-            "\n/// what the host reads: memory flushed back to a plain trie\n\
-             export type $Exit<$R> =\n  \
-             $R extends ['r', infer $F1 extends string, infer $M1, ...infer $Rest]\n    \
-             ? ['r', $F1, $Flush<$M1>, ...$Rest]\n    \
+            "\n/// what the host reads: the run carried through every bounce and\n\
+             /// every return into a re-entered frame, then the memory flushed back\n\
+             /// to a plain trie\n\
+             export type $Exit<$R> = $Flushed<$Run<$R>>\n\
+             export type $Flushed<$R> =\n  \
+             $R extends ['r', infer $F1 extends string, infer $K1 extends unknown[], infer $M1, ...infer $Rest]\n    \
+             ? ['r', $F1, $K1, $Flush<$M1>, ...$Rest]\n    \
              : $R extends ['s', infer $K1 extends unknown[], infer $M1, ...infer $Rest]\n    \
              ? ['s', $K1, $Flush<$M1>, ...$Rest]\n    \
              : $R\n",
@@ -628,16 +631,25 @@ impl CfgCompiler {
         Ok(out)
     }
 
-    /// `$Resume` re-enters a suspend without the host, and `$Drive` runs a
-    /// bounded number of segments per chunk.
+    /// `$Enter` re-enters a frame at type level - the same call `enter()`
+    /// builds in the host - and `$Run` is the trampoline that keeps a chunk
+    /// going across segment bounces and across returns into re-entered frames.
     ///
     /// The table is read back out of the emitted text rather than the block
     /// structs so that it cannot disagree with the signatures it has to call:
-    /// each block's saved locals are whatever its parameter list has after
-    /// fuel, frames, memory and the globals.
+    /// each block's saved values are whatever its parameter list has after
+    /// fuel, frames, memory and the globals. A frame tagged '1' is a call site
+    /// waiting for a value: its last parameter is that value, so the frame
+    /// holds one value fewer and `$V` fills the slot.
+    ///
+    /// Two levels - function, then block - so a bounce pays ~700 + ~50 arm
+    /// checks rather than ~28k.
     fn emit_trampoline(&self, module: &str) -> String {
         let globals = self.globals.len();
-        let mut branches = String::new();
+        let gparams: String = (0..globals).map(|i| format!(", $g{i} extends WasmValue")).collect();
+        let gargs: String = (0..globals).map(|i| format!(", $g{i}")).collect();
+        // function index -> arms
+        let mut per_func: BTreeMap<String, String> = BTreeMap::new();
         let mut blocks = 0usize;
         for line in module.lines() {
             let Some(rest) = line.strip_prefix("export type $b") else {
@@ -645,61 +657,77 @@ impl CfgCompiler {
             };
             let Some(open) = rest.find('<') else { continue };
             let name = &rest[..open];
+            let Some((func, _)) = name.split_once('_') else { continue };
             let Some(params) = top_level_params(&rest[open + 1..]) else {
                 continue;
             };
-            // fuel, frames, memory, then one per global: everything after that
-            // is a live local, saved in the frame in this same order
             if params < 3 + globals {
                 continue;
             }
             let saved = params - 3 - globals;
+            let arms = per_func.entry(func.to_string()).or_default();
+            // a suspend or bounce frame: every value in place
             let pattern: String = (0..saved)
                 .map(|i| format!(", infer $s{i} extends WasmValue"))
                 .collect();
-            // the raw overlay from the suspend, base and write buffer intact:
-            // wrapping a fresh $Buf here is what used to drop every store the
-            // previous segment made
-            let mut args = vec!["$F".to_string(), "$B".to_string(), "$MM".to_string()];
-            args.extend((0..globals).map(|i| format!("$g{i}")));
-            args.extend((0..saved).map(|i| format!("$s{i}")));
-            branches.push_str(&format!(
-                "  $T extends ['{name}', unknown{pattern}]
-    ? $Exit<$b{name}<{}>>
-  : ",
-                args.join(", ")
+            let args: String = (0..saved).map(|i| format!(", $s{i}")).collect();
+            arms.push_str(&format!(
+                "  $T extends ['{name}', '0'{pattern}] ? $b{name}<$F, $K, $M{gargs}{args}> :\n"
             ));
+            // a call frame: the value the call produced goes last
+            if saved >= 1 {
+                let pattern: String = (0..saved - 1)
+                    .map(|i| format!(", infer $s{i} extends WasmValue"))
+                    .collect();
+                let args: String = (0..saved - 1).map(|i| format!(", $s{i}")).collect();
+                arms.push_str(&format!(
+                    "  $T extends ['{name}', '1'{pattern}] ? $b{name}<$F, $K, $M{gargs}{args}, $V> :\n"
+                ));
+            }
             blocks += 1;
         }
         if blocks == 0 {
             return String::new();
         }
-        let ginfer: Vec<String> = (0..globals)
-            .map(|i| format!("infer $g{i} extends WasmValue"))
-            .collect();
         // Not one indented line in here. The driver turns this module into a
         // global script by rewriting `export type` at the start of a line, so an
         // indented `export` survives, makes the file a module, and hides every
         // block from the chunk that calls it - which reads as the chunk's result
         // tag coming back unresolved.
         let mut text = String::new();
-        text.push_str("\n/// Re-enter a suspend at type level: the same call `enter()` builds in\n");
-        text.push_str("/// the host, so a chunk is no longer a single tail chain and the\n");
         text.push_str(&format!(
-            "/// 1000-iteration cap stops bounding it. {blocks} blocks can be resumed.\n"
+            "\n/// Re-enter a frame at type level: {blocks} blocks, by function then by block.\n"
         ));
-        text.push_str("export type $Resume<$R, $F extends string> =\n");
         text.push_str(&format!(
-            "[$Frames<$R>, $GlobalsOf<$R>, $MemOf<$R>] extends [[infer $T, ...infer $B extends unknown[]], [{}], infer $MM extends unknown[]]\n",
-            ginfer.join(", ")
+            "export type $Enter<$T, $F extends string, $K extends unknown[], $M extends $Node{gparams}, $V> =\n"
         ));
-        text.push_str("? (\n");
-        text.push_str(&branches);
-        text.push_str("$R\n)\n: $R\n");
-        text.push_str("\n/// One segment per outer step, each a fresh tail chain. A segment that\n");
-        text.push_str("/// returns or traps ends the chunk: only a suspend can be picked up.\n");
-        text.push_str("export type $Drive<$O extends string, $F extends string, $R> =\n");
-        text.push_str("$O extends `1${infer $rest}` ? ($Tag<$R> extends 's' ? $Drive<$rest, $F, $Resume<$R, $F>> : $Exit<$R>) : $Exit<$R>\n");
+        for func in per_func.keys() {
+            text.push_str(&format!(
+                "  $T extends [`{func}_${{string}}`, ...unknown[]] ? $Enter{func}<$T, $F, $K, $M{gargs}, $V> :\n"
+            ));
+        }
+        text.push_str("  never\n");
+        for (func, arms) in &per_func {
+            text.push_str(&format!(
+                "export type $Enter{func}<$T, $F extends string, $K extends unknown[], $M extends $Node{gparams}, $V> =\n{arms}  never\n"
+            ));
+        }
+        let ginfer: String = (0..globals)
+            .map(|i| format!(", infer $g{i} extends WasmValue"))
+            .collect();
+        text.push_str("\n/// The trampoline: a bounce ('b') is re-entered with the fuel past the\n");
+        text.push_str("/// segment mark; a return ('r') with frames still pending is a call\n");
+        text.push_str("/// coming back to a frame the host or a bounce re-entered, so it goes\n");
+        text.push_str("/// straight into that frame. Both from the top, so nothing nests: the\n");
+        text.push_str("/// depth and the tail count start over every segment.\n");
+        text.push_str("export type $Run<$R> =\n");
+        text.push_str(&format!(
+            "  $R extends ['b', infer $Fx extends string, [infer $T, ...infer $B extends unknown[]], infer $MM extends $Node{ginfer}]\n  ? $Run<$Enter<$T, $Fx, $B, $MM{gargs}, never>>\n"
+        ));
+        text.push_str(&format!(
+            "  : $R extends ['r', infer $F1 extends string, [infer $T, ...infer $B extends unknown[]], infer $MM extends $Node{ginfer}, infer $V extends WasmValue]\n  ? $Run<$Enter<$T, $F1, $B, $MM{gargs}, $V>>\n"
+        ));
+        text.push_str("  : $R\n");
         text
     }
 
@@ -1321,7 +1349,7 @@ export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> 
             "  $R extends never ? [] : []".to_string()
         } else {
             format!(
-                "  $R extends ['s', unknown, unknown, {}] ? [{names}]\n  : $R extends ['r', unknown, unknown, {}, unknown] ? [{names}]\n  : []",
+                "  $R extends ['s', unknown, unknown, {}] ? [{names}]\n  : $R extends ['r', unknown, unknown, unknown, {}, unknown] ? [{names}]\n  : []",
                 infers.join(", "),
                 infers.join(", ")
             )
@@ -1356,11 +1384,11 @@ export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> 
              export type $Frames<$R> = $R extends ['s', infer $Ks extends unknown[], ...unknown[]] ? $Ks : []\n\
              export type $MemOf<$R> =\n  \
              $R extends ['s', unknown, infer $M1, ...unknown[]] ? $M1\n  \
-             : $R extends ['r', unknown, infer $M1, ...unknown[]] ? $M1\n  \
+             : $R extends ['r', unknown, unknown, infer $M1, ...unknown[]] ? $M1\n  \
              : never\n\
              export type $GlobalsOf<$R> =\n{suspend_globals}\n\
              export type $ValueOf<$R> =\n  \
-             $R extends ['r', unknown, unknown, {leading}infer $V] ? $V : 'void'\n\
+             $R extends ['r', unknown, unknown, unknown, {leading}infer $V] ? $V : 'void'\n\
              {kids}"
         )
     }
@@ -2381,7 +2409,7 @@ impl<'a> FunctionCfg<'a> {
     /// Bounds guards are skipped: the fused loop only exists for modules whose
     /// original per-byte loop was in bounds, and a wild count would fail loudly
     /// (checker depth), not silently.
-    fn emit_blit(&mut self, env: &mut BlockEnv, b: Blit, end_pos: usize) -> Result<Step, String> {
+    fn emit_blit(&mut self, env: &mut BlockEnv, b: Blit) -> Result<String, String> {
         let helper = env.blit_helper(b.width);
         let dv = env.local(b.d)?;
         let sv = env.local(b.s)?;
@@ -2409,10 +2437,6 @@ impl<'a> FunctionCfg<'a> {
         env.bindings.push((name.clone(), "$Node".to_string(), next));
         env.memory = name;
         env.mem_ops += 2;
-        // fuel: each $Blit step forces its trie write through `infer` before
-        // recursing, so depth stays flat per byte; charge a flat premium for
-        // the column rather than one unit per byte
-        env.stores += 8;
         env.computed.retain(|expr, _| !expr.contains("$m"));
         // the loop exits with count = 0 and both pointers advanced trips strides
         env.set_local(
@@ -2426,7 +2450,11 @@ impl<'a> FunctionCfg<'a> {
         };
         env.set_local(b.s, format!("Wasm.I32Add<{sv}, {adv_s}>"))?;
         env.set_local(b.c, format!("'{}'", zero()))?;
-        Ok(Step::Jump(end_pos + 1))
+        // fuel: one unit per byte, taken off by the caller's toll jump. The
+        // flat premium this used to charge let a title-screen chunk hold
+        // 30k pixel stores at fuel 1265: 30-55s a chunk, "too deep" above,
+        // and the fuel search pinned at ~1000 for the whole page draw.
+        Ok(trips)
     }
 
     /// Recognize the canonical WAD lump scan (see `Scan`). The shape is the
@@ -2670,10 +2698,21 @@ impl<'a> FunctionCfg<'a> {
         for i in 0..self.module.globals.len() {
             alive.push(format!("$g{i}"));
         }
+        // The fuel string is segmented: a run of '1's, an 'x', another run. A
+        // block whose burn meets the 'x' hands back a bounce - the suspend
+        // tuple under a 'b' tag, with the fuel past the mark - and `$Run` at
+        // the chunk's top re-enters it from the frames. The checker gives up
+        // on a chain of tail conditionals at 1000 iterations (measured: 900
+        // hops land, 1200 report TS2589), so before this a chunk was one tail
+        // chain and the fuel search sat at ~1000 in any loop-heavy phase (the
+        // title page draw: fuel 992, 28 chunks a frame). Re-entering from the
+        // top unwinds the nesting too, so the depth a segment leaves behind is
+        // nothing: a chunk is as many segments as its fuel holds.
         let burn: String = std::iter::repeat('1').take(block.cost).collect();
         let body = format!(
-            "  $F extends `{burn}${{infer $F1}}`\n  ? {}\n  : ['s', {}]",
+            "  $F extends `{burn}${{infer $F1}}`\n  ? {}\n  : $F extends `${{string}}x${{infer $Fx}}`\n  ? ['b', $Fx, {}]\n  : ['s', {}]",
             indent(&rename_fuel(inner), 2),
+            alive.join(", "),
             alive.join(", ")
         );
         format!(
@@ -2774,9 +2813,12 @@ impl<'a> FunctionCfg<'a> {
         // trie on every return. Only a result the *host* reads has to be
         // flushed, because only that one is printed and pasted back, and $Exit
         // does that at the one place it leaves the types.
+        // The frames come back too: a return out of a block `$Run` re-entered
+        // has no inline caller, and `$Run` carries on into the frame below.
         let mut parts = vec![
             "'r'".to_string(),
             "$F".to_string(),
+            "$K".to_string(),
             env.memory.clone(),
         ];
         // a callee also hands its globals back, so writes to them are not lost
@@ -2863,6 +2905,9 @@ impl<'a> FunctionCfg<'a> {
         let mut pattern = vec![
             "'r'".to_string(),
             format!("infer {fuel} extends string"),
+            // the callee's frames: this site pushed its own on top, so the
+            // caller keeps its `$K` and ignores them
+            "unknown".to_string(),
             format!("infer {memory} extends $Node"),
         ];
         let globals: Vec<String> = (0..env.globals.len())
@@ -3157,22 +3202,26 @@ impl<'a> FunctionCfg<'a> {
                     if std::env::var("FILL_DEBUG").is_ok() {
                         eprintln!("loop candidate at {pos}..{end_pos}: {:?}", &self.ops[pos..end_pos]);
                     }
-                    if let Some(b) = self.match_blit_loop(pos, end_pos) {
-                        return self.emit_blit(env, b, end_pos);
-                    }
-                    if std::env::var("NO_TEX").is_err() {
-                        if let Some(t) = self.match_tex_loop(pos, end_pos) {
-                            let toll = self.emit_tex(env, t)?;
-                            // continue after `end` in a fresh block, entered with
-                            // the fuel the pixels cost taken off first
-                            let after = self.fresh_id();
-                            let floor = env.stack.len();
-                            self.push_join(after, end_pos + 1, labels, floor, 0)?;
-                            let burn = env.burn_helper();
-                            let call = self.call_block(after, env, floor, 0);
-                            let call = call.replacen("$F,", &format!("{burn}<$F, {toll}>,"), 1);
-                            return Ok(Step::Terminate(call));
+                    let fused = if let Some(b) = self.match_blit_loop(pos, end_pos) {
+                        Some(self.emit_blit(env, b)?)
+                    } else if std::env::var("NO_TEX").is_err() {
+                        match self.match_tex_loop(pos, end_pos) {
+                            Some(t) => Some(self.emit_tex(env, t)?),
+                            None => None,
                         }
+                    } else {
+                        None
+                    };
+                    if let Some(toll) = fused {
+                        // continue after `end` in a fresh block, entered with
+                        // the fuel the pixels cost taken off first
+                        let after = self.fresh_id();
+                        let floor = env.stack.len();
+                        self.push_join(after, end_pos + 1, labels, floor, 0)?;
+                        let burn = env.burn_helper();
+                        let call = self.call_block(after, env, floor, 0);
+                        let call = call.replacen("$F,", &format!("{burn}<$F, {toll}>,"), 1);
+                        return Ok(Step::Terminate(call));
                     }
                     // the WAD name scan stays a loop, but enters it with `i`
                     // already sitting on the fused scan's answer
@@ -4053,23 +4102,34 @@ impl BlockEnv {
 
     /// Take N units off the fuel string, N a 32-bit value: powers of two from
     /// the low nine bits, largest first, and anything above 511 empties it.
-    /// Fuel is a run of '1's, so a prefix match is the subtraction.
+    /// Characters are dropped whatever they are, so a segment mark inside the
+    /// run costs one unit and leaves the next block to bounce on the mark
+    /// after it (see wrap_block).
     fn burn_helper(&mut self) -> String {
         // N as a 32-char string: chars 0..23 must be zero, chars 23..32 are the bits
         let pattern: String = (0..9).map(|i| format!("${{infer b{i}}}")).collect();
         let mut chain = String::from("F");
         for i in 0..9 {
             // b{i} is bit (8 - i)
-            let ones = "1".repeat(1 << (8 - i));
-            chain = format!("$BurnBit<{chain}, b{i}, '{ones}'>");
+            chain = format!("$BurnBit<{chain}, b{i}, '{}'>", 1 << (8 - i));
         }
-        let definition = format!(
-            "export type $BurnBit<F extends string, Bit extends string, Ones extends string> =\n\
-             \x20 Bit extends '1' ? (F extends `${{Ones}}${{infer R}}` ? R : '') : F\n\
+        // one alias per power of two, dropping that many characters whatever
+        // they are: the fuel string has segment marks in it (see wrap_block)
+        let mut definition = String::new();
+        for bit in 0..9 {
+            let n = 1usize << bit;
+            let cs: String = (0..n).map(|i| format!("${{infer c{i}}}")).collect();
+            definition.push_str(&format!(
+                "export type $Drop{n}<F extends string> = F extends `{cs}${{infer R}}` ? R : ''\n"
+            ));
+        }
+        definition.push_str(&format!(
+            "export type $BurnBit<F extends string, Bit extends string, N extends string> =\n\
+             \x20 Bit extends '1' ? (N extends '256' ? $Drop256<F> : N extends '128' ? $Drop128<F> : N extends '64' ? $Drop64<F> : N extends '32' ? $Drop32<F> : N extends '16' ? $Drop16<F> : N extends '8' ? $Drop8<F> : N extends '4' ? $Drop4<F> : N extends '2' ? $Drop2<F> : $Drop1<F>) : F\n\
              export type $Burn<F extends string, N extends string> =\n\
              \x20 N extends `{zeros}{pattern}` ? {chain} : ''\n",
             zeros = "0".repeat(23),
-        );
+        ));
         self.register("$Burn", definition)
     }
 

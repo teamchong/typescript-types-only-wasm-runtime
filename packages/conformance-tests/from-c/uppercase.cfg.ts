@@ -676,6 +676,3 @@ export type $Run<$R> =
   : $R extends ['r', infer $F1 extends string, [infer $T, ...infer $B extends unknown[]], infer $MM extends $Node, infer $g0 extends WasmValue, infer $g1 extends WasmValue, infer $g2 extends WasmValue, infer $g3 extends WasmValue, infer $g4 extends WasmValue, infer $g5 extends WasmValue, infer $g6 extends WasmValue, infer $g7 extends WasmValue, infer $g8 extends WasmValue, infer $g9 extends WasmValue, infer $V extends WasmValue]
   ? $Run<$Enter<$T, $F1, $B, $MM, $g0, $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $V>>
   : $R
-
-/// kept for the driver's chunk file: one segment, no outer loop
-export type $Drive<$O extends string, $F extends string, $R> = $R
