@@ -674,9 +674,18 @@ export const run = async (
   //
   // The resulting tag, globals and frames are identical.
   const globalModuleText = (() => {
-    const found = /^import type \{([^}]*)\} from ['"]ts-type-math['"];?\n/m.exec(moduleText);
-    if (!found) return moduleText;
-    let text = moduleText.slice(0, found.index) + moduleText.slice(found.index + found[0].length);
+    // `$InitialMemory` is 39MB of doom's 107MB module and no *type* refers to
+    // it: `$InitFetch` reads the paged `$InitialMap` instead, and this
+    // declaration exists for the host, which parses it out of the .cfg.ts
+    // itself (see `initialMemory` and render-frame). Handing it to the checker
+    // costs a parse and a bind of 39MB on every compiler instance for nothing.
+    const withoutInitial = process.env.KEEP_INITIAL ? moduleText : moduleText.replace(
+      /^type \$InitialMemory = [^\n]*\n/m,
+      "type $InitialMemory = $Absent\n",
+    );
+    const found = /^import type \{([^}]*)\} from ['"]ts-type-math['"];?\n/m.exec(withoutInitial);
+    if (!found) return withoutInitial;
+    let text = withoutInitial.slice(0, found.index) + withoutInitial.slice(found.index + found[0].length);
     const aliases: string[] = [];
     for (const raw of found[1].split(",")) {
       const name = raw.trim();
