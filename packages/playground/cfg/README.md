@@ -297,11 +297,31 @@ time did not move. Fuel counts hops and stores, not arithmetic, and what
 unrolling removed were the cheap units; a store at ~200µs is now most of a
 frame. Worth keeping for the headroom, not for the clock.
 
-Two other things that did not work, recorded so they are not tried twice:
+Five other things that did not work, recorded so they are not tried twice.
+All five were measured on the same E1M1 frame, from a checkpoint built by a
+native run, view size 3, fuel 16000, ~100-110s a frame:
 
 - **a wider trie.** 32-way, three levels deep, against 8-way at five: 0.04s a
   frame against 0.03s. Rebuilding a 32-element node costs more than the two
   levels it saves. `TRIE_DIGIT_BITS` sweeps it.
+- **a table-driven FixedMul.** `(a*b)>>16` as sixteen byte-product lookups
+  and ten adds instead of the generic 64-bit shift-add multiply. 5x fewer
+  instantiations for the helper, and 103.0s a frame against 97.8s without it.
+  doom's FixedMul arguments are mostly small, and the generic loop stops at
+  the multiplier's last one bit, so the table is not competing with 20k
+  instantiations - it is competing with a few hundred.
+- **a narrower trie.** 16-way and 32-way against the 64-way in use, with a
+  checkpoint rebuilt at each shape: 99.0s, 106.5s, 99.1s. Levels and fanout
+  trade off almost exactly.
+- **a two-level write buffer.** The buffer is one row of 64 slots and a store
+  rewrites the row; splitting it 8x8 so a store rewrites one group and one
+  slot took a store from 540 instantiations to 205, and the frame from 108.7s
+  to 108.2s - which is noise. Instantiation count is not what the clock
+  measures here: a chunk's profile is ~31% `getConditionalFlowTypeOfType`
+  (the checker walking a node's enclosing conditionals) and ~35% Go GC, so
+  what costs time is conditional evaluations and template-literal matches,
+  not the tuple elements a mapped type copies.
+
 - **blaming the infer constraint.** `infer $t extends WasmValue`, `infer $t
   extends string` and a plain `infer $t` all explode identically with depth
   (~3.2s at 24). The nesting is the problem, not the constraint.
