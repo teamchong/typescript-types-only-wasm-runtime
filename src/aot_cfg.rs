@@ -1045,9 +1045,34 @@ impl CfgCompiler {
             .collect::<Vec<_>>()
             .join(", ");
         let last_digit: String = (key_bits..bits).map(|i| format!("${{b{i}}}")).collect();
-        let empty_slots: String = (0..fanout).map(|_| "'x'").collect::<Vec<_>>().join(", ");
+        // The write buffer is the {fanout} slots of one bottom branch, and every
+        // store rebuilds it. Replacing one element of a tuple costs its length,
+        // so the buffer is nested {rows} x {group}: a write touches {rows} + {group}
+        // elements instead of {fanout}. Measured standalone, one $Set: 706
+        // instantiations flat against 216 nested (and 185 at 4x4x4, whose extra
+        // brackets cost more state text than the 31 instantiations save).
+        // On a real doom gameplay chunk this is 28.7M instantiations -> 25.8M,
+        // but only 16.26s -> 15.95s of check time: the chunk's cost is in what
+        // the checker does per type, not in how many types it makes.
+        let group_bits = digit / 2;
+        let group = 1usize << group_bits;
+        let rows = fanout / group;
+        let hi_arms: String = (0..fanout)
+            .map(|i| format!("  '{:0width$b}': {},\n", i, i / group, width = digit))
+            .collect();
+        let lo_arms: String = (0..fanout)
+            .map(|i| format!("  '{:0width$b}': {},\n", i, i % group, width = digit))
+            .collect();
+        let empty_row: String = (0..group).map(|_| "'x'").collect::<Vec<_>>().join(", ");
+        let empty_slots: String = (0..rows)
+            .map(|_| format!("[{empty_row}]"))
+            .collect::<Vec<_>>()
+            .join(", ");
         let merge_slots: String = (0..fanout)
-            .map(|i| format!("S[{i}] extends 'x' ? N[{i}] : S[{i}]"))
+            .map(|i| {
+                let (r, c) = (i / group, i % group);
+                format!("S[{r}][{c}] extends 'x' ? N[{i}] : S[{r}][{c}]")
+            })
             .collect::<Vec<_>>()
             .join(", ");
         // a key no real address can have, meaning "buffer empty"
@@ -1187,10 +1212,28 @@ export type $SplitWide<A extends string> =
 
 /// One slot per word of the bottom branch; 'x' means "not written yet", which
 /// is what lets a flush leave untouched words alone without reading them first.
+/// The slots are nested {rows} x {group} because replacing one element of a
+/// tuple costs its length: a buffered store rebuilds one row and the row list,
+/// {rows} + {group} elements, not all {fanout}.
 export type $Empty = [{empty_slots}]
 
+/// digit -> row of the buffer, and digit -> slot within that row
+export type $DHi = {{
+{hi_arms}}}
+export type $DLo = {{
+{lo_arms}}}
+
+export type $BSel<S extends unknown[][], D extends string> =
+  S[$DHi[D & keyof $DHi] & keyof S] extends infer R extends unknown[]
+    ? R[$DLo[D & keyof $DLo] & keyof R]
+    : never
+export type $BRow<R, D extends string, X> =
+  {{ [J in keyof R]: J extends `${{$DLo[D & keyof $DLo]}}` ? X : R[J] }}
+export type $BSet<S, D extends string, X> =
+  {{ [K in keyof S]: K extends `${{$DHi[D & keyof $DHi]}}` ? $BRow<S[K], D, X> : S[K] }}
+
 /// Push the buffered slots into the trie: one walk down, one merge at the leaf.
-export type $MergeAt<T, B extends unknown[], S extends unknown[]> =
+export type $MergeAt<T, B extends unknown[], S extends unknown[][]> =
   B extends [infer D extends string, ...infer Rest]
     ? $Set<$Node8<T>, D, $MergeAt<$Sel<$Node8<T>, D>, Rest, S>>
     : $Node8<T> extends infer N extends unknown[]
@@ -1200,7 +1243,7 @@ export type $MergeAt<T, B extends unknown[], S extends unknown[]> =
 /// What the host reads back: the overlay alone, with its write buffer folded
 /// in. The base trie never travels - the host already holds it, and pasting it
 /// back is what used to make a store cost the size of the state.
-export type $Flush<M> = M extends [infer T, infer K, infer B extends unknown[], infer S extends unknown[], unknown]
+export type $Flush<M> = M extends [infer T, infer K, infer B extends unknown[], infer S extends unknown[][], unknown]
   ? K extends '{buf_none}' ? T : $MergeAt<T, B, S>
   : M
 
@@ -1244,10 +1287,10 @@ export type $Under<T, Base, P extends string> =
     : never
 
 export type $Read<M extends $Node, A extends WasmValue> =
-  M extends [infer T, infer MK extends string, unknown[], infer S extends unknown[], infer Base]
+  M extends [infer T, infer MK extends string, unknown[], infer S extends unknown[][], infer Base]
     ? $Slice<A> extends infer P extends string
       ? P extends `${{MK}}${{infer D}}`
-        ? $Sel<S, D> extends infer H
+        ? $BSel<S, D> extends infer H
           ? H extends 'x' ? $Under<T, Base, P> : $Word<H>
           : never
         : $Under<T, Base, P>
@@ -1255,10 +1298,10 @@ export type $Read<M extends $Node, A extends WasmValue> =
     : never
 export type $Write<M extends $Node, A extends WasmValue, V extends WasmValue> =
   $Split<A> extends [infer K extends string, infer B extends unknown[], infer D extends string]
-    ? M extends [infer T, infer MK, infer MB extends unknown[], infer S extends unknown[], infer Base]
+    ? M extends [infer T, infer MK, infer MB extends unknown[], infer S extends unknown[][], infer Base]
       ? K extends MK
-        ? [T, MK, MB, $Set<S, D, [V]>, Base]
-        : [(MK extends '{buf_none}' ? T : $MergeAt<T, MB, S>), K, B, $Set<$Empty, D, [V]>, Base]
+        ? [T, MK, MB, $BSet<S, D, [V]>, Base]
+        : [(MK extends '{buf_none}' ? T : $MergeAt<T, MB, S>), K, B, $BSet<$Empty, D, [V]>, Base]
       : never
     : never
 
@@ -1354,6 +1397,10 @@ export type $Store64<M extends $Node, A extends WasmValue, V extends WasmValue> 
             last_digit = last_digit,
             empty_slots = empty_slots,
             merge_slots = merge_slots,
+            hi_arms = hi_arms,
+            lo_arms = lo_arms,
+            rows = rows,
+            group = group,
             buf_none = buf_none,
             sel_arms = sel_arms,
             all_same = all_same,
