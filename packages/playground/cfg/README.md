@@ -326,6 +326,14 @@ native run, view size 3, fuel 16000, ~100-110s a frame:
   extends string` and a plain `infer $t` all explode identically with depth
   (~3.2s at 24). The nesting is the problem, not the constraint.
 
+- **a table-driven unsigned compare.** `lt_u`/`gt_u` as four 8-bit lookups in
+  a 65k-key `CmpByte` table instead of the bit-at-a-time recursion. On a loop
+  micro-bench (`i=i+1; br_if i<n`) it cut 455 to 269 instantiations an
+  iteration. On a real gameplay chunk: 25.78M to 25.70M instantiations, and
+  the check went from 17.2s to 18.5-19.8s with +72MB. Compares are too rare
+  in doom's frame to pay for the table's construction and its
+  `keyof` guard.
+
 The floor, for reference: an evaluation that hands back the same 30kB of state
 without touching it costs 4ms. A frame is 33ms, so the round trip is not what is
 in the way yet.
