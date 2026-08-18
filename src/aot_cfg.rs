@@ -167,6 +167,20 @@ struct FDiv {
     q: u32,
 }
 
+/// A recognized forward record search (R_FindPlane's visplane walk): records
+/// of `stride` bytes from `p` up to `end`, three words compared per record.
+#[derive(Debug, Clone, Copy)]
+struct Find {
+    p: u32,
+    end: u32,
+    a: u32,
+    b: u32,
+    c: u32,
+    off_b: i32,
+    off_c: i32,
+    stride: i32,
+}
+
 /// A WASM label, compiled to a named type we can tail-call.
 ///
 /// `br` and falling off the end are different edges: for a `block` both go to
@@ -2397,6 +2411,105 @@ impl<'a> FunctionCfg<'a> {
         Ok(Step::Terminate(call))
     }
 
+    /// Recognise the forward three-word record search (see `Find`): doom's
+    /// R_FindPlane walks the visplane array comparing height, picnum and
+    /// lightlevel. 19% of an E1M1 frame by where chunks land.
+    fn match_find_loop(&self, pos: usize, end_pos: usize) -> Option<Find> {
+        use wasmparser::Operator as Op;
+        let ops = &self.ops[pos..end_pos];
+        if ops.len() != 30 {
+            return None;
+        }
+        let lg = |i: usize| match &ops[i] {
+            Op::LocalGet { local_index } => Some(*local_index),
+            _ => None,
+        };
+        // p >= end -> leave the loop
+        let p = lg(0)?;
+        let end = lg(1)?;
+        if !matches!((&ops[2], &ops[3], &ops[4]), (Op::I32GeU, Op::BrIf { relative_depth: 1 }, Op::Block { .. })) {
+            return None;
+        }
+        // three compares against the record at p, the last one on equality
+        let a = lg(5)?;
+        if lg(6)? != p
+            || !matches!(&ops[7], Op::I32Load { memarg } if memarg.offset == 0)
+            || !matches!((&ops[8], &ops[9]), (Op::I32Ne, Op::BrIf { relative_depth: 0 }))
+        {
+            return None;
+        }
+        let b = lg(10)?;
+        if lg(11)? != p {
+            return None;
+        }
+        let off_b = match &ops[12] {
+            Op::I32Const { value } => *value,
+            _ => return None,
+        };
+        if !matches!(&ops[13], Op::I32Add)
+            || !matches!(&ops[14], Op::I32Load { memarg } if memarg.offset == 0)
+            || !matches!((&ops[15], &ops[16]), (Op::I32Ne, Op::BrIf { relative_depth: 0 }))
+        {
+            return None;
+        }
+        let c = lg(17)?;
+        if lg(18)? != p {
+            return None;
+        }
+        let off_c = match &ops[19] {
+            Op::I32Const { value } => *value,
+            _ => return None,
+        };
+        if !matches!(&ops[20], Op::I32Add)
+            || !matches!(&ops[21], Op::I32Load { memarg } if memarg.offset == 0)
+            || !matches!((&ops[22], &ops[23], &ops[24]), (Op::I32Eq, Op::BrIf { relative_depth: 3 }, Op::End))
+        {
+            return None;
+        }
+        // p += stride
+        if lg(25)? != p {
+            return None;
+        }
+        let stride = match &ops[26] {
+            Op::I32Const { value } => *value,
+            _ => return None,
+        };
+        if !matches!(&ops[27], Op::I32Add)
+            || !matches!(&ops[28], Op::LocalSet { local_index } if *local_index == p)
+            || !matches!(&ops[29], Op::Br { relative_depth: 0 })
+        {
+            return None;
+        }
+        if stride <= 0 {
+            return None;
+        }
+        let mut written = vec![p, end, a, b, c];
+        written.sort_unstable();
+        written.dedup();
+        if written.len() != 5 {
+            return None;
+        }
+        Some(Find { p, end, a, b, c, off_b, off_c, stride })
+    }
+
+    /// Enter the loop with `p` already on the record the walk would stop at:
+    /// the match, or the first address past the end. The interpreted iteration
+    /// that follows then takes the loop's own exit branch, as `emit_scan` does.
+    fn emit_find(&mut self, env: &mut BlockEnv, f: Find) -> Result<(), String> {
+        let helper = env.find_helper(f.off_b, f.off_c, f.stride);
+        let p = env.local(f.p)?;
+        let end = env.local(f.end)?;
+        let a = env.local(f.a)?;
+        let b = env.local(f.b)?;
+        let c = env.local(f.c)?;
+        let next = format!("{helper}<{}, {p}, {end}, {a}, {b}, {c}>", env.memory);
+        let named = env.bind_always(&next, "WasmValue");
+        // flat premium for the whole walk, as $Blit and $Scan charge
+        env.stores += 8;
+        env.set_local(f.p, named)?;
+        Ok(())
+    }
+
     /// Emit the fused texture loop: colormap/source pointers and memory-
     /// resident steps read once, one memory binding, affine write-back.
     /// Bounds guards are skipped as for `emit_blit`.
@@ -3281,6 +3394,13 @@ impl<'a> FunctionCfg<'a> {
                         let call = self.call_block(after, env, floor, 0);
                         let call = call.replacen("$F,", &format!("{burn}<$F, {toll}>,"), 1);
                         return Ok(Step::Terminate(call));
+                    }
+                    // the visplane search stays a loop, but enters it with `p`
+                    // already on the record it would have stopped at
+                    if std::env::var("NO_FIND").is_err() {
+                        if let Some(f) = self.match_find_loop(pos, end_pos) {
+                            self.emit_find(env, f)?;
+                        }
                     }
                     // the WAD name scan stays a loop, but enters it with `i`
                     // already sitting on the fused scan's answer
@@ -4264,6 +4384,35 @@ impl BlockEnv {
             small = "0".repeat(23),
         );
         self.register("$Fill8", definition)
+    }
+
+    /// Forward search for the first record whose three words match, or the
+    /// first address at or past the end. Linear: doom caps visplanes at 128,
+    /// and the budget string bounds it anyway - if it runs out the walk hands
+    /// back where it got to and the interpreted loop carries on, which is
+    /// slower but still correct.
+    fn find_helper(&mut self, off_b: i32, off_c: i32, stride: i32) -> String {
+        let name = format!("$Find_{}_{}_{}", off_b, off_c, stride);
+        let definition = format!(
+            "export type {name}<M extends $Node, P extends WasmValue, E extends WasmValue, A extends WasmValue, B extends WasmValue, C extends WasmValue, Budget extends string = '{budget}'> =\n\
+             \x20 Budget extends `1${{infer Left}}`\n\
+             \x20 ? Wasm.I32GeU<P, E> extends '{one}'\n\
+             \x20   ? P\n\
+             \x20   : $Load32<M, P> extends A\n\
+             \x20     ? $Load32<M, Wasm.I32Add<P, '{ob}'>> extends B\n\
+             \x20       ? $Load32<M, Wasm.I32Add<P, '{oc}'>> extends C\n\
+             \x20         ? P\n\
+             \x20         : {name}<M, Wasm.I32Add<P, '{k}'>, E, A, B, C, Left>\n\
+             \x20       : {name}<M, Wasm.I32Add<P, '{k}'>, E, A, B, C, Left>\n\
+             \x20     : {name}<M, Wasm.I32Add<P, '{k}'>, E, A, B, C, Left>\n\
+             \x20 : P\n",
+            one = format!("{}1", "0".repeat(31)),
+            ob = bits32(off_b),
+            oc = bits32(off_c),
+            k = bits32(stride),
+            budget = "1".repeat(256),
+        );
+        self.register(&name, definition)
     }
 
     /// Backward record scan for the fused W_CheckNumForName loop: N records

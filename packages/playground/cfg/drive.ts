@@ -619,7 +619,16 @@ export interface RunResult {
 /// more than a chunk evaluation does.
 export type Session = { env: ReturnType<typeof createEnv>; path: string };
 
+/// The checker is Go, and more than half of a chunk's profile is its garbage
+/// collector (`madvise`, `scanObject`, `typePointersOfUnchecked`, ...): the
+/// module alone is 1.4GB live before any work, so the default GOGC=100 - grow
+/// the heap 100% between collections - collects constantly. Measured on one
+/// E1M1 frame at fuel 16000: 109.9s at 100, 90.5s and 89.2s at 400, 92.9s at
+/// 800 (and 1.9GB of RSS instead of 1.2GB), so 400 is the knee.
+const GC_HEADROOM = process.env.GOGC ?? "400";
+
 export const createSession = (): Session => {
+  process.env.GOGC = GC_HEADROOM;
   const path = join(__dirname, `chunk-${process.pid}.ts`);
   return { env: createEnv(path), path };
 };
