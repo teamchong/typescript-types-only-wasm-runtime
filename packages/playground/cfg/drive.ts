@@ -260,7 +260,7 @@ const ACK_WORD = 4410172 / 4;
 /// View window size, 11 = fullscreen, 3 = smallest; detail 1 is low (columns
 /// doubled). The renderer's cost is per pixel drawn, so this is the one knob
 /// that scales the whole frame.
-const VIEW_BLOCKS = Number(process.env.VIEW_BLOCKS ?? 3);
+const VIEW_BLOCKS = Number(process.env.VIEW_BLOCKS ?? 7);
 const VIEW_DETAIL = Number(process.env.VIEW_DETAIL ?? 1);
 
 /// Bit order is the select chain `ts_post_input` walks: bit 0 ESC, 1 ENTER,
