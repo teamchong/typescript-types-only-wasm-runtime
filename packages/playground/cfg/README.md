@@ -365,11 +365,24 @@ prints something that is not a fully concrete state, fuel is halved and the same
 block is retried. Whatever fuel survives is reused for the next frame, so the
 runtime settles onto the checker's real limit instead of assuming one.
 
-## Chunk size amortizes the fixed cost
+## Chunk size (corrected)
 
-A 16-frame chunk (fuel 32768) checks in 34.66s — 2.17s/frame — against
-3.99s/frame for the 4-frame baseline (15.95s/chunk). Instantiations grow
-sub-linearly with frames (25.8M -> 37.1M for 4x the frames) because the
-module load and state rehydration are paid once per chunk, not per frame.
-Memory stays inside the checker budget (4.0GB at 16 frames). Bigger chunks
-are the cheapest fps lever measured so far.
+An earlier revision here claimed bigger chunks amortize to 2.17s/frame. That
+number came from the tsgo probe, which only checks `chunk-0000.state.d.ts` —
+the state load, identical across runs (37,057,789 instantiations regardless of
+frame count). Pointing tsgo at the chunk itself dies in TS2589
+(`bitwise.ts:82`, `conversion.ts:129`) before evaluating any frame, so the
+probe cannot measure chunks at all. Only driver wall-clock counts.
+
+Driver A/B on an idle machine, same state, `--max 1`, reproduced twice:
+
+| fuel  | frames | chunk time | fps  |
+|-------|--------|-----------|------|
+| 4096  | 10     | 5.9s      | 1.69 |
+| 8192  | 25     | 7.7-8.4s  | ~3.0 |
+| 16384 | 10     | 9.6-11.0s | ~1.0 |
+| 32768 | 16     | 30.8s     | 0.52 |
+
+Per-frame cost is not monotonic in chunk size: where the chunk suspends
+(435_11 vs 356_9 vs 493_10) decides whether it stalls in an expensive
+stretch. fuel 8192 is the measured winner at ~3 fps.
