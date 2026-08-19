@@ -505,7 +505,14 @@ export const enter = (
 /// first chunk landed at 20480; starting at 40960 landed in 25s. The same
 /// state runs 2754 units/s at 8640 against 1342 at 1080, so the ceiling only
 /// needs to sit above the sweet spot, not at the top of the ladder.
-const DEFAULT_FUEL = 32768;
+///
+/// Equal-budget gameplay sweep from the live7 checkpoint (49152 total fuel):
+/// 8192x6 chunks -> 98 frames in 93.19s (1.05 fps) against 16384x3 -> 46
+/// frames in 77.53s (0.59 fps); single-chunk sweep put 8192 ahead of 6144,
+/// 10240, 12288, 16384, 20480, 24576 and 32768 as well. Checker cost per
+/// chunk grows superlinearly with fuel while frames landed grow ~linearly,
+/// so the smaller chunk wins on wall-clock fps despite more resume overhead.
+const DEFAULT_FUEL = 8192;
 
 /// How long one chunk may take before its fuel counts as over the edge.
 ///
