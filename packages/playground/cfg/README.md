@@ -274,6 +274,14 @@ per-argument fee.
 Fuel length is free too: padding the fuel string by 16,000 characters changes
 nothing measurable.
 
+A hot-word register cache is not worth building. Instrumenting every memory op
+in the native build of a real gameplay frame (243k ops after the fused loops
+already absorbed the pixel walks): the top 16 words cover 25.1% of traffic, and
+the top 256 still only 36.5%. The residue is flat. What concentration exists is
+per-pixel reloads inside `R_DrawColumnLow`/`R_DrawSpanLow` - loads the `Tex`
+fusion already reads once per loop at the type level - so the cacheable share
+was spent before the cache could exist.
+
 ## Writing a game for this machine
 
 The compiler is only half of it; the program can be shaped for the costs above.
