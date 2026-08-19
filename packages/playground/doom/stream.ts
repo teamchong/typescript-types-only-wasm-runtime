@@ -14,9 +14,15 @@
 // interpreted here - a key is not a ticcmd until the checker turns it into one.
 //
 // Usage: node --import tsx stream.ts <checkpoint.json> [port]
+//
+// RECORD=<dir> also keeps every screen that changed: <dir>/NNNNNN.png named by
+// chunk, and <dir>/frames.jsonl with the chunk, wall clock, checkpoint md5 and
+// keys seen for each. A run is then a timelapse anyone can re-derive from the
+// checkpoints:
+//   ffmpeg -framerate 4 -pattern_type glob -i 'rec/*.png' -vf scale=960:600:flags=neighbor rec.mp4
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Socket } from "node:net";
@@ -593,6 +599,23 @@ server.on("upgrade", (req, socket: Socket) => {
 
 let last: Buffer | undefined;
 let lastStatus = "";
+/// RECORD=<dir>: one png per changed screen plus a jsonl index. Named by chunk
+/// so a glob sorts them in play order and a rerun overwrites, not duplicates.
+const recordDir = process.env.RECORD;
+if (recordDir) mkdirSync(recordDir, { recursive: true });
+let lastRecordedMd5 = "";
+const record = (checkpoint: { chunks: number; memory: string }, png: Buffer, seen: string[]) => {
+  if (!recordDir) return;
+  const md5 = createHash("md5").update(checkpoint.memory).digest("hex");
+  if (md5 === lastRecordedMd5) return;
+  lastRecordedMd5 = md5;
+  const name = String(checkpoint.chunks).padStart(6, "0");
+  writeFileSync(`${recordDir}/${name}.png`, png);
+  appendFileSync(
+    `${recordDir}/frames.jsonl`,
+    JSON.stringify({ chunk: checkpoint.chunks, at: new Date().toISOString(), md5, seen }) + "\n",
+  );
+};
 let lastChunk = -1;
 let lastAt = 0;
 /// A frame took 3224 chunks to render, measured end to end. Chunk count is set
@@ -772,6 +795,7 @@ const poll = () => {
   const started = performance.now();
   const { rgb, painted } = frameFrom(checkpoint.memory, initial, screenOf(checkpoint));
   last = encodePng(rgb, WIDTH, HEIGHT);
+  record(checkpoint, last, nowSeen);
   const percent = ((painted / (WIDTH * HEIGHT)) * 100).toFixed(1);
   // fps from the measured save rate, not from evalMs / share: share is a ratio
   // of two clocks sampled a second apart, and one tick where the checker's
