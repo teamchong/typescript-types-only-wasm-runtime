@@ -391,3 +391,8 @@ Sustained confirmation (3 consecutive chunks, fuel 8192, same state):
 25 + 12 + 9 = 46 frames in 21.1s chunk time — ~2.2 fps sustained, ~4x the
 fuel-32768 rate. Frames/chunk varies (25/12/9) because fuel is spent on
 work, not frames, but the win holds across chunk boundaries.
+
+fuel 4096 vs 8192, tie-break from identical state (3 chunks each):
+4096: 41 frames / 16.25s = 2.52 fps; 8192: 46 frames / 20.82s = 2.21 fps.
+4096 won both replicates (2.26 vs 2.18 earlier). 2048 collapses to 1.57 fps
+(resume overhead dominates). DEFAULT_FUEL lowered 8192 -> 4096.

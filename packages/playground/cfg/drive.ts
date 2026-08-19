@@ -512,7 +512,7 @@ export const enter = (
 /// 10240, 12288, 16384, 20480, 24576 and 32768 as well. Checker cost per
 /// chunk grows superlinearly with fuel while frames landed grow ~linearly,
 /// so the smaller chunk wins on wall-clock fps despite more resume overhead.
-const DEFAULT_FUEL = 8192;
+const DEFAULT_FUEL = 4096;
 
 /// How long one chunk may take before its fuel counts as over the edge.
 ///
