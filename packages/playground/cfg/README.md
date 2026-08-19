@@ -386,3 +386,8 @@ Driver A/B on an idle machine, same state, `--max 1`, reproduced twice:
 Per-frame cost is not monotonic in chunk size: where the chunk suspends
 (435_11 vs 356_9 vs 493_10) decides whether it stalls in an expensive
 stretch. fuel 8192 is the measured winner at ~3 fps.
+
+Sustained confirmation (3 consecutive chunks, fuel 8192, same state):
+25 + 12 + 9 = 46 frames in 21.1s chunk time — ~2.2 fps sustained, ~4x the
+fuel-32768 rate. Frames/chunk varies (25/12/9) because fuel is spent on
+work, not frames, but the win holds across chunk boundaries.
