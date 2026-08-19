@@ -973,8 +973,13 @@ function sbrkWord(moduleText: string) {
   }
   // An explicit --fuel is an instruction and outranks the saved edge; the
   // checkpoint only speaks when the caller did not.
+  // ...but a checkpoint saved at a high edge drags resumes down: inheriting
+  // 32768 from live7 lands 42 frames / 157.63s (0.27 fps) where DEFAULT_FUEL
+  // 4096 lands 41 / 14.40s (2.85 fps) - chunk cost is superlinear in fuel
+  // while frames landed are ~flat. Cap the inherited fuel at DEFAULT_FUEL;
+  // an explicit --fuel still outranks both.
   if (options.fuel === undefined && options.resume?.fuel !== undefined) {
-    fuel = options.resume.fuel;
+    fuel = Math.min(options.resume.fuel, DEFAULT_FUEL);
   }
   let backoffs = 0;
   // The fuel that lands is a cliff, not a slope: measured on one real chunk in
@@ -997,7 +1002,7 @@ function sbrkWord(moduleText: string) {
   // The fuel we are resuming at already landed for the run that saved it, so
   // it is a floor to back off to, not an unknown to re-derive.
   let lastGood = options.fuel === undefined && options.resume?.fuel !== undefined
-    ? options.resume.fuel
+    ? Math.min(options.resume.fuel, DEFAULT_FUEL)
     : 0;
   let units = 0;
   let evalMs = 0;
