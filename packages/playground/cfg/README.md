@@ -364,3 +364,12 @@ The host starts optimistic and backs off: if a chunk comes back with TS2589, or
 prints something that is not a fully concrete state, fuel is halved and the same
 block is retried. Whatever fuel survives is reused for the next frame, so the
 runtime settles onto the checker's real limit instead of assuming one.
+
+## Chunk size amortizes the fixed cost
+
+A 16-frame chunk (fuel 32768) checks in 34.66s — 2.17s/frame — against
+3.99s/frame for the 4-frame baseline (15.95s/chunk). Instantiations grow
+sub-linearly with frames (25.8M -> 37.1M for 4x the frames) because the
+module load and state rehydration are paid once per chunk, not per frame.
+Memory stays inside the checker budget (4.0GB at 16 frames). Bigger chunks
+are the cheapest fps lever measured so far.
