@@ -334,6 +334,13 @@ native run, view size 3, fuel 16000, ~100-110s a frame:
   in doom's frame to pay for the table's construction and its
   `keyof` guard.
 
+- **tuning the checker's GC.** A 3-chunk gameplay check profiles as 34%
+  `getConditionalFlowTypeOfType` and ~38% GC (`memclr`/`madvise`/`scanObject`),
+  so the GC half looked buyable from the environment. `GOGC=off
+  GOMEMLIMIT=12GiB`: 61.7-62.2s against a 63.6-67.2s default, `GOGC=800`:
+  67.2s. Reported memory is identical (~4.0GB) either way; the 3-5% is inside
+  run-to-run spread. The allocation rate, not collection policy, is the cost.
+
 The floor, for reference: an evaluation that hands back the same 30kB of state
 without touching it costs 4ms. A frame is 33ms, so the round trip is not what is
 in the way yet.
