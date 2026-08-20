@@ -4310,8 +4310,27 @@ impl BlockEnv {
         self.register(&idx_name, idx);
         // the pixel write: one store, or two of the same texel. D2 is the
         // second pointer (own stride KD2) or the constant offset from D.
+        //
+        // Adjacent-byte pairs (R_DrawSpanLow: d, d+1) used to be two $Store8s,
+        // each a full read+write trie walk - 4 walks per pixel on the hottest
+        // block in a gameplay frame. Both bytes land in one word unless the
+        // first sits at offset '11', so $StorePair8 splices both bytes in a
+        // single read+write walk and only falls back at the word seam.
         let (suffix, write) = match t.pair {
             TexPair::None => ("", "$Store8<M, D, V>".to_string()),
+            TexPair::Offset(1) => {
+                let one = format!("{}1", "0".repeat(31));
+                self.register(
+                    "$StorePair8",
+                    format!(
+                        "export type $StorePair8<M extends $Node, A extends WasmValue, V extends WasmValue> =\n\
+                         \x20 $Off<A> extends '11'\n\
+                         \x20 ? $Store8<$Store8<M, A, V>, Wasm.I32Add<A, '{one}'>, V>\n\
+                         \x20 : $Write<M, A, $SetByte<$SetByte<$Read<M, A>, $Off<A>, V>, $Next<$Off<A>>, V>>\n"
+                    ),
+                );
+                ("_o1", "$StorePair8<M, D, V>".to_string())
+            }
             TexPair::Offset(_) => ("_o", "$Store8<$Store8<M, D, V>, Wasm.I32Add<D, D2>, V>".to_string()),
             TexPair::Local(..) => ("_l", "$Store8<$Store8<M, D, V>, D2, V>".to_string()),
         };
