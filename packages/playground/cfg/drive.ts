@@ -917,6 +917,43 @@ function sbrkWord(moduleText: string) {
   // staying at half throughput after one awkward block costs more than the
   // occasional retry does.
   let settled = 0;
+  // $entry bakes the module-initial globals into its own call, so calling it
+  // again rewinds the stack pointer while memory keeps a heap grown past it:
+  // a fresh call, with sbrk reset so init can run again (see sbrkWord). The
+  // globals are $entry's own baked ones except the page count (see below);
+  // native re-entry is a fresh call, and that is what animates.
+  const freshEntryCall = (carriedGlobals: string[]): string => {
+    const shape =
+      // `moduleText` has already had its `export ` prefixes stripped
+      /(?:export )?type \$entry<[^=]*=\s*\$Exit<\$b(\d+_\d+)<\$F, \[\], \$Buf<\$M>((?:,\s*'[01]+')*)\s*>>/.exec(
+        moduleText,
+      );
+    if (!shape) throw new Error("cannot find $entry's call in the module: nothing to restart");
+    const baked = shape[2]!.match(/'[01]+'/g) ?? [];
+    // ...except the page count, which is not part of a call. It is the last
+    // global (`memory.size` answers it), an instance only ever grows it, and
+    // doom writes what it implies into its own heap bookkeeping: 174508 holds
+    // `memory.size << 16 - 393216`. Frame 2 read that back as a heap it had
+    // and a `memory.size` it did not:
+    //
+    //   174508 = 524288   -> 14 pages when the frame before stored it
+    //   $entry's baked g1 = 6
+    //
+    // so sbrk asked to grow by (524288 - what 6 pages hold) >> 16 = 28277
+    // pages, over the trie's 1024, took the refused-grow path and landed on
+    // `unreachable` - which is `never`, and reads back as `result tag is
+    // never` at every fuel: FAILED chunk 0 at fuel 4 after 4589 chunks and
+    // two landed frames (393480, then 655624).
+    const pages = baked.length - 1;
+    if (carriedGlobals[pages] !== undefined) baked[pages] = carriedGlobals[pages]!;
+    const sbrk = sbrkWord(moduleText);
+    if (!sbrk) throw new Error("cannot find sbrk's bump pointer in the module: re-entry would trap in init");
+    const zero = `'${"0".repeat(32)}'`;
+    return (
+      `$Exit<$b${shape[1]}<$FUEL, [], $Store32<$Buf<$IN>, '${sbrk}', ${zero}>` +
+      `${baked.map((g) => `, ${g}`).join("")}>>`
+    );
+  };
   if (options.resume) {
     // A checkpoint saved after the run finished holds a terminal call, $Exit<..>.
     // Resuming that re-reports the same answer without running anything, so the
@@ -930,41 +967,7 @@ function sbrkWord(moduleText: string) {
       // call in `$U0<...>`: the frame it enters is the same, so unwrap it
       if (call.startsWith("$Exit<$U0<")) call = `$Exit<${call.slice("$Exit<$U0<".length, -1)}`;
     } else {
-      // $entry bakes the module-initial globals into its own call, so calling it
-      // again rewinds the stack pointer while memory keeps a heap grown past it:
-      // A fresh call, with sbrk reset so init can run again (see sbrkWord).
-      // The globals are $entry's own baked ones, not the ones the last return
-      // left: native re-entry is a fresh call, and that is what animates.
-      const shape =
-        // `moduleText` has already had its `export ` prefixes stripped
-        /(?:export )?type \$entry<[^=]*=\s*\$Exit<\$b(\d+_\d+)<\$F, \[\], \$Buf<\$M>((?:,\s*'[01]+')*)\s*>>/.exec(
-          moduleText,
-        );
-      if (!shape) throw new Error("cannot find $entry's call in the module: nothing to restart");
-      const baked = shape[2]!.match(/'[01]+'/g) ?? [];
-      // ...except the page count, which is not part of a call. It is the last
-      // global (`memory.size` answers it), an instance only ever grows it, and
-      // doom writes what it implies into its own heap bookkeeping: 174508 holds
-      // `memory.size << 16 - 393216`. Frame 2 read that back as a heap it had
-      // and a `memory.size` it did not:
-      //
-      //   174508 = 524288   -> 14 pages when the frame before stored it
-      //   $entry's baked g1 = 6
-      //
-      // so sbrk asked to grow by (524288 - what 6 pages hold) >> 16 = 28277
-      // pages, over the trie's 1024, took the refused-grow path and landed on
-      // `unreachable` - which is `never`, and reads back as `result tag is
-      // never` at every fuel: FAILED chunk 0 at fuel 4 after 4589 chunks and
-      // two landed frames (393480, then 655624).
-      const carried = options.resume.globals ?? [];
-      const pages = baked.length - 1;
-      if (carried[pages] !== undefined) baked[pages] = carried[pages]!;
-      const sbrk = sbrkWord(moduleText);
-      if (!sbrk) throw new Error("cannot find sbrk's bump pointer in the module: re-entry would trap in init");
-      const zero = `'${"0".repeat(32)}'`;
-      call =
-        `$Exit<$b${shape[1]}<$FUEL, [], $Store32<$Buf<$IN>, '${sbrk}', ${zero}>` +
-        `${baked.map((g) => `, ${g}`).join("")}>>`;
+      call = freshEntryCall(options.resume.globals ?? []);
     }
     // a state saved before the split levels were kept can hold a leaf up top
     memoryTrie = prune(parseTrie(options.resume.memory), base, fanout);
@@ -1030,6 +1033,13 @@ function sbrkWord(moduleText: string) {
   };
   let value_: string | undefined;
   let failed: string | undefined;
+  // Chunk count at the current `entry` call's start: `entryChunks` is per
+  // frame, and with in-process re-entry one process spans many frames.
+  let entryStart = 0;
+  // The screen chain across in-process frames: what `resume.result` and
+  // `resume.prevResult` carry across processes, carried here across re-entries.
+  let lastResult = options.resume?.result;
+  let prevLastResult = options.resume?.prevResult;
   const t0 = performance.now();
   const session = options.session ?? createSession();
   // The compiler instance is reused across chunks because creating one costs
@@ -1542,15 +1552,15 @@ ${splitReaders}
         frames,
         globals: globalValues,
         chunks: carried + chunks,
-        entryChunks: chunks,
+        entryChunks: chunks - entryStart,
         evalMs,
         split: [...split],
         fuel,
         capFail: capFail === Infinity ? undefined : capFail,
         // each `entry` call allocates its own screen and returns it, so a fixed
         // address reads the frame before this one
-        result: done ? value_ : options.resume?.result,
-        prevResult: done ? options.resume?.result : options.resume?.prevResult,
+        result: done ? value_ : lastResult,
+        prevResult: done ? lastResult : prevLastResult,
       };
       const s0 = performance.now();
       saveCheckpoint(options.save, JSON.stringify(point));
@@ -1564,6 +1574,24 @@ ${splitReaders}
       frames = [];
       value_ = value === '"void"' ? undefined : value.replace(/"/g, "");
       checkpoint(call, true);
+      // Each `entry` call is one frame: it returns its screen and re-entry
+      // animates. Exiting here made the sh loop cold-start node+tsx+tsgo for
+      // every frame - measured 296s/frame where the chunks inside cost ~130s.
+      // Re-enter in-process instead: the same fresh call the done-resume path
+      // builds, on the same warmed compiler session.
+      if (options.save && chunks < (options.max ?? Infinity)) {
+        call = freshEntryCall(globalValues);
+        prevLastResult = lastResult;
+        lastResult = value_;
+        value_ = undefined;
+        entryStart = chunks;
+        // The per-frame process restart this replaces was also an accidental
+        // compiler refresh, and without one the reused session wears: measured
+        // 5.2s/chunk on frame 1 climbing to 13.2s/chunk two frames later. A
+        // recycle costs seconds where the process cold start cost ~160s.
+        recycle("frame");
+        continue;
+      }
       break;
     }
 
