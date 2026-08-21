@@ -1,0 +1,54 @@
+diff --git a/internal/ast/nodeflags.go b/internal/ast/nodeflags.go
+index 2c808601..3886baf4 100644
+--- a/internal/ast/nodeflags.go
++++ b/internal/ast/nodeflags.go
+@@ -45,6 +45,10 @@ const (
+ 	NodeFlagsPossiblyContainsDeprecatedTag NodeFlags = 1 << 26 // Set during parse if comment text contains '@deprecated'; must confirm via JSDoc lookup
+ 	NodeFlagsUnreachable                   NodeFlags = 1 << 27 // If node is unreachable according to the binder
+ 	NodeFlagsReparserTransformedLiteral    NodeFlags = 1 << 28 // If node was transformed during parsing, making its' naive text source not match the AST
++	// Set by the checker (getConditionalFlowTypeOfType) to memoize that no ancestor of this node,
++	// up to the enclosing statement, can contribute an implied constraint. Deeply nested type
++	// expressions otherwise re-walk the same ancestor chain once per contained type node.
++	NodeFlagsCondFlowClean NodeFlags = 1 << 29
+ 
+ 	NodeFlagsBlockScoped = NodeFlagsLet | NodeFlagsConst | NodeFlagsUsing
+ 	NodeFlagsConstant    = NodeFlagsConst | NodeFlagsUsing
+diff --git a/internal/checker/checker.go b/internal/checker/checker.go
+index 8c9eac4a..f718ae10 100644
+--- a/internal/checker/checker.go
++++ b/internal/checker/checker.go
+@@ -22864,7 +22864,18 @@ func (c *Checker) tryGetTypeFromTypeNode(node *ast.Node) *Type {
+ }
+ 
+ func (c *Checker) getTypeFromTypeNode(node *ast.Node) *Type {
+-	return c.getConditionalFlowTypeOfType(c.getTypeFromTypeNodeWorker(node), node)
++	// getConditionalFlowTypeOfType walks node's ancestor chain up to the enclosing
++	// statement on every call - O(nesting depth). resolvedType (from the worker) is
++	// already memoized per node and the ancestor walk is a pure function of the node,
++	// so the flow type is too: memoize it. On doom's deeply nested conditional types
++	// this turns an O(depth) re-walk per node into O(1) after the first.
++	links := c.typeNodeLinks.Get(node)
++	if links.resolvedFlowType != nil {
++		return links.resolvedFlowType
++	}
++	result := c.getConditionalFlowTypeOfType(c.getTypeFromTypeNodeWorker(node), node)
++	links.resolvedFlowType = result
++	return result
+ }
+ 
+ func (c *Checker) getTypeFromTypeNodeWorker(node *ast.Node) *Type {
+diff --git a/internal/checker/types.go b/internal/checker/types.go
+index d240bb3f..eee7bfe1 100644
+--- a/internal/checker/types.go
++++ b/internal/checker/types.go
+@@ -380,6 +380,10 @@ type SymbolNodeLinks struct {
+ type TypeNodeLinks struct {
+ 	resolvedType        *Type   // Resolved type associated with node
+ 	outerTypeParameters []*Type // Outer type parameters of anonymous object type
++	// Result of applying getConditionalFlowTypeOfType to resolvedType. resolvedType is already
++	// memoized per node, so the substitution walk above it is a pure function of the node, but it
++	// was being redone on every getTypeFromTypeNode call - O(nesting depth) each time.
++	resolvedFlowType *Type
+ }
+ 
+ type ComputedNameNodeLinks struct {

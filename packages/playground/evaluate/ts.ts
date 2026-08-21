@@ -48,6 +48,9 @@ export const createEnv = (startFilePath: string): EvaluationEnvironment => {
   const deletedFiles = new Set<string>();
   const api = new API({
     cwd: projectRoot,
+    // TSGO_BIN points the sync API at a custom-built tsgo (e.g. one with the
+    // conditional-flow-type memoization) instead of the installed binary.
+    ...(process.env.TSGO_BIN ? { tsserverPath: process.env.TSGO_BIN } : {}),
     fs: {
       readFile(filePath) {
         if (deletedFiles.has(filePath)) return null;
