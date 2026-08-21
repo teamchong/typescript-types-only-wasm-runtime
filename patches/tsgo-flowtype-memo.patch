@@ -14,10 +14,97 @@ index 2c808601..3886baf4 100644
  	NodeFlagsBlockScoped = NodeFlagsLet | NodeFlagsConst | NodeFlagsUsing
  	NodeFlagsConstant    = NodeFlagsConst | NodeFlagsUsing
 diff --git a/internal/checker/checker.go b/internal/checker/checker.go
-index 8c9eac4a..f718ae10 100644
+index 8c9eac4a..2be62fb3 100644
 --- a/internal/checker/checker.go
 +++ b/internal/checker/checker.go
-@@ -22864,7 +22864,18 @@ func (c *Checker) tryGetTypeFromTypeNode(node *ast.Node) *Type {
+@@ -22459,14 +22459,13 @@ func (c *Checker) getObjectTypeInstantiation(t *Type, m *TypeMapper, alias *Type
+ 	return result
+ }
+ 
+-func (c *Checker) isTypeParameterPossiblyReferenced(tp *Type, node *ast.Node) bool {
++func (c *Checker) typeParameterReferenceInSubtree(tp *Type, node *ast.Node) bool {
+ 	var containsReference func(*ast.Node) bool
+ 	containsReference = func(node *ast.Node) bool {
+ 		switch node.Kind {
+ 		case ast.KindThisType:
+ 			return tp.AsTypeParameter().isThisType
+ 		case ast.KindTypeReference:
+-			// use worker because we're looking for === equality
+ 			if !tp.AsTypeParameter().isThisType && len(node.TypeArguments()) == 0 && c.getSymbolFromTypeReference(node) == tp.symbol {
+ 				return true
+ 			}
+@@ -22475,13 +22474,13 @@ func (c *Checker) isTypeParameterPossiblyReferenced(tp *Type, node *ast.Node) bo
+ 			firstIdentifier := ast.GetFirstIdentifier(entityName)
+ 			if !ast.IsThisIdentifier(firstIdentifier) {
+ 				firstIdentifierSymbol := c.getResolvedSymbol(firstIdentifier)
+-				tpDeclaration := tp.symbol.Declarations[0] // There is exactly one declaration, otherwise `containsReference` is not called
++				tpDeclaration := tp.symbol.Declarations[0]
+ 				var tpScope *ast.Node
+ 				switch {
+ 				case ast.IsTypeParameterDeclaration(tpDeclaration):
+-					tpScope = tpDeclaration.Parent // Type parameter is a regular type parameter, e.g. foo<T>
++					tpScope = tpDeclaration.Parent
+ 				case tp.AsTypeParameter().isThisType:
+-					tpScope = tpDeclaration // Type parameter is the this type, and its declaration is the class declaration.
++					tpScope = tpDeclaration
+ 				}
+ 				if tpScope != nil {
+ 					return core.Some(firstIdentifierSymbol.Declarations, func(d *ast.Node) bool { return isNodeDescendantOf(d, tpScope) }) ||
+@@ -22498,6 +22497,53 @@ func (c *Checker) isTypeParameterPossiblyReferenced(tp *Type, node *ast.Node) bo
+ 		}
+ 		return node.ForEachChild(containsReference)
+ 	}
++	return containsReference(node)
++}
++
++func (c *Checker) filterPossiblyReferencedTypeParameters(candidates []*Type, node *ast.Node) []*Type {
++	referenced := make(map[*ast.Symbol]bool)
++	thisReferenced := false
++	uncertain := false
++	var collect func(*ast.Node) bool
++	collect = func(n *ast.Node) bool {
++		switch n.Kind {
++		case ast.KindThisType:
++			thisReferenced = true
++		case ast.KindTypeReference:
++			if len(n.TypeArguments()) == 0 {
++				if sym := c.getSymbolFromTypeReference(n); sym != nil {
++					referenced[sym] = true
++				}
++			}
++		case ast.KindTypeQuery, ast.KindMethodDeclaration, ast.KindMethodSignature:
++			uncertain = true
++		}
++		n.ForEachChild(collect)
++		return false
++	}
++	collect(node)
++	if uncertain {
++		return core.Filter(candidates, func(tp *Type) bool { return c.isTypeParameterPossiblyReferenced(tp, node) })
++	}
++	return core.Filter(candidates, func(tp *Type) bool {
++		if tp.symbol == nil || len(tp.symbol.Declarations) != 1 {
++			return true
++		}
++		container := tp.symbol.Declarations[0].Parent
++		for n := node; n != container; n = n.Parent {
++			if n == nil || ast.IsBlock(n) || ast.IsConditionalTypeNode(n) && c.typeParameterReferenceInSubtree(tp, n.AsConditionalTypeNode().ExtendsType) {
++				return true
++			}
++		}
++		if tp.AsTypeParameter().isThisType {
++			return thisReferenced
++		}
++		return referenced[tp.symbol]
++	})
++}
++
++func (c *Checker) isTypeParameterPossiblyReferenced(tp *Type, node *ast.Node) bool {
++	containsReference := func(node *ast.Node) bool { return c.typeParameterReferenceInSubtree(tp, node) }
+ 	// If the type parameter doesn't have exactly one declaration, if there are intervening statement blocks
+ 	// between the node and the type parameter declaration, if the node contains actual references to the
+ 	// type parameter, or if the node contains type queries that we can't prove couldn't contain references to the type parameter,
+@@ -22864,7 +22910,18 @@ func (c *Checker) tryGetTypeFromTypeNode(node *ast.Node) *Type {
  }
  
  func (c *Checker) getTypeFromTypeNode(node *ast.Node) *Type {
@@ -37,6 +124,15 @@ index 8c9eac4a..f718ae10 100644
  }
  
  func (c *Checker) getTypeFromTypeNodeWorker(node *ast.Node) *Type {
+@@ -24344,7 +24401,7 @@ func (c *Checker) getTypeFromConditionalTypeNode(node *ast.Node) *Type {
+ 		if alias != nil && len(alias.typeArguments) != 0 {
+ 			outerTypeParameters = allOuterTypeParameters
+ 		} else {
+-			outerTypeParameters = core.Filter(allOuterTypeParameters, func(tp *Type) bool { return c.isTypeParameterPossiblyReferenced(tp, node) })
++			outerTypeParameters = c.filterPossiblyReferencedTypeParameters(allOuterTypeParameters, node)
+ 		}
+ 		root := &ConditionalRoot{
+ 			node:                node.AsConditionalTypeNode(),
 diff --git a/internal/checker/types.go b/internal/checker/types.go
 index d240bb3f..eee7bfe1 100644
 --- a/internal/checker/types.go
