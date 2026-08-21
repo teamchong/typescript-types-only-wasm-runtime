@@ -116,3 +116,20 @@ export namespace W4 {
   export type I32LeU<A extends Word4, B extends Word4> = LeU4<A, B>;
   export type I32LeS<A extends Word4, B extends Word4> = LeS4<A, B>;
 }
+
+// Memory primitives on Word4 leaves. Byte access is pure indexed tuple ops (no 32-char
+// inference — the cost $GetByte/$SetByte pay in the string runtime). Addresses are Word4
+// on the stack; the byte offset is the low 2 bits of the low byte A[3], read as a string.
+export type Zero4 = ['00000000', '00000000', '00000000', '00000000'];
+export type Off4<A extends Word4> =
+  A[3] extends `${string}${infer lo6}` ? lo6 extends `${string}${infer o2}` ? o2 : never : never;
+export type GetByte4<W extends Word4, O extends string> =
+  O extends '00' ? ['00000000', '00000000', '00000000', W[3]]
+  : O extends '01' ? ['00000000', '00000000', '00000000', W[2]]
+  : O extends '10' ? ['00000000', '00000000', '00000000', W[1]]
+  : ['00000000', '00000000', '00000000', W[0]];
+export type SetByte4<W extends Word4, O extends string, V extends Word4> =
+  O extends '00' ? [W[0], W[1], W[2], V[3]]
+  : O extends '01' ? [W[0], W[1], V[3], W[3]]
+  : O extends '10' ? [W[0], V[3], W[2], W[3]]
+  : [V[3], W[1], W[2], W[3]];
