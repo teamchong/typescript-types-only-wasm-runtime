@@ -14,6 +14,7 @@ use std::{
 use indexmap::{IndexMap, IndexSet};
 
 mod aot;
+mod word4;
 mod aot_cfg;
 mod aot_clean;
 mod aot_stateful;
@@ -1580,6 +1581,7 @@ fn main() {
                     },
                     None => std::path::Path::new(wasm_path).with_extension("cfg.ts"),
                 };
+                let output = if args.iter().any(|a| a == "--word4") { word4::transform(&output) } else { output };
                 std::fs::write(&out_path, output).expect("could not write the output");
                 println!("wrote {}", out_path.display());
             }
