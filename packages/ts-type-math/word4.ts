@@ -90,3 +90,29 @@ export type DivS4<A extends Word4, B extends Word4> = Via<Wasm.I32DivS<ToStr<A>,
 export type DivU4<A extends Word4, B extends Word4> = Via<Wasm.I32DivU<ToStr<A>, ToStr<B>>>;
 export type RemS4<A extends Word4, B extends Word4> = Via<Wasm.I32RemS<ToStr<A>, ToStr<B>>>;
 export type RemU4<A extends Word4, B extends Word4> = Via<Wasm.I32RemU<ToStr<A>, ToStr<B>>>;
+
+// Namespace mirroring Wasm.* op names but on Word4 values, so the AOT compiler can emit
+// `W4.I32Add` etc. by swapping the namespace + value type. Hot ops native; rest wrapped.
+export namespace W4 {
+  export type I32Add<A extends Word4, B extends Word4> = Add4<A, B>;
+  export type I32Sub<A extends Word4, B extends Word4> = Sub4<A, B>;
+  export type I32Mul<A extends Word4, B extends Word4> = Mul4<A, B>;
+  export type I32And<A extends Word4, B extends Word4> = And4<A, B>;
+  export type I32Or<A extends Word4, B extends Word4>  = Or4<A, B>;
+  export type I32Xor<A extends Word4, B extends Word4> = Xor4<A, B>;
+  export type I32Shl<A extends Word4, B extends Word4> = Shl4<A, B>;
+  export type I32ShrU<A extends Word4, B extends Word4> = ShrU4<A, B>;
+  export type I32ShrS<A extends Word4, B extends Word4> = ShrS4<A, B>;
+  export type I32DivS<A extends Word4, B extends Word4> = DivS4<A, B>;
+  export type I32DivU<A extends Word4, B extends Word4> = DivU4<A, B>;
+  export type I32RemS<A extends Word4, B extends Word4> = RemS4<A, B>;
+  export type I32RemU<A extends Word4, B extends Word4> = RemU4<A, B>;
+  export type I32LtU<A extends Word4, B extends Word4> = LtU4<A, B>;
+  export type I32LtS<A extends Word4, B extends Word4> = LtS4<A, B>;
+  export type I32GtU<A extends Word4, B extends Word4> = GtU4<A, B>;
+  export type I32GtS<A extends Word4, B extends Word4> = GtS4<A, B>;
+  export type I32GeU<A extends Word4, B extends Word4> = GeU4<A, B>;
+  export type I32GeS<A extends Word4, B extends Word4> = GeS4<A, B>;
+  export type I32LeU<A extends Word4, B extends Word4> = LeU4<A, B>;
+  export type I32LeS<A extends Word4, B extends Word4> = LeS4<A, B>;
+}
