@@ -75,8 +75,45 @@ pub fn transform(src: &str) -> String {
     }
 
     // 10. constrain the trampoline's return-value param to WasmValue
-    let enterv = Regex::new(r"(export type \$Enter\w*<[^=]*\$g0 extends WasmValue, \$V)>").unwrap();
+    let enterv = Regex::new(r"(export type \$Enter\w*<[^=]*extends WasmValue, \$V)>").unwrap();
     s = enterv.replace_all(&s, "$1 extends WasmValue = never>").into_owned();
+
+    // synthetic value helpers: $Eq/$Ne/$Not1 bodies already emit Word4 tuples
+    // (literals were converted), only their `extends string` param constraints
+    // are wrong now that values are Word4.
+    s = s.replace("export type $Eq<A extends string, B extends string>",
+                  "export type $Eq<A extends WasmValue, B extends WasmValue>");
+    s = s.replace("export type $Ne<A extends string, B extends string>",
+                  "export type $Ne<A extends WasmValue, B extends WasmValue>");
+    s = s.replace("export type $Not1<B extends string>",
+                  "export type $Not1<B extends WasmValue>");
+
+    // $LtSxxxx / $GtSxxxx etc: compare-with-constant helpers that string-match
+    // the 32-char value. Wrap them to ToStr the Word4 argument (cheap concat);
+    // their bodies already return Word4 tuples. Rename original to _NAME (string
+    // body) and add a Word4 entry.
+    let cmp = Regex::new(r"export type (\$(?:LtS|GtS|LtU|GtU|LeS|GeS|LeU|GeU|Eqz)[0-9A-Fa-f]*)<A extends string>").unwrap();
+    let names: Vec<String> = cmp.captures_iter(&s).map(|c| c[1].to_string()).collect();
+    for name in names {
+        s = s.replace(&format!("export type {}<A extends string>", name),
+                      &format!("export type _{}<A extends string>", &name[1..]));
+        s.push_str(&format!("export type {}<A extends WasmValue> = _{}<ToStr<A>>
+", name, &name[1..]));
+    }
+
+    // Const-arithmetic synthetic ops (pointer/counter inc-dec, shift-by-const,
+    // clz/ctz, rotate, sign-extend, wrap): they string-match the 32-char value.
+    // Wrap each to convert Word4->string (ToStr) in, string->Word4 (FromStr) out,
+    // reusing the proven string body. Correct; the hot ones can be made native
+    // W4 later. Match `export type $NAME<A extends string> =` for these names.
+    let cop = Regex::new(r"export type (\$(?:Inc|Dec)(?:Top)?[0-9]*|\$Shl[0-9_]*|\$Shr[USs0-9]*|\$Clz|\$Ctz|\$Popcnt|\$Rotl|\$Rotr|\$Extend[0-9A-Za-z]*|\$Wrap[0-9A-Za-z]*|\$And[0-9A-Fa-f]+|\$Or[0-9A-Fa-f]+|\$Xor[0-9A-Fa-f]+|\$Hi[0-9]+|\$Lo[0-9]+|\$Tail[0-9]+|\$Zx[0-9]+)<A extends string>").unwrap();
+    let cnames: Vec<String> = cop.captures_iter(&s).map(|c| c[1].to_string()).collect();
+    for name in cnames {
+        s = s.replace(&format!("export type {}<A extends string>", name),
+                      &format!("export type _{}<A extends string>", &name[1..]));
+        s.push_str(&format!("export type {}<A extends WasmValue> = FromStr<_{}<ToStr<A>>>
+", name, &name[1..]));
+    }
 
     s
 }
