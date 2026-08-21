@@ -547,7 +547,7 @@ type SubNibble = {
  * bare indexing gives TS2536, and constraining the inferred bits to '0'|'1' to
  * make the key provable gives TS2590.
  */
-type SubByte = {
+export type SubByte = {
   '00000000000000000': ['00000000','0'],
   '00000000000000001': ['11111111','1'],
   '00000000000000010': ['11111111','1'],

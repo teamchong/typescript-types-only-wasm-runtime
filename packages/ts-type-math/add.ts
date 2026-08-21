@@ -705,7 +705,7 @@ type AddNibble = {
  * - indexing with a bare template gives TS2536, and constraining the inferred
  * bits to '0'|'1' to make the key provable gives TS2590.
  */
-type AddByte = {
+export type AddByte = {
   '00000000000000000': ['00000000','0'],
   '00000000000000001': ['00000001','0'],
   '00000000000000010': ['00000001','0'],
