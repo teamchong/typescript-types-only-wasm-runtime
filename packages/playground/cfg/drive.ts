@@ -553,9 +553,17 @@ export const enter = (
 /// 8192x6 chunks -> 98 frames in 93.19s (1.05 fps) against 16384x3 -> 46
 /// frames in 77.53s (0.59 fps); single-chunk sweep put 8192 ahead of 6144,
 /// 10240, 12288, 16384, 20480, 24576 and 32768 as well. Checker cost per
-/// chunk grows superlinearly with fuel while frames landed grow ~linearly,
-/// so the smaller chunk wins on wall-clock fps despite more resume overhead.
-const DEFAULT_FUEL = 4096;
+/// chunk grew superlinearly with fuel while frames landed grow ~linearly,
+/// so the smaller chunk won on wall-clock fps despite more resume overhead.
+///
+/// Re-measured 2026-08-22 on tsgo 7.1.0-dev.20260822 + flow memoization:
+/// the superlinear term is gone. Equal-budget sweep (49152 total fuel,
+/// same seed, same 7 frames landed in every run): 4096x12 -> 183.9s
+/// (267 units/s), 8192x6 -> 116.9s (420 units/s), 16384x3 -> 90.4s
+/// (544 units/s, 2.04x). 32768 and 49152 trip the checker's depth ceiling,
+/// fail, and auto-halve - the wasted attempt makes them net losers
+/// (319/353 units/s). 16384 is the sweet spot.
+const DEFAULT_FUEL = 16384;
 
 /// How long one chunk may take before its fuel counts as over the edge.
 ///
@@ -1054,11 +1062,21 @@ function sbrkWord(moduleText: string) {
   // checkpoint only speaks when the caller did not.
   // ...but a checkpoint saved at a high edge drags resumes down: inheriting
   // 32768 from live7 lands 42 frames / 157.63s (0.27 fps) where DEFAULT_FUEL
-  // 4096 lands 41 / 14.40s (2.85 fps) - chunk cost is superlinear in fuel
+  // 4096 lands 41 / 14.40s (2.85 fps) - chunk cost was superlinear in fuel
   // while frames landed are ~flat. Cap the inherited fuel at DEFAULT_FUEL;
   // an explicit --fuel still outranks both.
+  //
+  // The same cap also has to be a floor: after the 2026-08-22 re-measure
+  // moved DEFAULT_FUEL to 16384, a checkpoint written at the old 4096 edge
+  // would otherwise pin every resume at 4096 forever (min only lowers).
+  // Start resumes at DEFAULT_FUEL, clamped by the checkpoint's own failure
+  // edge (capFail, doubled - same headroom the ladder uses) so a state that
+  // genuinely fails above its saved fuel does not eat a wasted big probe.
   if (options.fuel === undefined && options.resume?.fuel !== undefined) {
-    fuel = Math.min(options.resume.fuel, DEFAULT_FUEL);
+    const savedEdge = options.resume.capFail !== undefined
+      ? options.resume.capFail * 2
+      : Infinity;
+    fuel = Math.min(DEFAULT_FUEL, savedEdge);
   }
   let backoffs = 0;
   // The fuel that lands is a cliff, not a slope: measured on one real chunk in
