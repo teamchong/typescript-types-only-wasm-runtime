@@ -65,7 +65,9 @@ export const createEnv = (startFilePath: string): EvaluationEnvironment => {
   });
   let snapshot: Snapshot = api.updateSnapshot({
     openProjects: [evaluatorConfigPath],
-    openFiles: [globalDefinitions, startFilePath],
+    // globalDefinitions is a root via `files:`; opening it would make tsgo
+    // also load the repo-root project (877 files) for it.
+    openFiles: [startFilePath],
   });
   let project: Project | undefined;
 

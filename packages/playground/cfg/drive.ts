@@ -101,6 +101,48 @@ const parseTrie = (src: string, prev: Trie = ABSENT, aliases: Map<string, string
   return node();
 };
 
+/// Word4 I/O boundary. The byte-tuple module represents a 32-bit word as a
+/// 4-tuple of 8-char bytes (`['b0','b1','b2','b3']`), and a memory leaf as that
+/// tuple in the 1-tuple leaf wrapper (`[['b0','b1','b2','b3']]`). The whole
+/// driver - trie, aliases, frames, checkpoints - stays in 32-char strings, so
+/// the two reps only meet here: encode on the way into the emitted chunk,
+/// decode on the way back out. A word arg (a bare WasmValue) is the bare tuple;
+/// a memory leaf's own `['<32>']` bracket becomes the leaf wrapper for free.
+const w4Encode = (text: string): string =>
+  text.replace(/(["'])([01]{32}(?:[01]{32})?)\1/g, (_m, _q, bits: string) =>
+    `[${bits.match(/.{8}/g)!.map((b) => `'${b}'`).join(", ")}]`,
+  );
+const w4Decode = (text: string): string => {
+  const B = `["'][01]{8}["']`;
+  const join = (m: string) => {
+    const q = m.includes('"') ? '"' : "'";
+    return `${q}${m.match(/[01]{8}/g)!.join("")}${q}`;
+  };
+  return text
+    // Word8 (i64 values) first, so the 4-byte rule cannot eat half of one
+    .replace(new RegExp(`\\[\\s*(?:${B}\\s*,\\s*){7}${B}\\s*\\]`, "g"), join)
+    .replace(new RegExp(`\\[\\s*(?:${B}\\s*,\\s*){3}${B}\\s*\\]`, "g"), join);
+};
+
+/// The number of type arguments an imported name is applied with, read off its
+/// first `name<...>` use by walking to the matching `>` and counting top-level
+/// commas. 0 means it is never used as a generic. Used to emit a generic
+/// passthrough alias (see the import rewrite) instead of a plain, non-generic
+/// one that would make `ToStr<A>` an error and collapse the result to `any`.
+const genericArity = (text: string, name: string): number => {
+  const at = new RegExp(`(?<![.\\w$])${name}<`).exec(text);
+  if (!at) return 0;
+  let depth = 1;
+  let commas = 0;
+  for (let i = at.index + at[0].length; i < text.length && depth > 0; i++) {
+    const c = text[i]!;
+    if (c === "<" || c === "[" || c === "(") depth++;
+    else if (c === ">" || c === "]" || c === ")") depth--;
+    else if (c === "," && depth === 1) commas++;
+  }
+  return commas + 1;
+};
+
 const printTrie = (node: Trie): string =>
   Array.isArray(node)
     ? `[${node.map(printTrie).join(", ")}]`
@@ -163,6 +205,7 @@ const printAliased = (node: Trie, names: Map<string, string>): string =>
       : node.startsWith("$")
         ? node
         : (names.get(node) ?? (node === ZERO_WORD ? "$Zero" : `['${node}']`));
+
 
 /// A store that writes a word back at the value the module already holds leaves
 /// a word in the state that reads exactly like reading through to
@@ -655,6 +698,8 @@ export const run = async (
     /// where to write the checkpoint, and how often
     save?: string;
     every?: number;
+    /// the module represents words as byte-tuples (see w4Encode/w4Decode)
+    word4?: boolean;
   } = {},
 ): Promise<RunResult> => {
   let fuel = options.fuel ?? DEFAULT_FUEL;
@@ -699,26 +744,57 @@ export const run = async (
       /^type \$InitialMemory = [^\n]*\n/m,
       "type $InitialMemory = $Absent\n",
     );
-    const found = /^import type \{([^}]*)\} from ['"]ts-type-math['"];?\n/m.exec(withoutInitial);
-    if (!found) return withoutInitial;
-    let text = withoutInitial.slice(0, found.index) + withoutInitial.slice(found.index + found[0].length);
+    // The string module has one import (`from 'ts-type-math'`, bare names); the
+    // Word4 module has two (`Convert` from the package, and the byte-tuple
+    // helpers from the `/word4` subpath, some `X as Y` aliased and one a
+    // namespace, `W4 as Wasm`). Any top-level import left in place makes the
+    // .d.ts a module, so its names stop being global and the chunk's `$entry`
+    // resolves to nothing - the whole result then defers as `$Tag<$entry<..>>`.
+    // So rewrite every ts-type-math import (both sources), honouring `as`.
+    const importRe = /^import type \{([^}]*)\} from ['"](ts-type-math(?:\/word4)?)['"];?\n/gm;
+    const specs = [...withoutInitial.matchAll(importRe)];
+    if (specs.length === 0) return withoutInitial;
+    let text = withoutInitial.replace(importRe, "");
     const aliases: string[] = [];
-    for (const raw of found[1].split(",")) {
-      const name = raw.trim();
-      if (!name) continue;
-      // A type alias cannot stand in for a namespace, and `import X =
-      // import('m').Y` is not legal here, so only the bare uses collapse to an
-      // alias; a qualified head (`Wasm.I32Add`) keeps its inline import. Bare
-      // uses are 89,140 of doom's 92,751, so the rescan cost goes with them.
-      const alias = `$TTM_${name}`;
-      let used = false;
-      // not `Convert.WasmValue.ToTSNumber`: only the head of a qualified name
-      text = text.replace(new RegExp(`(?<![.\\w$])${name}\\b(\\.)?`, "g"), (_m, dot: string | undefined) => {
-        if (dot) return `import('ts-type-math').${name}.`;
-        used = true;
-        return alias;
-      });
-      if (used) aliases.push(`type ${alias} = import('ts-type-math').${name};`);
+    for (const spec of specs) {
+      const src = spec[2]!;
+      for (const raw of spec[1]!.split(",")) {
+        const part = raw.trim();
+        if (!part) continue;
+        // `Word4` or `Word4 as WasmValue`: `imported` is the export, `local`
+        // the name the body uses.
+        const m = /^(\w+)(?:\s+as\s+(\w+))?$/.exec(part);
+        if (!m) continue;
+        const imported = m[1]!;
+        const local = m[2] ?? m[1]!;
+        // A type alias cannot stand in for a namespace, and `import X =
+        // import('m').Y` is not legal here, so only the bare uses collapse to an
+        // alias; a qualified head (`Wasm.I32Add`) keeps its inline import. Bare
+        // uses are 89,140 of doom's 92,751, so the rescan cost goes with them.
+        const alias = `$TTM_${local}`;
+        // A generic helper (ToStr<W>, FromStr<S>, GetByte4<W,O>, ...) cannot be
+        // a bare `type X = import('m').ToStr` alias - that alias is not generic,
+        // so `X<A>` is an error and the whole result silently degrades to `any`.
+        // Count the type arguments at the first `local<...>` use and forward
+        // them through a generic passthrough. `= any` defaults keep a bare use
+        // (should one exist) legal too. Non-generic names keep the plain alias.
+        const arity = genericArity(text, local);
+        const params = Array.from({ length: arity }, (_, k) => `A${k}`);
+        let used = false;
+        // not `Convert.WasmValue.ToTSNumber`: only the head of a qualified name
+        text = text.replace(new RegExp(`(?<![.\\w$])${local}\\b(\\.)?`, "g"), (_mm, dot: string | undefined) => {
+          if (dot) return `import('${src}').${imported}.`;
+          used = true;
+          return alias;
+        });
+        if (used) {
+          aliases.push(
+            arity === 0
+              ? `type ${alias} = import('${src}').${imported};`
+              : `type ${alias}<${params.map((p) => `${p} = any`).join(", ")}> = import('${src}').${imported}<${params.join(", ")}>;`,
+          );
+        }
+      }
     }
     return aliases.join("\n") + "\n" + text;
   })();
@@ -1245,9 +1321,14 @@ function sbrkWord(moduleText: string) {
       .map((word, index) => `type $A${index} = ['${word}']`)
       .join("\n")}\ntype $IN = ${printAliased(memoryTrie, aliasNames)}\n`;
     mark("print");
-    env.createFile(statePathDts, stateText);
+    // Encode words to byte-tuples only in what the module actually sees; the
+    // internal `call`/`stateText` stay 32-char strings so checkpoints and frame
+    // parsing are unchanged, and fuel (a bare run of 1s/0s) is never touched.
+    const emittedState = options.word4 ? w4Encode(stateText) : stateText;
+    const emittedCall = options.word4 ? w4Encode(call) : call;
+    env.createFile(statePathDts, emittedState);
     const file = `type $FUEL = ${fuelType(fuel)}
-type $Result = ${call}
+type $Result = ${emittedCall}
 export type $Out_Tag = $Tag<$Result>
 export type $Out_Frames = $Frames<$Result>
 export type $Out_Globals = $GlobalsOf<$Result>
@@ -1265,7 +1346,7 @@ ${splitReaders}
       // the module and state live in sibling declaration files now, so a dump
       // is only re-checkable standalone if all three land next to each other
       writeFileSync(`${stem}.ts`, file);
-      writeFileSync(`${stem}.state.d.ts`, stateText);
+      writeFileSync(`${stem}.state.d.ts`, emittedState);
       writeFileSync(`${process.env.DUMP_CHUNKS}/module.d.ts`, globalModuleText);
     }
     const e0 = performance.now();
@@ -1292,9 +1373,10 @@ ${splitReaders}
     }
     const read = async (name: string) => {
       const t = performance.now();
-      const out = (
+      const raw = (
         await evaluateType(env, path, chunkProgram, undefined, name, true)
       ).typeString.trim();
+      const out = options.word4 ? w4Decode(raw) : raw;
       if (process.env.TIME_READS) process.stderr.write(`    read ${name}: ${(performance.now() - t).toFixed(0)}ms\n`);
       return out;
     };
@@ -1402,26 +1484,13 @@ ${splitReaders}
     degMs += performance.now() - d0;
     mark("degraded");
     if (bad) {
-      // A bare `any` is the checker having hit its own instantiation budget on
-      // a block that is too big to resolve at all - the compile-time caps, not
-      // anything about this run. It is deterministic: every retry below (fresh
-      // compiler, then fuel halving all the way to minFuel) reproduces it, so
-      // the ladder just turns one wrong answer into a long one. arith120 at
-      // PIPELINE_CAP=64 walked fuel 20000 -> 4 reporting a fuel problem the
-      // whole way. Say what it is and stop.
-      if (/\bany\b/.test(bad)) {
-        failed = `chunk ${chunks}: ${bad}
-  the checker gave up on a block rather than running out of fuel - a block is
-  too large to resolve, so lower DEPTH_CAP or PIPELINE_CAP and recompile.
-  (a bare \`tsc\` on the generated module reports this as TS2589.)`;
-        writeFileSync(join(__dirname, "failing-chunk.ts"), file);
-        writeFileSync(join(__dirname, "failing-output.txt"), `tag ${tag}\nvalue ${value}\nlive ${live}\nstate ${state}`);
-        break;
-      }
-      // An approximation handed back quietly is not a fuel problem: the same
-      // chunk that came back never at fuel 1024 still came back never at fuel
-      // 4, then evaluated correctly in a new compiler. So replace the compiler
-      // first and only start halving if a fresh one says the same thing.
+      // An approximation handed back quietly - `any` or `never` - is not a fuel
+      // problem: the same chunk that came back never at fuel 1024 still came
+      // back never at fuel 4, then evaluated correctly in a new compiler. So
+      // replace the compiler first and only decide what it is once a fresh one
+      // has had its say. This is doubly true for the Word4 module, whose ~3x
+      // heavier per-op instantiation wears a reused session fast: a value that
+      // prints as `any` on the worn session is a clean word on a fresh one.
       if (recycled !== chunks) {
         recycled = chunks;
         lifetime = Math.max(1, worked - 1);
@@ -1432,6 +1501,16 @@ ${splitReaders}
         mark("retry");
         continue;
       }
+      // A *fresh* compiler still hands back `any`: now it is the checker hitting
+      // its own instantiation budget on a block too big to resolve at all - the
+      // compile-time caps, not this run. It is deterministic at every fuel, so
+      // the fuel ladder would only turn one wrong answer into a long one (arith120
+      // at PIPELINE_CAP=64 walked fuel 20000 -> 4 reporting a fuel problem the
+      // whole way). But a deep-per-op module (Word4) overruns the checker's
+      // budget at high fuel and re-wears the session doing it, so `any` here can
+      // still be a fuel-too-high that a lower fuel on its own fresh compiler
+      // clears. Only give up once the smallest fuel, freshly compiled, still
+      // says `any`.
       if (fuel > minFuel) {
         backoffs++;
         settled = 0;
@@ -1448,11 +1527,24 @@ ${splitReaders}
           ? lastGood
           : Math.max(minFuel, Math.floor((fuel * 3) / 4));
         if (lastGood >= fuel) lastGood = 0;
+        // Force a fresh compiler at the new fuel: the failed higher-fuel try
+        // just wore this one, and the lower fuel that fits needs a clean session
+        // to show it (a worn one hands back the same `any` at every fuel).
+        recycled = -1;
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: ${bad}; fuel -> ${fuel}    \n`);
         mark("retry");
         continue;
       }
-      failed = `chunk ${chunks} at fuel ${fuel}: ${bad}`;
+      // Smallest fuel, freshly compiled, still degraded. A bare `any` now is the
+      // checker's own instantiation budget on a block too big to resolve at all.
+      if (/\bany\b/.test(bad)) {
+        failed = `chunk ${chunks}: ${bad}
+  the checker gave up on a block rather than running out of fuel - a block is
+  too large to resolve, so lower DEPTH_CAP or PIPELINE_CAP and recompile.
+  (a bare \`tsc\` on the generated module reports this as TS2589.)`;
+      } else {
+        failed = `chunk ${chunks} at fuel ${fuel}: ${bad}`;
+      }
       writeFileSync(join(__dirname, "failing-chunk.ts"), file);
       writeFileSync(join(__dirname, "failing-output.txt"), `tag ${tag}\nvalue ${value}\nlive ${live}\nstate ${state}`);
       break;
@@ -1666,6 +1758,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     every?: number;
     quiet?: boolean;
     resume?: Checkpoint;
+    word4?: boolean;
   } = {};
   for (let i = 2; i < process.argv.length; i++) {
     const arg = process.argv[i];
@@ -1674,6 +1767,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     else if (arg === "--save") options.save = process.argv[++i];
     else if (arg === "--every") options.every = Number(process.argv[++i]);
     else if (arg === "--quiet") options.quiet = true;
+    else if (arg === "--word4") options.word4 = true;
     else if (arg === "--resume") {
       const from = process.argv[++i];
       options.resume = JSON.parse(readFileSync(from, "utf8")) as Checkpoint;
