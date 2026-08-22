@@ -38,7 +38,7 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.19.1",
     "type-testing": "^0.2.0",
-    "typescript": "7.1.0-dev.20260802.1",
+    "typescript": "7.1.0-dev.20260822.1",
     "typescript-legacy": "npm:typescript@5.6.3",
     "vitest": "^2.1.3"
   },

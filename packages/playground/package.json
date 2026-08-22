@@ -16,7 +16,6 @@
     "benchmark": "node --stack-size=8192 --max-old-space-size=16384 --import tsx/esm ./benchmark.ts"
   },
   "devDependencies": {
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "http-server": "^14.1.1"
   }
 }
