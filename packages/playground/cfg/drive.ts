@@ -563,7 +563,14 @@ export const enter = (
 /// (544 units/s, 2.04x). 32768 and 49152 trip the checker's depth ceiling,
 /// fail, and auto-halve - the wasted attempt makes them net losers
 /// (319/353 units/s). 16384 is the sweet spot.
-const DEFAULT_FUEL = 16384;
+///
+/// Re-measured 2026-08-22 after the part-split state + conditional-flow work:
+/// the depth ceiling no longer trips at 24576/32768. Clean interleaved 3x3
+/// probe (live session paused, same seed, same chunks each run):
+/// 16384 -> 229/237/238 units/s, 24576 -> 288/291/288 (+22%),
+/// 32768 -> 289/290/289 (flat). 24576 is the new sweet spot; going higher
+/// buys nothing and just lengthens the worst-case key-to-frame latency.
+const DEFAULT_FUEL = 24576;
 
 /// How long one chunk may take before its fuel counts as over the edge.
 ///
@@ -577,7 +584,12 @@ const DEFAULT_FUEL = 16384;
 /// state). Measured on an E1M1 frame, chunk cost is ~linear in fuel (10752 ->
 /// 27s, 21504 -> 50s standalone) while the round trips are not, so the guard
 /// only has to catch a genuine hang: 30s.
-const SLOW_CHUNK_MS = 30000;
+///
+/// Raised to 90s for DEFAULT_FUEL = 24576: a healthy 24576 chunk runs
+/// ~40-45s wall (measured 2026-08-22), so 30s was auto-halving every chunk
+/// and silently undoing the fuel bump. The hangs this guard exists for sat
+/// for minutes, so 2x the healthy ceiling still catches them.
+const SLOW_CHUNK_MS = 90000;
 
 /// see fuelType
 const FUEL_SEGMENT = 400;
