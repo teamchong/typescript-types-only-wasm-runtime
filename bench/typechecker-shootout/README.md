@@ -34,8 +34,8 @@ output is not an option: diagnostics truncate.
 | Checker | Drives the game | Throughput | Blocker |
 |---|---|---|---|
 | **tsgo** | **yes** | **5033 units/s** at fuel 24576, warm session | — |
-| **tsrs** | no | would be ~1.5x tsgo if fixed | sync API: `api: client error: snapshot 0 not found` |
-| **tsc-rs** | no | n/a | same: `api: client error: snapshot 0 not found` |
+| **tsrs** | no | would be ~1.5x tsgo if fixed | panics in its fs-callback deserializer (below) |
+| **tsc-rs** | API repro passes (npm 0.7.0) | not yet measured on the game | was `snapshot 0 not found` on npm 0.1.0 |
 | **bun check** | no | n/a | no API to resolve and print a type; CLI diagnostics only |
 | **TypeRunner** | no | n/a | see `candidates/typerunner/BUILD-NOTES.txt` |
 
@@ -44,25 +44,31 @@ which is what `packages/playground/cfg/drive.ts` reports. Cold per-chunk times
 above are startup-dominated; the game keeps one checker session warm.
 
 **tsrs is the one worth fixing.** It already resolves chunks faster than tsgo
-and to the same answers, and its own docs report 906/906 upstream SDK tests
-passing, with `getTypeFromTypeNode` and `typeToString` marked *partial*
-("not byte-compared end-to-end"). Repro the blocker in one command:
+and to the same answers. The earlier `snapshot 0 not found` was a version
+mismatch, not a tsrs bug: this repo's client was `typescript@7.1.0-dev.20260822`,
+tsrs 0.11.0 ports `microsoft/TypeScript@b85298b6a81f` (~20260929). With the
+matching client (`typescript@7.1.0-dev.20260929.1`, imports under
+`typescript/unstable/*`), tsrs passes the whole sequence and only fails once fs
+callbacks are registered:
+
+| Repro | fs callbacks | tsrs 0.11.0 | tsgo 20260929 |
+|---|---|---|---|
+| `repro-nocb.mjs` | none | PASS, prints 5 | PASS |
+| `repro-api.mjs` | return `undefined` (defer) | `panic: jsontext: unexpected EOF` | PASS |
+| `repro-realfs.mjs` | answer via `readFileSync`/`existsSync` | `panic: filesystem callback response is missing a kind` | PASS |
+
+Both panics are tsrs's own CallbackResponse deserializer (pure Rust, no Go).
+The callbacks are not optional: the driver writes each chunk's module to a
+virtual fs, never to disk (`packages/playground/evaluate/ts.ts`).
 
 ```sh
-node repro-api.mjs candidates/tsrs/api-shim.sh   # FAIL: snapshot 0 not found
-node repro-api.mjs                               # PASS: prints 5 (tsgo control)
+mkdir /tmp/tsrsck && cd /tmp/tsrsck && npm init -y
+npm i @maschwenk/tsrs@0.11.0-ts7.1.0-dev.20260929 typescript@7.1.0-dev.20260929.1
+cp <repo>/bench/typechecker-shootout/repro-*.mjs .
+# on the 20260929 client: s#typescript/sync#typescript/unstable/sync# etc.
+node repro-nocb.mjs node_modules/@maschwenk/tsrs-darwin-arm64/tsrs   # PASS
+node repro-api.mjs  node_modules/@maschwenk/tsrs-darwin-arm64/tsrs   # panic
 ```
-
-Notes from chasing it, so nobody repeats the work:
-- tsrs only accepts `--api`; the older sync client spawns `<bin> api ...`.
-  `candidates/tsrs/api-shim.sh` translates, so that is not the blocker.
-- The client API changed: `<=7.1.0-dev.20260822` is `updateSnapshot(params)`,
-  `>=20260929` requires `createSnapshot(params)` first. `repro-api.mjs` handles
-  both. This project pins 20260822; tsrs ports microsoft/TypeScript@b85298b6a81f
-  (~20260929).
-- Paired with the matching 20260929 client, tsrs instead fails
-  `panic: jsontext: unexpected EOF`, i.e. the sync/MessagePack path decodes as
-  JSON. The async (JSON-RPC) path is untested here.
 
 ## Run it
 

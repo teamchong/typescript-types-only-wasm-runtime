@@ -12,7 +12,7 @@ if [ ! -x "$BIN" ]; then
     [ -n "$B" ] && cp "$B" "$D/bin/tsc-rs"
   fi
   [ -x "$D/bin/tsc-rs" ] && BIN=$D/bin/tsc-rs || {
-    [ -d "$D/node_modules" ] || (cd "$D" && npm init -y >/dev/null 2>&1 && npm i tsc-rs@0.1.0 --no-audit --no-fund >/dev/null 2>&1)
+    [ -d "$D/node_modules" ] || (cd "$D" && npm init -y >/dev/null 2>&1 && npm i tsc-rs@latest --no-audit --no-fund >/dev/null 2>&1)
     BIN=$(ls "$D"/node_modules/@tsc-rs/*/lib/tsc 2>/dev/null | head -1); }
 fi
 [ "$1" = "--probe" ] && { [ -x "$BIN" ] && echo "AVAILABLE tsc-rs ($("$BIN" --version 2>&1 | head -1))" || echo "UNAVAILABLE: build and npm fallback both failed"; exit 0; }

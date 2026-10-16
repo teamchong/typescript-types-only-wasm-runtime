@@ -300,12 +300,6 @@ const INPUT_SENTINEL = "01011010000100000000000000000000";
 /// restarted between frames, which it is - one process is one frame.
 const ACK_WORD = 4410172 / 4;
 
-/// View window size, 11 = fullscreen, 3 = smallest; detail 1 is low (columns
-/// doubled). The renderer's cost is per pixel drawn, so this is the one knob
-/// that scales the whole frame.
-const VIEW_BLOCKS = Number(process.env.VIEW_BLOCKS ?? 7);
-const VIEW_DETAIL = Number(process.env.VIEW_DETAIL ?? 1);
-
 /// Bit order is the select chain `ts_post_input` walks: bit 0 ESC, 1 ENTER,
 /// 2..5 the arrows, 6 use, 7 fire, 8 y, 9 n, 10..16 the weapon digits, 17 run,
 /// 18 strafe, 19 map. The names are KeyboardEvent.code, which is what stream.ts
@@ -1155,40 +1149,24 @@ function sbrkWord(moduleText: string) {
   // So a failure that survives all the way down to the minimum fuel is treated
   // as the instance being worn out rather than the work being too big.
   let { env, path } = session;
-  // Doom renders the view window, not the screen: R_ExecuteSetViewSize sizes it
-  // from `setblocks`, and every pixel loop below it costs per pixel. Measured on
-  // the native module, 3000 frames, blocks/detail against ms/frame:
-  //
-  //   11/0 0.105 (1.00x)  9/1 0.084 (1.25x)  7/1 0.062 (1.69x)
-  //   6/1 ~0.055 (~1.9x)  5/1 0.038 (2.76x)  3/1 0.033 (3.14x)
-  //
-  // The same instructions run in the type runtime, so the ratio carries. These
-  // are the three words the menu's own size handler writes; `setsizeneeded` is
-  // consumed by the next D_Display and the window then stays where it is put.
-  // Written only when the words differ, so a resume does not re-trigger the
-  // resize (and its wipe) that the previous run already paid for.
+  // Sound off: with snd_SfxVolume and snd_MusicVolume at 0,
+  // S_StartSoundAtVolume returns before touching channels
+  // (`if (volume < 1) return`). The view size is left at Doom's own setting:
+  // shrinking it is faster but measures a smaller game. Written only when the
+  // words differ, so a resume does not redo it.
   if (inputSlot) {
     const levels = inputSlot.levels / Math.log2(fanout);
     const bits = (n: number) => n.toString(2).padStart(32, "0");
-    // setblocks/setdetail drive the renderer; screenblocks/detailLevel are the
-    // Options menu's copies, so the menu shows what is drawn. snd_SfxVolume and
-    // snd_MusicVolume at 0 make S_StartSoundAtVolume return before touching
-    // channels (`if (volume < 1) return`).
     const want = [
-      [4463604 / 4, VIEW_BLOCKS],
-      [4463608 / 4, VIEW_DETAIL],
-      [4410852 / 4, VIEW_BLOCKS],
-      [4410840 / 4, VIEW_DETAIL],
       [132960 / 4, 0],
       [132964 / 4, 0],
     ] as const;
     if (want.some(([word, value]) => getWord(memoryTrie, base, word, fanout, levels) !== bits(value))) {
-      for (const [word, value] of [...want, [4463600 / 4, 1] as const]) {
+      for (const [word, value] of want) {
         memoryTrie = setWord(memoryTrie, word, bits(value), fanout, levels);
       }
       memoryTrie = prune(memoryTrie, base, fanout);
       memory = printTrie(memoryTrie);
-      process.stderr.write(`view: blocks ${VIEW_BLOCKS} detail ${VIEW_DETAIL} (setsizeneeded)\n`);
     }
     if (process.env.VIEW_PROBE)
       for (const w of [4463600 / 4, 4463604 / 4, 4463608 / 4])
@@ -1357,6 +1335,9 @@ function sbrkWord(moduleText: string) {
     const emittedState = options.word4 ? w4Encode(stateText) : stateText;
     const emittedCall = options.word4 ? w4Encode(call) : call;
     env.createFile(statePathDts, emittedState);
+    // The slow guard below can lower `fuel` after this chunk ran; count and
+    // report what it actually ran with.
+    const ranFuel = fuel;
     const file = `type $FUEL = ${fuelType(fuel)}
 type $Result = ${emittedCall}
 export type $Out_Tag = $Tag<$Result>
@@ -1581,7 +1562,7 @@ ${splitReaders}
     }
     chunks++;
     lastGood = fuel;
-    units += fuel;
+    units += ranFuel;
     // A fresh compiler does not make the work smaller, so the fuel that was
     // fitting before still fits. Raising it back to the ceiling here costs a
     // full run of halvings, once per replacement.
@@ -1735,7 +1716,7 @@ ${splitReaders}
     if (!options.quiet) {
       process.stdout.write(
         `\r  chunk ${chunks}: suspended in ${innermost.block}, ${outer.length} frames, ` +
-          `state ${memory.length} chars, ${eta()}   `,
+          `state ${memory.length} chars, fuel ${ranFuel}, ${eta()}   `,
       );
     }
   }

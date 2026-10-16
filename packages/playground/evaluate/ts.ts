@@ -1,10 +1,10 @@
 
 import { existsSync } from "node:fs";
 import { relative, resolve } from "node:path";
-import { API, NodeBuilderFlags, type Program, type Project, type Snapshot } from "typescript/unstable/sync";
-import { createVirtualFileSystem } from "typescript/unstable/fs";
-import { isTypeAliasDeclaration } from "typescript/unstable/ast/is";
-import type { TypeAliasDeclaration } from "typescript/unstable/ast";
+import { API, NodeBuilderFlags, type Program, type Project, type Snapshot } from "typescript/sync";
+import { serverFS } from "typescript/fs";
+import { isTypeAliasDeclaration } from "typescript/ast/is";
+import type { TypeAliasDeclaration } from "typescript/ast";
 import {
   createResultFilePath,
   globalDefinitions,
@@ -18,6 +18,7 @@ import {
   stringResultTypeName,
 } from "./config";
 import { Meter } from "./metering";
+import { createEnv6 } from "./ts6";
 import { consoleLog, finalizeProgram, fsWorker, gaspForBreath, getCurrent, preBreakFile, printType } from './utils';
 
 export interface EvaluationProgram {
@@ -25,6 +26,8 @@ export interface EvaluationProgram {
   getSourceFile: Program["getSourceFile"];
   getSourceFileNames: Program["getSourceFileNames"];
   getTypeChecker: () => Project["checker"];
+  // SyntaxKind numbers differ between TS6 and TS7, so each backend brings its own.
+  isTypeAliasDeclaration: (node: unknown) => node is TypeAliasDeclaration;
 }
 
 export interface EvaluationEnvironment {
@@ -35,16 +38,26 @@ export interface EvaluationEnvironment {
   close: () => void;
 }
 
-export const createEnv = (startFilePath: string): EvaluationEnvironment => {
+// TS_CHECKER=ts6 swaps in the in-process TS6 compiler; default is TS7 (tsgo).
+export const createEnv = (startFilePath: string): EvaluationEnvironment =>
+  process.env.TS_CHECKER === "ts6" ? createEnv6(startFilePath) : createEnv7(startFilePath);
+
+const createEnv7 = (startFilePath: string): EvaluationEnvironment => {
   const evaluatorConfigPath = resolve(projectRoot, "tsconfig.evaluator.json");
   const rootFiles = new Set([globalDefinitions, startFilePath]);
   const getEvaluatorConfig = () => JSON.stringify({
     extends: "./tsconfig.json",
     files: [...rootFiles].map(filePath => relative(projectRoot, filePath)),
   });
-  const files = createVirtualFileSystem({
-    [evaluatorConfigPath]: getEvaluatorConfig(),
-  });
+  // Virtual files layered over the host fs. Callbacks answer only for these
+  // paths and hand everything else back to tsgo's own OS filesystem.
+  // The start file is seeded empty: tsgo refuses to open a file no project
+  // can load, and a root that was missing at load time never comes back on a
+  // `created` notification. The driver overwrites it before the first check.
+  const files = new Map<string, string>([
+    [evaluatorConfigPath, getEvaluatorConfig()],
+    [startFilePath, ""],
+  ]);
   const deletedFiles = new Set<string>();
   const api = new API({
     cwd: projectRoot,
@@ -52,18 +65,17 @@ export const createEnv = (startFilePath: string): EvaluationEnvironment => {
     // conditional-flow-type memoization) instead of the installed binary.
     ...(process.env.TSGO_BIN ? { tsserverPath: process.env.TSGO_BIN } : {}),
     fs: {
-      readFile(filePath) {
-        if (deletedFiles.has(filePath)) return null;
-        const contents = files.readFile?.(filePath);
-        return contents === null ? undefined : contents;
-      },
-      fileExists(filePath) {
-        if (deletedFiles.has(filePath)) return false;
-        return files.fileExists?.(filePath) ? true : undefined;
-      },
+      readFile: (filePath) => deletedFiles.has(filePath) ? undefined : files.get(filePath) ?? serverFS.useOS,
+      fileExists: (filePath) => deletedFiles.has(filePath) ? false : files.has(filePath) || serverFS.useOS,
+      directoryExists: serverFS.useOS,
+      getAccessibleEntries: serverFS.useOS,
+      realpath: serverFS.useOS,
+      stat: serverFS.useOS,
+      writeFile: serverFS.noop,
+      removeFile: serverFS.noop,
     },
   });
-  let snapshot: Snapshot = api.updateSnapshot({
+  let snapshot: Snapshot = api.createSnapshot({
     openProjects: [evaluatorConfigPath],
     // globalDefinitions is a root via `files:`; opening it would make tsgo
     // also load the repo-root project (877 files) for it.
@@ -72,13 +84,15 @@ export const createEnv = (startFilePath: string): EvaluationEnvironment => {
   let project: Project | undefined;
 
   const updateProject = () => {
-    project = snapshot.getProject(evaluatorConfigPath)
+    project = snapshot.getConfiguredProject(evaluatorConfigPath)
       ?? snapshot.getDefaultProjectForFile(startFilePath)
       ?? snapshot.getProjects()[0];
   };
-  const updateSnapshot = (params: Parameters<API["updateSnapshot"]>[0]) => {
+  const updateSnapshot = (params: Parameters<Snapshot["update"]>[0]) => {
     const previous = snapshot;
-    snapshot = api.updateSnapshot(params);
+    // Programs are rebuilt lazily; without this the project keeps the
+    // program from before the change.
+    snapshot = previous.update({ ...params, ensurePrograms: true });
     previous.dispose();
     updateProject();
   };
@@ -87,18 +101,19 @@ export const createEnv = (startFilePath: string): EvaluationEnvironment => {
     getSourceFile: project.program.getSourceFile.bind(project.program),
     getSourceFileNames: project.program.getSourceFileNames.bind(project.program),
     getTypeChecker: () => project!.checker,
+    isTypeAliasDeclaration: isTypeAliasDeclaration as EvaluationProgram["isTypeAliasDeclaration"],
   });
   updateProject();
 
   return {
     sys: {
       fileExists: (filePath) => !deletedFiles.has(filePath)
-        && (files.fileExists?.(filePath) === true || existsSync(filePath)),
+        && (files.has(filePath) || existsSync(filePath)),
     },
     languageService: { getProgram },
     createFile(filePath, contents) {
-      const exists = files.fileExists?.(filePath) === true;
-      files.writeFile?.(filePath, contents);
+      const exists = files.has(filePath);
+      files.set(filePath, contents);
       deletedFiles.delete(filePath);
       // Touching the config invalidates the whole program, and the program
       // holds doom's 107MB module: re-parsing it costs more than the chunk that
@@ -108,22 +123,22 @@ export const createEnv = (startFilePath: string): EvaluationEnvironment => {
       const isNewRoot = !rootFiles.has(filePath);
       if (isNewRoot) {
         rootFiles.add(filePath);
-        files.writeFile?.(evaluatorConfigPath, getEvaluatorConfig());
+        files.set(evaluatorConfigPath, getEvaluatorConfig());
       }
       updateSnapshot({
-        fileChanges: exists
+        fileNotifications: exists
           ? { changed: isNewRoot ? [filePath, evaluatorConfigPath] : [filePath] }
           : { created: [filePath], ...(isNewRoot ? { changed: [evaluatorConfigPath] } : {}) },
         ...(exists ? {} : { openFiles: [filePath] }),
       });
     },
     deleteFile(filePath) {
-      files.removeFile?.(filePath);
+      files.delete(filePath);
       deletedFiles.add(filePath);
       rootFiles.delete(filePath);
-      files.writeFile?.(evaluatorConfigPath, getEvaluatorConfig());
+      files.set(evaluatorConfigPath, getEvaluatorConfig());
       updateSnapshot({
-        fileChanges: { deleted: [filePath], changed: [evaluatorConfigPath] },
+        fileNotifications: { deleted: [filePath], changed: [evaluatorConfigPath] },
         closeFiles: [filePath],
       });
     },
@@ -167,7 +182,7 @@ export const evaluateType = async (
 
   meter.start("getTypeAlias");
   const typeAlias = inputSourceFile.statements.find((node): node is TypeAliasDeclaration =>
-    isTypeAliasDeclaration(node) && node.name.text === searchFor
+    program.isTypeAliasDeclaration(node) && node.name.text === searchFor
   );
   if (!typeAlias) {
     fsWorker.writeFile(errorFilePath, inputSourceFile.text, 'ts');
