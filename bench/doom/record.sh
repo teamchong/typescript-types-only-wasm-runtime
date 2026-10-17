@@ -8,7 +8,7 @@
 # chunk), so both checkers see the same input on the same chunk and compute the
 # same frames; only the clock differs.
 #
-# KEY_SCRIPT=<file> plays a per-frame script instead (see kill.keys.json): the
+# KEY_SCRIPT=<file> plays a per-frame script instead (see clear.keys.json): the
 # driver holds entry i's keys for frame i and exits when the script ends, so the
 # recording stops there or at the time limit, whichever is first.
 #
