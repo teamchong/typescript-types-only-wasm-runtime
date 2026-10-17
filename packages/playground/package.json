@@ -16,6 +16,8 @@
     "benchmark": "node --stack-size=8192 --max-old-space-size=16384 --import tsx/esm ./benchmark.ts"
   },
   "devDependencies": {
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "tsc-rs": "0.7.0",
+    "tsrs": "0.16.0-ts7.1.0-dev.20260929"
   }
 }

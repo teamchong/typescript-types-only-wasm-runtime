@@ -25,6 +25,8 @@ Node v22.23.0.
 `./side-by-side.sh` joins the two recordings, holding each screen for as long
 as that checker really took to produce the next one. Left is TS6, right is TS7.
 Playback speed is their real relative speed.
+Each half shows its checker's frames done, fps over the run so far, and how
+long the last frame took (frame ends come from `entry`/`done` in frames.jsonl).
 
 ## Run it
 
@@ -36,12 +38,16 @@ FUEL=12288 ./fps.sh 3 10          # the row above
 FUEL6=6144 FUEL7=12288 ./fps.sh   # each checker at its own fuel
 ./record.sh ts7 20                # 20 min recording -> .work/rec-ts7/
 ./record.sh ts6 20                # run one at a time, never both at once
+KEYS='"ArrowUp","ArrowRight"' ./record.sh ts7 20  # other hardcoded input
 ./side-by-side.sh                 # -> ts6-vs-ts7.mp4 (needs ffmpeg)
 ```
 
 A full `fps.sh 3 10` takes ~40 min, almost all of it TS6. Outputs land in
 `.work/` (gitignored). Every run starts from `e1m1.json.gz`, a checkpoint in
 game on E1M1 at Doom's default view size, so nothing is precomputed past it.
+`record.sh` holds `KEYS` (default `ArrowUp`, walk forward) from the first
+chunk, so both checkers get the same input on the same chunk and play the same
+frames; without input the game sits still and the video shows one view.
 
 ## How TS6 is driven
 

@@ -604,7 +604,14 @@ let lastStatus = "";
 const recordDir = process.env.RECORD;
 if (recordDir) mkdirSync(recordDir, { recursive: true });
 let lastRecordedMd5 = "";
-const record = (checkpoint: { chunks: number; memory: string }, png: Buffer, seen: string[]) => {
+/// `entry` and `done` mark frame boundaries, which is what an fps overlay
+/// needs: `done` is the call returning, and a poll that misses it still sees
+/// `entry` (chunks into the current call) drop on the next frame.
+const record = (
+  checkpoint: { chunks: number; memory: string; entryChunks?: number; done?: boolean },
+  png: Buffer,
+  seen: string[],
+) => {
   if (!recordDir) return;
   const md5 = createHash("md5").update(checkpoint.memory).digest("hex");
   if (md5 === lastRecordedMd5) return;
@@ -613,7 +620,14 @@ const record = (checkpoint: { chunks: number; memory: string }, png: Buffer, see
   writeFileSync(`${recordDir}/${name}.png`, png);
   appendFileSync(
     `${recordDir}/frames.jsonl`,
-    JSON.stringify({ chunk: checkpoint.chunks, at: new Date().toISOString(), md5, seen }) + "\n",
+    JSON.stringify({
+      chunk: checkpoint.chunks,
+      entry: checkpoint.entryChunks,
+      done: checkpoint.done || undefined,
+      at: new Date().toISOString(),
+      md5,
+      seen,
+    }) + "\n",
   );
 };
 let lastChunk = -1;

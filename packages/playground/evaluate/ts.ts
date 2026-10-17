@@ -1,9 +1,10 @@
 
 import { existsSync } from "node:fs";
 import { relative, resolve } from "node:path";
-import { API, NodeBuilderFlags, type Program, type Project, type Snapshot } from "typescript/sync";
-import { serverFS } from "typescript/fs";
-import { isTypeAliasDeclaration } from "typescript/ast/is";
+import type * as SyncAPI from "typescript/sync";
+import type { Program, Project, Snapshot } from "typescript/sync";
+import type * as FsAPI from "typescript/fs";
+import type * as IsAPI from "typescript/ast/is";
 import type { TypeAliasDeclaration } from "typescript/ast";
 import {
   createResultFilePath,
@@ -20,6 +21,21 @@ import {
 import { Meter } from "./metering";
 import { createEnv6 } from "./ts6";
 import { consoleLog, finalizeProgram, fsWorker, gaspForBreath, getCurrent, preBreakFile, printType } from './utils';
+
+// TS_CHECKER picks the native checker. Each speaks its own revision of tsgo's
+// --api protocol and its AST encoding, so each comes with the client built for
+// it: tsrs and tsc-rs ship a fork of `typescript/sync` under `unstable/`, which
+// spawns the binary it was published with. tsrs behind TS7's client finds the
+// source file but decodes it with no `statements`.
+const clients: Record<string, { sdk: string }> = {
+  "ts7": { sdk: "typescript" },
+  "tsc-rs": { sdk: "tsc-rs/unstable" },
+  "tsrs": { sdk: "tsrs/unstable" },
+};
+const client = clients[process.env.TS_CHECKER ?? "ts7"] ?? clients.ts7;
+const { API, NodeBuilderFlags }: typeof SyncAPI = await import(`${client.sdk}/sync`);
+const { serverFS }: typeof FsAPI = await import(`${client.sdk}/fs`);
+const { isTypeAliasDeclaration }: typeof IsAPI = await import(`${client.sdk}/ast/is`);
 
 export interface EvaluationProgram {
   readonly native: Program;
@@ -38,7 +54,8 @@ export interface EvaluationEnvironment {
   close: () => void;
 }
 
-// TS_CHECKER=ts6 swaps in the in-process TS6 compiler; default is TS7 (tsgo).
+// TS_CHECKER=ts6 swaps in the in-process TS6 compiler, =bun runs `bun check`;
+// the rest are native checkers behind tsgo's API (see `clients`).
 export const createEnv = (startFilePath: string): EvaluationEnvironment =>
   process.env.TS_CHECKER === "ts6" ? createEnv6(startFilePath) : createEnv7(startFilePath);
 

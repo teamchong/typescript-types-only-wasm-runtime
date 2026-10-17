@@ -840,6 +840,14 @@ export const run = async (
   // one long press (`Esc Enter Enter Enter` back-to-back leaves gamestate 3,
   // with a released frame it reaches 0), so `release` is not optional.
   let heldKeys: string[] = [];
+  // KEY_SCRIPT=<file>: a JSON array with one held-key list per frame, frame 0
+  // being the call the run starts in. It replaces the page's keys, so two runs
+  // at different speeds still see the same keys on the same frame, and the run
+  // stops when the script does.
+  const keyScript: string[][] | undefined = process.env.KEY_SCRIPT
+    ? JSON.parse(readFileSync(process.env.KEY_SCRIPT, "utf8"))
+    : undefined;
+  let scriptFrame = 0;
   // One process is one frame, so the handshake has to outlive it. `seen` used
   // to be per-process, which re-owed every press the page had ever counted on
   // every frame: that is the menu opening and closing on its own.
@@ -1151,18 +1159,23 @@ function sbrkWord(moduleText: string) {
   let { env, path } = session;
   // Sound off: with snd_SfxVolume and snd_MusicVolume at 0,
   // S_StartSoundAtVolume returns before touching channels
-  // (`if (volume < 1) return`). The view size is left at Doom's own setting:
-  // shrinking it is faster but measures a smaller game. Written only when the
-  // words differ, so a resume does not redo it.
+  // (`if (volume < 1) return`). The view is 10: full width with the status
+  // bar, the largest that still shows ammo and health. 11 drops the status bar
+  // and stretches the 3D view over its rows, which reads as zoomed in. Doom's
+  // own default, 9, leaves a border. setblocks drives the renderer, screenblocks is the Options menu's
+  // copy, and setsizeneeded makes the next D_Display apply it. Written only
+  // when the words differ, so a resume does not redo the resize.
   if (inputSlot) {
     const levels = inputSlot.levels / Math.log2(fanout);
     const bits = (n: number) => n.toString(2).padStart(32, "0");
     const want = [
       [132960 / 4, 0],
       [132964 / 4, 0],
+      [4463604 / 4, 10],
+      [4410852 / 4, 10],
     ] as const;
     if (want.some(([word, value]) => getWord(memoryTrie, base, word, fanout, levels) !== bits(value))) {
-      for (const [word, value] of want) {
+      for (const [word, value] of [...want, [4463600 / 4, 1] as const]) {
         memoryTrie = setWord(memoryTrie, word, bits(value), fanout, levels);
       }
       memoryTrie = prune(memoryTrie, base, fanout);
@@ -1235,6 +1248,7 @@ function sbrkWord(moduleText: string) {
           pressOrder = sent.queue ?? Object.keys(pressCounts);
           reseatSeen(pressCounts);
         }
+        if (keyScript) heldKeys = keyScript[scriptFrame] ?? [];
         // What the game says it last took, read out of the state the same way
         // the module would read it.
         const ack = parseInt(
@@ -1441,6 +1455,19 @@ ${splitReaders}
         worked = 0;
         recycle("worn");
         if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: worn out; new compiler every ${lifetime}    \n`);
+        mark("retry");
+        continue;
+      }
+      // A fresh compiler failing too means the chunk is too big for this
+      // checker, not that the instance wore out: TS6 hands back `any` at a
+      // fuel TS7 lands (chunk 109 of the scripted kill run, fuel 12288).
+      if (fuel > minFuel) {
+        backoffs++;
+        settled = 0;
+        capFail = Math.min(capFail, fuel);
+        fuel = Math.max(minFuel, Math.floor((fuel * 3) / 4));
+        if (lastGood >= fuel) lastGood = 0;
+        if (!options.quiet) process.stdout.write(`\r  chunk ${chunks}: fails on a fresh compiler; fuel -> ${fuel}    \n`);
         mark("retry");
         continue;
       }
@@ -1683,6 +1710,7 @@ ${splitReaders}
       // Re-enter in-process instead: the same fresh call the done-resume path
       // builds, on the same warmed compiler session.
       if (options.save && chunks < (options.max ?? Infinity)) {
+        if (keyScript && ++scriptFrame >= keyScript.length) break;
         call = freshEntryCall(globalValues);
         prevLastResult = lastResult;
         lastResult = value_;
