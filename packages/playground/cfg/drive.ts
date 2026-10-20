@@ -641,6 +641,9 @@ export interface Checkpoint {
   frames: Frame[];
   globals: string[];
   chunks: number;
+  /// The KEY_SCRIPT index of the frame this call is running. A resume that
+  /// restarted the script at 0 would replay frame 0's keys on frame 990.
+  scriptFrame?: number;
   /// The address the finished call returned: the screen it drew into.
   result?: string;
   /// The screen the frame *before* this one returned. The renderer draws
@@ -1071,6 +1074,12 @@ function sbrkWord(moduleText: string) {
     memoryTrie = prune(parseTrie(options.resume.memory), base, fanout);
     memory = printTrie(memoryTrie);
     carried = options.resume.chunks;
+    // A done checkpoint is saved before the index moves on, so its next frame
+    // is one past it. KEY_SCRIPT_FRAME covers checkpoints older than the
+    // field: record.sh counts it from frames.jsonl.
+    if (options.resume.scriptFrame !== undefined)
+      scriptFrame = options.resume.scriptFrame + (options.resume.done ? 1 : 0);
+    else if (process.env.KEY_SCRIPT_FRAME) scriptFrame = Number(process.env.KEY_SCRIPT_FRAME);
   }
   // An explicit --fuel is an instruction and outranks the saved edge; the
   // checkpoint only speaks when the caller did not.
@@ -1143,7 +1152,9 @@ function sbrkWord(moduleText: string) {
   let failed: string | undefined;
   // Chunk count at the current `entry` call's start: `entryChunks` is per
   // frame, and with in-process re-entry one process spans many frames.
-  let entryStart = 0;
+  // A resumed mid-frame call keeps counting from where it stopped, or the
+  // reader sees `entry` drop and counts a frame that never landed.
+  let entryStart = options.resume && !options.resume.done ? -(options.resume.entryChunks ?? 0) : 0;
   // The screen chain across in-process frames: what `resume.result` and
   // `resume.prevResult` carry across processes, carried here across re-entries.
   let lastResult = options.resume?.result;
@@ -1165,15 +1176,22 @@ function sbrkWord(moduleText: string) {
   // own default, 9, leaves a border. setblocks drives the renderer, screenblocks is the Options menu's
   // copy, and setsizeneeded makes the next D_Display apply it. Written only
   // when the words differ, so a resume does not redo the resize.
+  //
+  // A key script also sets `singletics` (4401632, what `-timedemo` sets), so
+  // `D_OneFrame` runs exactly one tic per `entry`. Without it TryRunTics
+  // catches up to the host clock, and a type-level frame takes minutes of
+  // wall time, so every frame runs the most tics it may (5): the video shows
+  // every 5th tic. With it the script has one entry per tic.
   if (inputSlot) {
     const levels = inputSlot.levels / Math.log2(fanout);
     const bits = (n: number) => n.toString(2).padStart(32, "0");
-    const want = [
+    const want: (readonly [number, number])[] = [
       [132960 / 4, 0],
       [132964 / 4, 0],
       [4463604 / 4, 10],
       [4410852 / 4, 10],
-    ] as const;
+      ...(keyScript ? [[4401632 / 4, 1] as const] : []),
+    ];
     if (want.some(([word, value]) => getWord(memoryTrie, base, word, fanout, levels) !== bits(value))) {
       for (const [word, value] of [...want, [4463600 / 4, 1] as const]) {
         memoryTrie = setWord(memoryTrie, word, bits(value), fanout, levels);
@@ -1682,6 +1700,7 @@ ${splitReaders}
         frames,
         globals: globalValues,
         chunks: carried + chunks,
+        scriptFrame: keyScript ? scriptFrame : undefined,
         entryChunks: chunks - entryStart,
         evalMs,
         split: [...split],

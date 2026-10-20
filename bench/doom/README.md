@@ -16,13 +16,33 @@ TS7 units/s ÷ its units/s (warm throughput from `./fps.sh`).
 |---|---|---|---|
 | TS7 `tsgo` | 7.1.0-dev.20261017.1 | 8.5h (switch at frame 171; 200 frames in 8.9h, ~2.7 min/frame) | measured |
 | TS6 `tsc` | 6.0.3 | ~7.5x TS7 (~2.7 days) | estimate, warm ratio below |
-| `tsrs` | 0.16.0-ts7.1.0-dev.20260929 | pending | estimate, `CHECKERS=tsrs ./fps.sh` |
-| `tsc-rs` | 0.7.0 | pending | estimate, `CHECKERS=tsc-rs ./fps.sh` |
+| `tsrs` | 0.16.0-ts7.1.0-dev.20260929 | ~3.7h (TS7 ÷ 2.3) | estimate, warm ratio below |
+| `tsc-rs` | 0.7.0 | ~4.7h (TS7 ÷ 1.8) | estimate, warm ratio below |
 | `bun check` | 1.4.3 | can't run | no API that keeps a program alive between chunks, so no driver; see `./cold.sh` |
 
 ```sh
 SEED=../../packages/playground/doom/.live/menu-boot.json KEY_SCRIPT=clear.keys.json ./record.sh ts7 1800
 ```
+
+## Kill run: every tic, monsters killed
+
+`kill.keys.json` is 1999 entries, one per game tic (the driver sets
+`singletics` when a key script is given): start on Hurt Me Plenty, kill the
+monsters on the way, press the exit switch, land on the tally screen. tsrs,
+tsc-rs and TS7 were recorded with it at the same time on one machine, so they
+shared the CPU: the times are slower than a solo run and only comparable to
+each other.
+
+```sh
+S=../../packages/playground/doom/.live/menu-boot.json
+SEED=$S KEY_SCRIPT=kill.keys.json ./record.sh tsrs 0          # 0 = no time limit
+RESUME=1 SEED=$S KEY_SCRIPT=kill.keys.json ./record.sh tsrs 0 # continue after a crash or stop
+KEY_SCRIPT=kill.keys.json ./side-by-side.sh tsrs-kill.mp4 500 tsrs
+KEY_SCRIPT=kill.keys.json ./side-by-side.sh all-kill.mp4 500 "ts7 tsrs tsc-rs"
+```
+
+500x at 30 images/s shows every frame (one image per 16.7s of run time, and
+no frame took under 25s); `side-by-side.sh` prints how many frames it skipped.
 
 ## Warm throughput: TS6 vs TS7
 
@@ -35,6 +55,17 @@ SEED=../../packages/playground/doom/.live/menu-boot.json KEY_SCRIPT=clear.keys.j
 |20 min of recording, from the same checkpoint|13 chunks, 15 screens|120 chunks, 128 screens||
 |reaches the same screen|at 872s|at 58s|**15x**|
 
+## Warm throughput: TS7 vs tsrs vs tsc-rs
+
+`CHECKERS="ts7 tsrs tsc-rs" FUEL=12288 ./fps.sh 3 10`, 2026-10-17:
+
+||TS7 (`tsgo`)|`tsrs`|`tsc-rs`|
+|---|---|---|---|
+|version|7.1.0-dev.20261017.1|0.16.0-ts7.1.0-dev.20260929|0.7.0|
+|first chunk|17.3-17.8s|8.0-8.3s|11.1-11.4s|
+|warm throughput, 3 reps, fuel 12288|2257-2344 units/s|5096-5263 units/s|4042-4164 units/s|
+|vs TS7|1x|**~2.3x**|**~1.8x**|
+
 `units/s` = wasm instructions executed per second through the type system
 (what `packages/playground/cfg/drive.ts` prints), counted from chunk 2 on, wall
 time including any retries. Spread is min-max of 3 interleaved reps.
@@ -46,7 +77,7 @@ Node v22.23.0.
 
 `./side-by-side.sh` turns a recording into video, holding each screen for as
 long as the checker really took to produce the next one. It defaults to TS7
-alone; `./side-by-side.sh ts6-ts7.mp4 10 "ts6 ts7"` puts both side by side
+alone; `./side-by-side.sh ts6-ts7.mp4 500 "ts6 ts7"` puts both side by side
 at their real relative speed. The overlay shows frames done, seconds per frame,
 how long the last frame took (frame ends come from `entry`/`done` in
 frames.jsonl) and, with `KEY_SCRIPT` set, the keys held for that frame.
