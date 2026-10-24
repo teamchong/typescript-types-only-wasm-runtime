@@ -846,10 +846,17 @@ export const run = async (
   // KEY_SCRIPT=<file>: a JSON array with one held-key list per frame, frame 0
   // being the call the run starts in. It replaces the page's keys, so two runs
   // at different speeds still see the same keys on the same frame, and the run
-  // stops when the script does.
-  const keyScript: string[][] | undefined = process.env.KEY_SCRIPT
+  // stops when the script does. An entry may instead be `{ keys, poke }`:
+  // `poke` is `[byteAddress, u32]` pairs written as that frame's `entry` call
+  // starts, which is how bench/doom/tas-keys.mjs hands the game a demo.
+  type ScriptFrame = string[] | { keys?: string[]; poke?: [number, number][] };
+  const keyScript: ScriptFrame[] | undefined = process.env.KEY_SCRIPT
     ? JSON.parse(readFileSync(process.env.KEY_SCRIPT, "utf8"))
     : undefined;
+  const scriptKeys = (frame: number): string[] => {
+    const entry = keyScript?.[frame];
+    return Array.isArray(entry) ? entry : (entry?.keys ?? []);
+  };
   let scriptFrame = 0;
   // One process is one frame, so the handshake has to outlive it. `seen` used
   // to be per-process, which re-owed every press the page had ever counted on
@@ -1182,6 +1189,18 @@ function sbrkWord(moduleText: string) {
   // catches up to the host clock, and a type-level frame takes minutes of
   // wall time, so every frame runs the most tics it may (5): the video shows
   // every 5th tic. With it the script has one entry per tic.
+  /// Pokes land only between `entry` calls. A checkpoint from inside a frame
+  /// already holds them, and writing them again would rewind what the frame
+  /// has done since: a demo pointer reset after the tic read its command.
+  const applyPokes = () => {
+    const entry = keyScript?.[scriptFrame];
+    if (!inputSlot || Array.isArray(entry) || !entry?.poke?.length) return;
+    const levels = inputSlot.levels / Math.log2(fanout);
+    for (const [addr, value] of entry.poke)
+      memoryTrie = setWord(memoryTrie, addr / 4, (value >>> 0).toString(2).padStart(32, "0"), fanout, levels);
+    memoryTrie = prune(memoryTrie, base, fanout);
+    memory = printTrie(memoryTrie);
+  };
   if (inputSlot) {
     const levels = inputSlot.levels / Math.log2(fanout);
     const bits = (n: number) => n.toString(2).padStart(32, "0");
@@ -1199,6 +1218,7 @@ function sbrkWord(moduleText: string) {
       memoryTrie = prune(memoryTrie, base, fanout);
       memory = printTrie(memoryTrie);
     }
+    if (options.resume?.done) applyPokes();
     if (process.env.VIEW_PROBE)
       for (const w of [4463600 / 4, 4463604 / 4, 4463608 / 4])
         process.stderr.write(`VIEW word=${w} val=${getWord(memoryTrie, base, w, fanout, levels)}\n`);
@@ -1266,7 +1286,7 @@ function sbrkWord(moduleText: string) {
           pressOrder = sent.queue ?? Object.keys(pressCounts);
           reseatSeen(pressCounts);
         }
-        if (keyScript) heldKeys = keyScript[scriptFrame] ?? [];
+        if (keyScript) heldKeys = scriptKeys(scriptFrame);
         // What the game says it last took, read out of the state the same way
         // the module would read it.
         const ack = parseInt(
@@ -1730,6 +1750,7 @@ ${splitReaders}
       // builds, on the same warmed compiler session.
       if (options.save && chunks < (options.max ?? Infinity)) {
         if (keyScript && ++scriptFrame >= keyScript.length) break;
+        applyPokes();
         call = freshEntryCall(globalValues);
         prevLastResult = lastResult;
         lastResult = value_;

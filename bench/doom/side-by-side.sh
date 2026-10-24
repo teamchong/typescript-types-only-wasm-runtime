@@ -12,7 +12,7 @@
 # Homebrew's ffmpeg has no drawtext.
 #
 # KEY_SCRIPT=<file> (the one record.sh played) adds a line with the keys held
-# for the frame on screen.
+# for the frame on screen, or the TAS command for a tas-keys.mjs demo frame.
 #
 # Usage: ./side-by-side.sh [out=ts7.mp4] [speedup=10] [checkers=ts7]
 #   e.g. ./side-by-side.sh ts6-ts7.mp4 500 "ts6 ts7"
@@ -94,7 +94,13 @@ def half(ts, s):
     if keys is not None:
         # the screen on show is frame n - 1, drawn with that entry's keys held
         held = keys[n - 1] if 0 < n <= len(keys) else []
-        lines.append("keys " + (" ".join(ARROWS.get(k, k) for k in held) or "-"))
+        if isinstance(held, dict) and "label" in held:
+            # a demo frame (tas-keys.mjs): the TAS's command for the tic
+            lines.append("tas " + held["label"])
+        else:
+            if isinstance(held, dict):
+                held = held.get("keys", [])
+            lines.append("keys " + (" ".join(ARROWS.get(k, k) for k in held) or "-"))
     # 50% black box under the text, so the game shows through it
     layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
@@ -116,7 +122,11 @@ for i in range(n + 1):
         out.paste(half(ts, s), (960 * j, 0))
         shown[ts].add(sum(1 for e in runs[ts][1] if e[0] <= s))
     out.save(f"{w}/sbs/{i:06d}.png")
-print(f"{n / 30:.0f}", file=open(f"{w}/sbs/count", "w"))
+# At 1000x the clear screen is on for well under a second; hold the last
+# image 3s so the video visibly ends on it.
+for k in range(1, 91):
+    out.save(f"{w}/sbs/{n + k:06d}.png")
+print(f"{(n + 90) / 30:.0f}", file=open(f"{w}/sbs/count", "w"))
 for ts in checkers:
     miss = len(runs[ts][1]) + 1 - len(shown[ts])
     print(f"{ts}: {miss} frames skipped", file=sys.stderr)

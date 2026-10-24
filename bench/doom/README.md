@@ -4,9 +4,41 @@ Doom runs as WebAssembly evaluated purely by type resolution. Every checker
 gets the same Doom, the same start state, the same driver and the same keys,
 so the only thing that differs is how fast it resolves types.
 
+## TAS: almostmatt1's 7.69s E1M1, replayed by the type checker
+
+`tas.keys.json` replays almostmatt1's "[TAS] Doom E1M1 UV-Speed in 0:07.69"
+(`e1m1x-769.lmp`, notes in `e1m1x-769.txt`, from dsdarchive) tic for tic: the
+menu starts a UV game, then the demo plays from its first tic, fires where the
+TAS fires and presses the exit switch on tic 269. Three more frames show the
+E1M1 clear screen; the script stops before E1M2. 276 frames.
+
+| TS | version | exit switch | clear screen |
+|---|---|---|---|
+| TS7.1 `tsgo` | 7.1.0-dev.20261023.1 | 18.3h | 18.4h |
+| `tsrs` | 0.19.0-ts7.1.0-beta (`main` at bb5c6037) | recording | |
+
+Frames are identical across checkers (md5 of every screen); only the time
+differs. Solo runs on an Apple M4 Pro, 48 GB.
+
+```sh
+node tas-keys.mjs e1m1x-769.lmp 269 3 > tas.keys.json   # regenerates the checked-in file
+SEED=menu-boot.json.gz KEY_SCRIPT=tas.keys.json ./record.sh ts7 0
+RESUME=1 SEED=menu-boot.json.gz KEY_SCRIPT=tas.keys.json ./record.sh ts7 0   # continue after a stop
+KEY_SCRIPT=tas.keys.json ./side-by-side.sh ts7.1-tas.mp4 1000 ts7
+```
+
+1000x at 30 images/s is one image per 33s of run time; `side-by-side.sh`
+prints how many frames it skipped (TS7.1: 0).
+
+tsrs here is built from source, not npm: `main` at
+[oxc-project/tsrs@bb5c6037](https://github.com/oxc-project/tsrs/commit/bb5c6037),
+packed with `node npm/build.mjs --binary aarch64-apple-darwin=target/release/tsrs --pack`
+(see tsrs's `npm/README.md`) and installed over `packages/playground/node_modules/tsrs`.
+The pinned npm `tsrs` 0.18.0 runs the same script with `TS_CHECKER=tsrs`.
+
 ## The benchmark: time to clear E1M1
 
-From the skill menu (`doom/.live/menu-boot.json`), play `clear.keys.json`
+From the skill menu (`menu-boot.json.gz`), play `clear.keys.json`
 (200 frames: start the game, walk E1M1, press the exit switch at frame 171) and
 time until the switch frame. TS7 is measured; a checker too slow to run it
 in a reasonable time gets an estimate: TS7's clear time scaled by
@@ -21,7 +53,7 @@ TS7 units/s ÷ its units/s (warm throughput from `./fps.sh`).
 | `bun check` | 1.4.3 | can't run | no API that keeps a program alive between chunks, so no driver; see `./cold.sh` |
 
 ```sh
-SEED=../../packages/playground/doom/.live/menu-boot.json KEY_SCRIPT=clear.keys.json ./record.sh ts7 1800
+SEED=menu-boot.json.gz KEY_SCRIPT=clear.keys.json ./record.sh ts7 1800
 ```
 
 ## Kill run: every tic, monsters killed
@@ -34,7 +66,7 @@ shared the CPU: the times are slower than a solo run and only comparable to
 each other.
 
 ```sh
-S=../../packages/playground/doom/.live/menu-boot.json
+S=menu-boot.json.gz
 SEED=$S KEY_SCRIPT=kill.keys.json ./record.sh tsrs 0          # 0 = no time limit
 RESUME=1 SEED=$S KEY_SCRIPT=kill.keys.json ./record.sh tsrs 0 # continue after a crash or stop
 KEY_SCRIPT=kill.keys.json ./side-by-side.sh tsrs-kill.mp4 500 tsrs
@@ -96,7 +128,7 @@ FUEL6=6144 FUEL7=12288 ./fps.sh   # each checker at its own fuel
 KEYS='"ArrowUp","ArrowRight"' ./record.sh ts7 20  # other hardcoded input
 ./side-by-side.sh                 # -> ts7.mp4 (needs ffmpeg)
 # clear E1M1 from the skill menu (~200 frames, ~8h on TS7), with key overlay
-SEED=../../packages/playground/doom/.live/menu-boot.json KEY_SCRIPT=clear.keys.json ./record.sh ts7 1800
+SEED=menu-boot.json.gz KEY_SCRIPT=clear.keys.json ./record.sh ts7 1800
 KEY_SCRIPT=clear.keys.json ./side-by-side.sh ts7.mp4 60
 ```
 
@@ -120,7 +152,7 @@ clear.keys.json[0..3]:  []  ["Enter"]  []  ["ArrowRight","ArrowUp","ShiftLeft"]
 ```
 
 1. **Run Doom natively.** Instantiate `packages/playground/doom/doom-keys.wasm`
-   with `WebAssembly.Instance`, load `doom/.live/menu-boot.json` into its
+   with `WebAssembly.Instance`, load `bench/doom/menu-boot.json.gz` into its
    memory (`decodeTrie` from `cfg/trie.ts`), write the key bitmask into the
    input word, call `entry()` once per frame. That is the same input slot,
    bitmask and frame boundary the type-level driver uses.
