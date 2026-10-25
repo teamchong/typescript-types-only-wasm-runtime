@@ -7,7 +7,8 @@
 // 269th tic (7.69s). The demo ends right after, and G_CheckDemoStatus would
 // leave the level before the clear screen draws, so the last argument adds
 // that many frames with the demo stretched by idle tics: the screen wipes to
-// the E1M1 clear screen and the script stops there, before E1M2.
+// the E1M1 clear screen. One more frame presses use, which skips the stats
+// count-up so TIME and PAR show, and the script stops there, before E1M2.
 //
 // A demo cannot just be started: G_DoNewGame clears `demoplayback` in the same
 // tic it loads the map, and that tic runs with the keyboard's command, so the
@@ -91,4 +92,12 @@ for (let h = 0; h < hold; h++) {
   }
   script.push(entry);
 }
+// The clear screen counts KILLS, ITEMS and SECRET up before it draws TIME, and
+// the type checker needs tens of minutes a frame there. A use press makes
+// WI_Ticker jump to the final stats. It goes in the next demo tic G_Ticker
+// reads: the wipe in the 3 hold frames ran only 3 idle tics, so demo_p is on
+// idle tic 3 (read off a native replay of the checkpoint).
+const BT_USE = 2;
+if (hold === 3)
+  script.push({ keys: [], label: "use", poke: [[DEMO_AT + (tics + 3) * 4, BT_USE << 24]] });
 process.stdout.write(JSON.stringify(script) + "\n");

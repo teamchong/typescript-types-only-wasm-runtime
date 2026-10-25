@@ -9,8 +9,9 @@ so the only thing that differs is how fast it resolves types.
 `tas.keys.json` replays almostmatt1's "[TAS] Doom E1M1 UV-Speed in 0:07.69"
 (`e1m1x-769.lmp`, notes in `e1m1x-769.txt`, from dsdarchive) tic for tic: the
 menu starts a UV game, then the demo plays from its first tic, fires where the
-TAS fires and presses the exit switch on tic 269. Three more frames show the
-E1M1 clear screen; the script stops before E1M2. 276 frames.
+TAS fires and presses the exit switch on tic 269. Three more frames wipe to
+the E1M1 clear screen, and a last one presses use so it skips the stats
+count-up and shows TIME and PAR; the script stops before E1M2. 277 frames.
 
 | TS | version | exit switch | clear screen |
 |---|---|---|---|
@@ -19,7 +20,7 @@ E1M1 clear screen; the script stops before E1M2. 276 frames.
 
 Apple M4 Pro, 48 GB. TS7.1 ran solo; tsrs ran next to a TS6 recording.
 Both end on the same clear screen (identical png), but they are not identical
-frame for frame yet: tsrs counts 274 frames to TS7.1's 276 (TS7.1 frames 5-7
+frame for frame yet: tsrs counts 275 frames to TS7.1's 277 (TS7.1 frames 5-7
 are 2 frames in the tsrs log), and three more frames (TS7.1 152, 156, 169)
 differ in monster pixels while HUD and view match.
 

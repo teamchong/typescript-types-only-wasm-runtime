@@ -79,6 +79,9 @@ def half(ts, s):
     chunk = done[-1][1] if done else rows[0]["chunk"]
     img = Image.open(f"{w}/rec-{ts}/{chunk:06d}.png").convert("RGB").resize((960, 600), Image.NEAREST)
     n = len(done)
+    # tsrs's log misses a few frame boundaries, so n can stay short of the
+    # script; the checkpoint's scriptFrame says whether the run got to the end.
+    cleared = keys is not None and n == len(ends) and json.load(open(f"{w}/rec-{ts}.json")).get("scriptFrame", -1) + 1 >= len(keys)
     t_last = done[-1][0] if done else 0.0
     took = f"{t_last - (done[-2][0] if n > 1 else 0.0):.0f}s" if done else "-"
     # frames finished / wall seconds to the last one; 3 significant digits
@@ -88,12 +91,12 @@ def half(ts, s):
         names[ts],
         f"frame {n}   took {took}",
         avg,
-        f"cleared E1M1 in {clock(t_last)}" if keys is not None and n >= len(keys) else f"drawing frame {n + 1}: {s - t_last:.0f}s so far",
+        f"cleared E1M1 in {clock(t_last)}" if cleared else f"drawing frame {n + 1}: {s - t_last:.0f}s so far",
         f"t {clock(s)}   {speed:g}x",
     ]
     if keys is not None:
         # the screen on show is frame n - 1, drawn with that entry's keys held
-        held = keys[n - 1] if 0 < n <= len(keys) else []
+        held = keys[-1] if cleared else keys[n - 1] if 0 < n <= len(keys) else []
         if isinstance(held, dict) and "label" in held:
             # a demo frame (tas-keys.mjs): the TAS's command for the tic
             lines.append("tas " + held["label"])
