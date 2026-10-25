@@ -15,20 +15,24 @@ E1M1 clear screen; the script stops before E1M2. 276 frames.
 | TS | version | exit switch | clear screen |
 |---|---|---|---|
 | TS7.1 `tsgo` | 7.1.0-dev.20261023.1 | 18.3h | 18.4h |
-| `tsrs` | 0.19.0-ts7.1.0-beta (`main` at bb5c6037) | recording | |
+| `tsrs` | 0.19.0-ts7.1.0-beta (`main` at bb5c6037) | 8.2h | 8.2h |
 
-Frames are identical across checkers (md5 of every screen); only the time
-differs. Solo runs on an Apple M4 Pro, 48 GB.
+Apple M4 Pro, 48 GB. TS7.1 ran solo; tsrs ran next to a TS6 recording.
+Both end on the same clear screen (identical png), but they are not identical
+frame for frame yet: tsrs counts 274 frames to TS7.1's 276 (TS7.1 frames 5-7
+are 2 frames in the tsrs log), and three more frames (TS7.1 152, 156, 169)
+differ in monster pixels while HUD and view match.
 
 ```sh
 node tas-keys.mjs e1m1x-769.lmp 269 3 > tas.keys.json   # regenerates the checked-in file
 SEED=menu-boot.json.gz KEY_SCRIPT=tas.keys.json ./record.sh ts7 0
 RESUME=1 SEED=menu-boot.json.gz KEY_SCRIPT=tas.keys.json ./record.sh ts7 0   # continue after a stop
 KEY_SCRIPT=tas.keys.json ./side-by-side.sh ts7.1-tas.mp4 1000 ts7
+KEY_SCRIPT=tas.keys.json ./side-by-side.sh tsrs-tas.mp4 1000 tsrs
 ```
 
 1000x at 30 images/s is one image per 33s of run time; `side-by-side.sh`
-prints how many frames it skipped (TS7.1: 0).
+prints how many frames it skipped (TS7.1: 0, tsrs: 1, its fastest frame took 16s).
 
 tsrs here is built from source, not npm: `main` at
 [oxc-project/tsrs@bb5c6037](https://github.com/oxc-project/tsrs/commit/bb5c6037),
