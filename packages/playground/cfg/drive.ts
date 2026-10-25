@@ -229,17 +229,21 @@ const setWord = (node: Trie, word: number, value: string, fanout: number, levels
 };
 
 
-/// The chunk hands back its overlay, not the whole of memory: every word it
-/// wrote, and `u` everywhere it did not. Folding that into the trie the host
-/// already holds is a native walk over what changed, which is what makes a
-/// store in the types cost 385 instantiations instead of 3661.
-const mergeOverlay = (base: Trie, overlay: Trie): Trie => {
-  if (overlay === ABSENT) return base;
-  if (!Array.isArray(overlay)) return overlay;
-  return overlay.map((child, index) =>
-    mergeOverlay(Array.isArray(base) ? base[index]! : base, child),
-  );
-};
+/// The run hands back an overlay - every word it wrote, `u` everywhere else -
+/// because a store into the overlay costs 385 instantiations against 3661 into
+/// the whole of memory. Folding the overlay back into `$IN` is left to the
+/// checker too, once, after the run:
+///
+///     $Merge<$IN, $MemOf<$Result>>
+///
+/// so the host only re-parses what the checker printed. A leaf is a word tuple
+/// (`['0101..']`, or four bytes under --word4), so `string[]` tells it from a
+/// branch; a base leaf standing for a whole subtree is handed to every child.
+/// Measured on doom chunks 0-5 on TS7.1: the same memory the host walk built,
+/// for ~20ms of a ~1.7s read.
+const MERGE_TYPE = `type $Merge<B, O> = O extends string[]
+  ? (O extends $Absent ? B : O)
+  : { [K in keyof O]: $Merge<B extends string[] ? B : B[K & keyof B], O[K]> }`;
 
 /// Reads one word out of the state, falling through `$Absent` to the module's
 /// own initial data the way the checker's own loads do.
@@ -1396,7 +1400,8 @@ export type $Out_Tag = $Tag<$Result>
 export type $Out_Frames = $Frames<$Result>
 export type $Out_Globals = $GlobalsOf<$Result>
 export type $Out_Value = $ValueOf<$Result>
-export type $Out_Mem = $MemOf<$Result>
+${MERGE_TYPE}
+export type $Out_Mem = $Merge<$IN, $MemOf<$Result>>
 ${splitReaders}
 `;
     env.createFile(path, file);
@@ -1665,7 +1670,9 @@ ${splitReaders}
     }
 
     const r0 = performance.now();
-    const parsedTrie = mergeOverlay(memoryTrie, parseTrie(state, ABSENT, aliasBack));
+    // A chunk that stored nothing merges to `$IN` itself, which prints as the
+    // name; inside a branch the checker prints `$IN[K]` out as its contents.
+    const parsedTrie = parseTrie(state, memoryTrie, aliasBack);
     const r1 = performance.now();
     const prunedTrie = prune(parsedTrie, base, fanout);
     const r2 = performance.now();
