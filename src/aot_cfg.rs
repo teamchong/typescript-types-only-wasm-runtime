@@ -676,14 +676,21 @@ impl CfgCompiler {
     /// waiting for a value: its last parameter is that value, so the frame
     /// holds one value fewer and `$V` fills the slot.
     ///
-    /// Two levels - function, then block - so a bounce pays ~700 + ~50 arm
-    /// checks rather than ~28k.
+    /// Dispatch is a trie on the characters of the block name ('526_91'), one
+    /// alias per node, so a re-entry walks at most a dozen arms per character.
+    /// A flat chain is slow twice over: each arm is a tuple match, and every
+    /// branch the checker takes re-resolves its type node by walking the
+    /// syntax up to the enclosing statement (getConditionalFlowTypeOfType),
+    /// which in a chain is as deep as the arm's position. The function-then-
+    /// block chains this replaces had ~700 and up to ~420 arms. Measured
+    /// (TS7.1, six E1M1 gameplay chunks back to back, with the other changes in
+    /// this pass): 58.5s -> 47.7s, identical tags, frames, globals and memory.
     fn emit_trampoline(&self, module: &str) -> String {
         let globals = self.globals.len();
         let gparams: String = (0..globals).map(|i| format!(", $g{i} extends WasmValue")).collect();
         let gargs: String = (0..globals).map(|i| format!(", $g{i}")).collect();
-        // function index -> arms
-        let mut per_func: BTreeMap<String, String> = BTreeMap::new();
+        // block name -> arms
+        let mut per_block: BTreeMap<String, String> = BTreeMap::new();
         let mut blocks = 0usize;
         for line in module.lines() {
             let Some(rest) = line.strip_prefix("export type $b") else {
@@ -691,7 +698,9 @@ impl CfgCompiler {
             };
             let Some(open) = rest.find('<') else { continue };
             let name = &rest[..open];
-            let Some((func, _)) = name.split_once('_') else { continue };
+            if !name.contains('_') {
+                continue;
+            }
             let Some(params) = top_level_params(&rest[open + 1..]) else {
                 continue;
             };
@@ -699,7 +708,7 @@ impl CfgCompiler {
                 continue;
             }
             let saved = params - 3 - globals;
-            let arms = per_func.entry(func.to_string()).or_default();
+            let arms = per_block.entry(name.to_string()).or_default();
             // a suspend or bounce frame: every value in place
             let pattern: String = (0..saved)
                 .map(|i| format!(", infer $s{i} extends WasmValue"))
@@ -732,19 +741,11 @@ impl CfgCompiler {
         text.push_str(&format!(
             "\n/// Re-enter a frame at type level: {blocks} blocks, by function then by block.\n"
         ));
-        text.push_str(&format!(
-            "export type $Enter<$T, $F extends string, $K extends unknown[], $M extends $Node{gparams}, $V> =\n"
-        ));
-        for func in per_func.keys() {
-            text.push_str(&format!(
-                "  $T extends [`{func}_${{string}}`, ...unknown[]] ? $Enter{func}<$T, $F, $K, $M{gargs}, $V> :\n"
-            ));
-        }
-        text.push_str("  never\n");
-        for (func, arms) in &per_func {
-            text.push_str(&format!(
-                "export type $Enter{func}<$T, $F extends string, $K extends unknown[], $M extends $Node{gparams}, $V> =\n{arms}  never\n"
-            ));
+        let keys: Vec<&str> = per_block.keys().map(|k| k.as_str()).collect();
+        let mut defs = Vec::new();
+        enter_node("", &keys, &per_block, &gparams, &gargs, &mut defs);
+        for def in defs.iter().rev() {
+            text.push_str(def);
         }
         let ginfer: String = (0..globals)
             .map(|i| format!(", infer $g{i} extends WasmValue"))
@@ -756,10 +757,10 @@ impl CfgCompiler {
         text.push_str("/// depth and the tail count start over every segment.\n");
         text.push_str("export type $Run<$R> =\n");
         text.push_str(&format!(
-            "  $R extends ['b', infer $Fx extends string, [infer $T, ...infer $B extends unknown[]], infer $MM extends $Node{ginfer}]\n  ? $Run<$Enter<$T, $Fx, $B, $MM{gargs}, never>>\n"
+            "  $R extends ['b', infer $Fx extends string, [infer $T, ...infer $B extends unknown[]], infer $MM{ginfer}]\n  ? $Run<$Enter<$T, $Fx, $B, $MM{gargs}, never>>\n"
         ));
         text.push_str(&format!(
-            "  : $R extends ['r', infer $F1 extends string, [infer $T, ...infer $B extends unknown[]], infer $MM extends $Node{ginfer}, infer $V extends WasmValue]\n  ? $Run<$Enter<$T, $F1, $B, $MM{gargs}, $V>>\n"
+            "  : $R extends ['r', infer $F1 extends string, [infer $T, ...infer $B extends unknown[]], infer $MM{ginfer}, infer $V extends WasmValue]\n  ? $Run<$Enter<$T, $F1, $B, $MM{gargs}, $V>>\n"
         ));
         text.push_str("  : $R\n");
         text
@@ -1243,7 +1244,7 @@ export type $MergeAt<T, B extends unknown[], S extends unknown[][]> =
 /// What the host reads back: the overlay alone, with its write buffer folded
 /// in. The base trie never travels - the host already holds it, and pasting it
 /// back is what used to make a store cost the size of the state.
-export type $Flush<M> = M extends [infer T, infer K, infer B extends unknown[], infer S extends unknown[][], unknown]
+export type $Flush<M> = M extends [infer T, infer K, infer B extends unknown[], infer S extends unknown[][], infer _Base]
   ? K extends '{buf_none}' ? T : $MergeAt<T, B, S>
   : M
 
@@ -1286,8 +1287,13 @@ export type $Under<T, Base, P extends string> =
     ? W extends 'u' ? $Fetch<Base, P> : W
     : never
 
+/// Every slot is an `infer`, so the pattern instantiates back to M itself and
+/// the match is an identity check. A literal `unknown[]` slot made it a
+/// structural compare, whose relation key walks every type argument of M,
+/// base trie included (isTypeReferenceWithGenericArguments): 22% of a
+/// gameplay chunk's checker samples.
 export type $Read<M extends $Node, A extends WasmValue> =
-  M extends [infer T, infer MK extends string, unknown[], infer S extends unknown[][], infer Base]
+  M extends [infer T, infer MK extends string, infer _MB, infer S extends unknown[][], infer Base]
     ? $Slice<A> extends infer P extends string
       ? P extends `${{MK}}${{infer D}}`
         ? $BSel<S, D> extends infer H
@@ -4335,10 +4341,39 @@ impl BlockEnv {
             TexPair::Local(..) => ("_l", "$Store8<$Store8<M, D, V>, D2, V>".to_string()),
         };
         let name = format!("$Tex{key}{suffix}");
-        let d2_step = match t.pair {
-            TexPair::Local(..) => "Wasm.I32Add<D2, KD2>",
-            _ => "D2",
+        // The per-pixel loop below 512 trips. Measured on a 450-pixel span
+        // (TS7.1 microbench): the binary `C - 1` and the `D + KD` adder were
+        // 0.18 of the 0.77ms each pixel cost. So the count runs as a string of
+        // ones (one prefix match per pixel) and the strides, all constants,
+        // step through the bit-step helpers. A and B keep the adder: their
+        // steps are memory values.
+        let kd2 = match t.pair {
+            TexPair::Local(_, k) => Some(k),
+            _ => None,
         };
+        let tag = |k: i32| if k < 0 { format!("m{}", k.unsigned_abs()) } else { k.to_string() };
+        let inner = match kd2 {
+            Some(k) => format!("{name}_u{}_{}", tag(t.kd), tag(k)),
+            None => format!("{name}_u{}", tag(t.kd)),
+        };
+        let d_step = self.const_add("D", t.kd as u32);
+        let d2_step = match kd2 {
+            Some(k) => self.const_add("D2", k as u32),
+            None => "D2".to_string(),
+        };
+        let b_step = if t.b.is_some() { "Wasm.I32Add<B, DB>" } else { "B" };
+        let ones = self.ones_helper();
+        let inner_definition = format!(
+            "export type {inner}<M extends $Node, D extends WasmValue, CM extends WasmValue, SRC extends WasmValue, A extends WasmValue, DA extends WasmValue, B extends WasmValue, DB extends WasmValue, U extends string, D2 extends WasmValue> =\n\
+             \x20 U extends `1${{infer R}}`\n\
+             \x20 ? ($Load8U<M, Wasm.I32Add<CM, $Load8U<M, Wasm.I32Add<SRC, {idx_name}<A, B>>>>> extends infer V extends WasmValue\n\
+             \x20   ? {write} extends infer M2 extends $Node\n\
+             \x20     ? {inner}<M2, {d_step}, CM, SRC, Wasm.I32Add<A, DA>, DA, {b_step}, DB, R, {d2_step}>\n\
+             \x20     : never\n\
+             \x20   : never)\n\
+             \x20 : M\n"
+        );
+        self.register(&inner, inner_definition);
         let d2_jump = match t.pair {
             TexPair::Local(..) => "Wasm.I32Add<D2, Wasm.I32Mul<H, KD2>>",
             _ => "D2",
@@ -4348,18 +4383,13 @@ impl BlockEnv {
              \x20 C extends '{z}'\n\
              \x20 ? M\n\
              \x20 : C extends `{small}${{string}}`\n\
-             \x20 ? ($Load8U<M, Wasm.I32Add<CM, $Load8U<M, Wasm.I32Add<SRC, {idx_name}<A, B>>>>> extends infer V extends WasmValue\n\
-             \x20   ? {write} extends infer M2 extends $Node\n\
-             \x20     ? {name}<M2, Wasm.I32Add<D, KD>, KD, CM, SRC, Wasm.I32Add<A, DA>, DA, Wasm.I32Add<B, DB>, DB, Wasm.I32Sub<C, '{one}'>, {d2_step}, KD2>\n\
-             \x20     : never\n\
-             \x20   : never)\n\
+             \x20 ? {inner}<M, D, CM, SRC, A, DA, B, DB, {ones}<C>, D2>\n\
              \x20 : $BlitH<C> extends infer H extends WasmValue\n\
              \x20   ? {name}<M, D, KD, CM, SRC, A, DA, B, DB, H, D2, KD2> extends infer M2 extends $Node\n\
              \x20     ? {name}<M2, Wasm.I32Add<D, Wasm.I32Mul<H, KD>>, KD, CM, SRC, Wasm.I32Add<A, Wasm.I32Mul<H, DA>>, DA, Wasm.I32Add<B, Wasm.I32Mul<H, DB>>, DB, Wasm.I32Sub<C, H>, {d2_jump}, KD2>\n\
              \x20     : never\n\
              \x20   : never\n",
             z = zero(),
-            one = format!("{}1", "0".repeat(31)),
             small = "0".repeat(23),
         );
         self.register(&name, definition)
@@ -4571,6 +4601,54 @@ impl BlockEnv {
             "export type {name}<A extends string> =\n  A extends `{pattern}`\n    ? `{result}`\n    : never\n"
         );
         self.register(&name, definition)
+    }
+
+    /// `X + k` for a constant k as a type expression over the name `x`:
+    /// the bit-step helpers when k is a few powers of two, else the adder.
+    /// Two steps are chained through `infer` in a named helper so the
+    /// expression stays one application deep at the use site.
+    fn const_add(&mut self, x: &str, k: u32) -> String {
+        if k == 0 {
+            return x.to_string();
+        }
+        let Some(steps) = Self::steps_for(k, 4) else {
+            return format!("Wasm.I32Add<{x}, '{}'>", bits32(k as i32));
+        };
+        let helpers: Vec<String> = steps.iter().map(|&(bit, down)| self.step_helper(bit, down)).collect();
+        if helpers.len() == 1 {
+            return format!("{}<{x}>", helpers[0]);
+        }
+        let name = format!("$AddK{k}");
+        // A -> h0<A> as X0 -> h1<X0> as X1 -> ... -> h_last<X_{n-2}>
+        let mut body = format!("{}<X{}>", helpers[helpers.len() - 1], helpers.len() - 2);
+        for i in (0..helpers.len() - 1).rev() {
+            let src = if i == 0 { "A".to_string() } else { format!("X{}", i - 1) };
+            body = format!("{}<{src}> extends infer X{i} extends string ? {body} : never", helpers[i]);
+        }
+        let definition = format!("export type {name}<A extends string> =\n  {body}\n");
+        self.register(&name, definition);
+        format!("{name}<{x}>")
+    }
+
+    /// A count below 512 as a string of that many ones, so a loop can take
+    /// one off with a prefix match instead of a subtract. Characters inferred
+    /// from a template cannot be tested, so each bit is peeled off as a
+    /// literal prefix.
+    fn ones_helper(&mut self) -> String {
+        for w in 1..=9usize {
+            let run = "1".repeat(1 << (w - 1));
+            let rest = if w == 1 { "''".to_string() } else { format!("$Ones{}<T>", w - 1) };
+            let rest_ = if w == 1 { String::new() } else { format!("${{$Ones{}<T>}}", w - 1) };
+            let definition = format!(
+                "export type $Ones{w}<A extends string> =\n  A extends `1${{infer T}}` ? `{run}{rest_}` : A extends `0${{infer T}}` ? {rest} : ''\n"
+            );
+            self.register(&format!("$Ones{w}"), definition);
+        }
+        let definition = format!(
+            "export type $Ones<C extends string> = C extends `{}${{infer T}}` ? $Ones9<T> : never\n",
+            "0".repeat(23)
+        );
+        self.register("$Ones", definition)
     }
 
     /// Add or subtract 2^k without an adder.
@@ -5545,4 +5623,54 @@ fn top_level_params(text: &str) -> Option<usize> {
         }
     }
     None
+}
+
+/// One node of the `$Enter` trie (see `emit_trampoline`): the arms of the block
+/// named exactly `prefix`, then one arm per next character. A run of single
+/// children is skipped, and a child holding one block is inlined, so the trie
+/// is no deeper than the names need. Pushes the node's alias after its
+/// children's.
+fn enter_node(
+    prefix: &str,
+    keys: &[&str],
+    arms: &BTreeMap<String, String>,
+    gparams: &str,
+    gargs: &str,
+    defs: &mut Vec<String>,
+) {
+    let alias = |p: &str| if p.is_empty() { "$Enter".to_string() } else { format!("$E_{p}") };
+    let mut body = String::new();
+    if let Some(own) = arms.get(prefix) {
+        body.push_str(own);
+    }
+    let mut children: BTreeMap<char, Vec<&str>> = BTreeMap::new();
+    for &k in keys {
+        if let Some(c) = k[prefix.len()..].chars().next() {
+            children.entry(c).or_default().push(k);
+        }
+    }
+    for (c, group) in children {
+        let mut next = format!("{prefix}{c}");
+        while !arms.contains_key(&next) {
+            let mut after = group.iter().filter_map(|k| k[next.len()..].chars().next());
+            let Some(first) = after.next() else { break };
+            if after.any(|x| x != first) {
+                break;
+            }
+            next.push(first);
+        }
+        if group.len() == 1 && group[0] == next {
+            body.push_str(&arms[&next]);
+            continue;
+        }
+        body.push_str(&format!(
+            "  $T extends [`{next}${{string}}`, ...unknown[]] ? {}<$T, $F, $K, $M{gargs}, $V> :\n",
+            alias(&next)
+        ));
+        enter_node(&next, &group, arms, gparams, gargs, defs);
+    }
+    defs.push(format!(
+        "export type {}<$T, $F extends string, $K extends unknown[], $M extends $Node{gparams}, $V> =\n{body}  never\n",
+        alias(prefix)
+    ));
 }
