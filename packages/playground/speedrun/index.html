@@ -1022,13 +1022,22 @@ async function runCurrent() {
 // A preset only fills the editor: the user amends it and starts the check with
 // Restart & Run. Switching presets never kills a check that is in progress.
 let editorEdited = false;
+function presetText(name) {
+  if (name === "tas") return tasScript(window.PRESETS.tas.map((e) => (Array.isArray(e) ? { keys: e } : { keys: e.keys ?? [], poke: e.poke })), "almostmatt1's E1M1 0:07.69 UV-Speed TAS");
+}
 function loadPreset(name) {
   presetSel.value = name;
   editorEdited = false;
-  if (name === "tas") {
-    editor.value = tasScript(window.PRESETS.tas.map((e) => (Array.isArray(e) ? { keys: e } : { keys: e.keys ?? [], poke: e.poke })), "almostmatt1's E1M1 0:07.69 UV-Speed TAS");
-  }
+  editor.value = presetText(name);
   showToast("Preset loaded. Edit it, then Restart & Run");
+}
+// Restored text (reload, share link, saved run, file) that is a preset, byte for
+// byte, keeps the preset selected; anything else is "Your edits".
+function showScript(text) {
+  editor.value = text;
+  const name = [...presetSel.options].map((o) => o.value).find((v) => v !== "custom" && presetText(v) === text);
+  presetSel.value = name ?? "custom";
+  editorEdited = !name;
 }
 
 // URL hash sharing (deflate-raw + base64url when CompressionStream is available)
@@ -1189,9 +1198,7 @@ async function openText(text, name) {
     if (st.x) fpsSel.value = String(st.x);
     text = text.slice(m[0].length);
   }
-  presetSel.value = "custom";
-  editorEdited = true;
-  editor.value = text;
+  showScript(text);
   await runCurrent();
   showToast(`Opened ${name}`);
 }
@@ -1237,10 +1244,8 @@ document.getElementById("loadBtn").addEventListener("click", async () => {
   if (!runsDir || !savedSel.value) return;
   const file = await (await runsDir.getFileHandle(fileOf(savedSel.value))).getFile();
   const run = JSON.parse(await file.text());
-  presetSel.value = "custom";
-  editorEdited = true;
   if (run.x) fpsSel.value = String(run.x);
-  editor.value = run.t;
+  showScript(run.t);
   runCurrent();
   showToast(`Loaded "${savedSel.value}"`);
 });
@@ -1261,13 +1266,11 @@ const hashText = restored && typeof restored.t === "string" ? restored.t : undef
 const run = await restoreRun(hashText);
 if (run) {
   // A reload: show what was checked and continue the check where it stopped.
-  presetSel.value = "custom";
-  editorEdited = true;
   fpsSel.value = String(run.x || 1);
   checkerSel.value = run.checker;
   // Runs saved by a checker the page no longer offers continue on tsrs (the worker falls back too).
   if (!checkerSel.value) checkerSel.value = "tsrs";
-  editor.value = run.t;
+  showScript(run.t);
   if (run.ended) {
     frames = run.frames;
     labels = run.keyScript ? labelsOf(run.keyScript) : run.labels;
@@ -1288,10 +1291,8 @@ if (run) {
     showToast(frames.length ? `Resuming: ${frames.length} frames already checked` : "Resuming the check");
   }
 } else if (hashText !== undefined) {
-  presetSel.value = "custom";
-  editorEdited = true;
   if (restored.x) fpsSel.value = String(restored.x);
-  editor.value = restored.t;
+  showScript(restored.t);
   await runCurrent();
 } else {
   const qp = new URLSearchParams(location.search);
