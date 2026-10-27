@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DOOM in TypeScript Types — Speedrun Editor</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #111214;
+    --panel: #191b1f;
+    --border: #2c3038;
+    --fg: #e6e8ec;
+    --muted: #8b92a0;
+    --accent: #d94a38;
+    --accent2: #ce9178;
+    --hl: #2a211d;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  header h1 span { color: var(--accent); }
+  header p { margin: 0; font-size: 12px; color: var(--muted); }
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(340px, 680px) minmax(320px, 1fr);
+    gap: 16px;
+    padding: 16px 20px;
+    align-items: start;
+  }
+  main[hidden] { display: none; }
+  #playbackTab { display: block; }
+  #playbackTab[hidden] { display: none; }
+  .tabs { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--border); }
+  .tabs .tab { background: none; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; color: var(--muted); padding: 8px 16px; font: inherit; cursor: pointer; margin-bottom: -1px; }
+  .tabs .tab.active { background: var(--panel); border-color: var(--border); color: var(--fg); }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  #screenWrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 320 / 200;
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+    display: block;
+  }
+  #hud {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(0, 0, 0, 0.62);
+    padding: 6px 9px;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.45;
+    pointer-events: none;
+    white-space: pre;
+  }
+  #timeline {
+    position: relative;
+    height: 168px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 4px 0;
+    list-style: none;
+    background: #0d0e10;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  #timeline li { display: flex; gap: 12px; padding: 0 8px; color: var(--muted); white-space: pre; }
+  #timeline li.done { color: var(--fg); cursor: pointer; }
+  #timeline li.next { color: var(--accent2); }
+  #timeline li.next::after { content: "checking"; margin-left: auto; }
+  #timeline li.cur { background: var(--hl); }
+  #timeline .n { width: 4ch; text-align: right; opacity: 0.6; }
+  #timeline .t { width: 7ch; opacity: 0.6; }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  button, select {
+    background: #23262d;
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  button:hover, select:hover { border-color: #4a5160; }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  button.primary:hover { filter: brightness(1.1); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  input[type="range"] { flex: 1; accent-color: var(--accent); }
+  .meta { font-size: 12px; color: var(--muted); }
+  .editorWrap {
+    display: grid;
+    grid-template-rows: auto auto auto 1fr auto;
+    height: calc(100vh - 110px);
+    min-height: 460px;
+  }
+  #editor {
+    min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  textarea {
+    width: 100%;
+    height: 100%;
+    resize: none;
+    background: #0d0e10;
+    color: var(--accent2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    font: inherit;
+    font-size: 12.5px;
+    line-height: 1.5;
+    tab-size: 2;
+  }
+  textarea:focus { outline: 1px solid var(--accent); }
+  .help {
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .help code {
+    color: var(--fg);
+    background: #0d0e10;
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .toast {
+    font-size: 12px;
+    color: #7ee787;
+    margin-left: auto;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>DOOM</span> IN TYPESCRIPT TYPES — SPEEDRUN EDITOR</h1>
+  <p>Doom, played by the TypeScript compiler in your browser. Type your key presses below, press <b>Restart &amp; Run</b>, and watch.</p>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab active" role="tab" data-tab="editorTab">Editor</button>
+  <button class="tab" role="tab" data-tab="playbackTab">Playback</button>
+</nav>
+
+<main id="editorTab">
+  <section class="card">
+    <div id="screenWrap">
+      <canvas id="screen" width="320" height="200"></canvas>
+      <div id="hud">loading…</div>
+    </div>
+
+    <div class="row">
+      <button id="playBtn">Pause</button>
+      <button id="stepBackBtn" title="Step -1 frame">&larr;</button>
+      <button id="stepFwdBtn" title="Step +1 frame">&rarr;</button>
+      <input id="scrub" type="range" min="0" max="0" value="0" />
+      <span id="frameLabel" class="meta">0 / 0</span>
+    </div>
+
+    <div class="row">
+      <label class="meta">Speed
+        <select id="fpsSel">
+          <option value="0.25">0.25x</option>
+          <option value="0.5">0.5x</option>
+          <option value="1" selected>1x (real time)</option>
+          <option value="2">2x</option>
+          <option value="4">4x</option>
+        </select>
+      </label>
+      <label class="meta"><input id="loopChk" type="checkbox" /> Loop</label>
+      <span style="flex:1"></span>
+      <button id="videoBtn">Download Video</button>
+    </div>
+
+    <div class="row">
+      <span class="meta">Timeline: one line per tic. Click a checked tic to show it.</span>
+      <span style="flex:1"></span>
+      <button id="followBtn" hidden>Follow current frame</button>
+    </div>
+    <ol id="timeline"></ol>
+
+  </section>
+
+  <section class="card editorWrap">
+    <div class="row">
+      <label class="meta" title="Loads the preset's script into the editor as a starting point">Start from
+        <select id="presetSel">
+          <option value="tas" selected>E1M1 0:07.69 UV-Speed TAS (277 tics)</option>
+          <option value="custom">Your edits</option>
+        </select>
+      </label>
+      <label class="meta" title="Which TypeScript type checker, compiled to WebAssembly, runs your script">Checker
+        <select id="checkerSel">
+          <option value="tsrs" selected>tsrs</option>
+          <option value="ts7">tsgo (TS7.1, Go build)</option>
+        </select>
+      </label>
+      <button id="runBtn" class="primary">Restart &amp; Run</button>
+      <button id="shareBtn">Share Link</button>
+      <span id="toast" class="toast"></span>
+    </div>
+    <div class="row">
+      <button id="openFileBtn" title="Open a .ts run from your disk">Open file…</button>
+      <button id="saveFileBtn" title="Save this run as a .ts file on your disk">Save file…</button>
+      <input id="fileInput" type="file" accept=".ts,text/plain" hidden />
+    </div>
+    <div class="row">
+      <label class="meta" title="Browser-private storage (OPFS): stays in this browser for this site only, not visible on disk">Browser drafts
+        <select id="savedSel"><option value="">(none)</option></select>
+      </label>
+      <button id="loadBtn">Load</button>
+      <button id="deleteBtn">Delete</button>
+      <span style="flex:1"></span>
+      <input id="saveName" placeholder="run name" style="background:#0d0e10;color:var(--fg);border:1px solid var(--border);border-radius:4px;padding:6px 8px;font:inherit;font-size:12px;width:140px" />
+      <button id="saveBtn">Save</button>
+    </div>
+
+    <div id="editor" aria-label="Speedrun input script"></div>
+
+    <div class="help">
+      <code>none&lt;tics&gt;</code> waits, <code>hold&lt;Key | Key[], tics&gt;</code> holds keys together. Type <code>"</code> inside <code>hold&lt;</code> for the key list; hover a key for what it does.
+      Starts on the skill menu: <code>...hold&lt;"Enter"&gt;</code> starts E1M1 on Hurt Me Plenty.
+    </div>
+  </section>
+</main>
+
+<main id="playbackTab" hidden>
+  <section class="card" style="max-width:1000px">
+    <div class="row">
+      <label class="meta">Recordings
+        <select id="recSel">
+          <option value="ts7.1-tas.mp4">TAS preset, checked by TS7.1, played 1000x faster</option>
+          <option value="tsrs-tas.mp4">TAS preset, checked by tsrs, played 1000x faster</option>
+          <option value="ts7.1-e1m1.mp4">Clear preset, checked by TS7.1, played 60x faster</option>
+        </select>
+      </label>
+    </div>
+    <p class="meta">A full run takes hours to check, so these are screen recordings of runs that were checked to the end earlier. The overlay shows each frame's check time.</p>
+    <video id="recVideo" controls muted playsinline preload="metadata" src="recordings/ts7.1-tas.mp4" style="width:100%;background:#000;border-radius:4px"></video>
+  </section>
+  <section class="card" style="max-width:1000px">
+    <div class="row">
+      <label class="meta">Your runs <select id="pastSel"></select></label>
+      <button id="pastDelBtn">Delete</button>
+      <button id="pastDelAllBtn">Delete all</button>
+    </div>
+    <p class="meta">Every run you check in the Editor is saved in this browser by itself. Delete the ones you do not want to keep.</p>
+    <canvas id="pastScreen" width="320" height="200" style="width:100%;image-rendering:pixelated;background:#000;border-radius:4px"></canvas>
+    <div class="row">
+      <button id="pastPlayBtn">Play</button>
+      <input id="pastScrub" type="range" min="0" max="0" value="0" style="flex:1" />
+      <span id="pastLabel" class="meta">0 / 0</span>
+    </div>
+  </section>
+</main>
+
+<script src="presets.js"></script>
+<script src="monaco/vs/loader.js"></script>
+<script type="module">
+const BITS = ["Escape","Enter","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space","ControlLeft","KeyY","KeyN","Digit1","Digit2","Digit3","Digit4","Digit5","Digit6","Digit7","ShiftLeft","AltLeft","Tab"];
+const ALIAS = {
+  up:"ArrowUp", forward:"ArrowUp", fwd:"ArrowUp", w:"ArrowUp",
+  down:"ArrowDown", back:"ArrowDown", s:"ArrowDown",
+  left:"ArrowLeft", turnleft:"ArrowLeft", a:"ArrowLeft",
+  right:"ArrowRight", turnright:"ArrowRight", d:"ArrowRight",
+  run:"ShiftLeft", shift:"ShiftLeft",
+  use:"Space", space:"Space", open:"Space",
+  fire:"ControlLeft", shoot:"ControlLeft", ctrl:"ControlLeft",
+  strafe:"AltLeft", alt:"AltLeft",
+  enter:"Enter", start:"Enter",
+  esc:"Escape", escape:"Escape",
+  map:"Tab", tab:"Tab",
+  y:"KeyY", n:"KeyN",
+  "1":"Digit1","2":"Digit2","3":"Digit3","4":"Digit4","5":"Digit5","6":"Digit6","7":"Digit7",
+};
+const SHORT = { ArrowUp:"up", ArrowDown:"down", ArrowLeft:"left", ArrowRight:"right", ShiftLeft:"run", Space:"use", ControlLeft:"fire", Enter:"enter", Escape:"esc", AltLeft:"strafe", Tab:"map", KeyY:"y", KeyN:"n" };
+for (const b of BITS) ALIAS[b.toLowerCase()] = b;
+
+// The script is a TypeScript type. These declarations are what the editor
+// completes against; evaluation asks the same checker for the resolved tuple
+// (ts-eval-worker.js), so a script runs exactly when it type-checks.
+const KEY_DOCS = {
+  ArrowUp: "move forward", ArrowDown: "move back / menu down", ArrowLeft: "turn left", ArrowRight: "turn right",
+  ShiftLeft: "run", AltLeft: "strafe (with left/right)", ControlLeft: "fire", Space: "use / open doors",
+  Enter: "menu select", Escape: "menu / back", Tab: "automap", KeyY: "yes in prompts", KeyN: "no in prompts",
+  Digit1: "fist / chainsaw", Digit2: "pistol", Digit3: "shotgun", Digit4: "chaingun", Digit5: "rocket launcher",
+  Digit6: "plasma rifle", Digit7: "BFG",
+};
+const PRELUDE = `/** A key Doom reads, named by KeyboardEvent.code. */
+type Key =
+${BITS.map((b) => `  /** ${KEY_DOCS[b]} */\n  | "${b}"`).join("\n")};
+
+/**
+ * One tic of a demo. Leave out what isn't happening: {} is a tic with no input.
+ * Speeds go up to 127; the keyboard gives 50 running and 25 walking.
+ * Turns are mouse turns.
+ */
+type Move = {
+  readonly forward?: number;
+  readonly back?: number;
+  readonly strafeLeft?: number;
+  readonly strafeRight?: number;
+  readonly turnLeft?: number;
+  readonly turnRight?: number;
+  readonly fire?: true;
+  readonly use?: true;
+};
+
+/** One tic: the keys held during it, or a demo action. */
+type Step = readonly Key[] | {
+  readonly keys?: readonly Key[];
+  /** Restart E1M1 and replay these moves, one per tic. The keyboard is ignored while it plays. */
+  readonly playDemo?: readonly Move[];
+  /** Add moves to the end of the demo that is playing. */
+  readonly extendDemo?: readonly Move[];
+  /** Replace one move of the demo: [tic number counting from 0, move]. */
+  readonly setDemoTic?: readonly [number, Move];
+};
+
+type Repeat<V, N extends number, Acc extends V[] = []> = Acc["length"] extends N ? Acc : Repeat<V, N, [...Acc, V]>;
+
+/** \`tics\` tics with nothing pressed. */
+type none<tics extends number = 1> = Repeat<[], tics>;
+
+/** Hold one key, or several together, for \`tics\` tics. */
+type hold<keys extends Key | readonly Key[], tics extends number = 1> = Repeat<keys extends Key ? [keys] : keys, tics>;
+
+/** Wrap your tuple in this to get errors on bad steps: \`type Inputs = Run<[ ... ]>\`. */
+type Run<T extends readonly Step[]> = T;
+`;
+
+// Every script opens with its keys as named constants, so a reader needs nothing else.
+const KEY_CONSTS = [
+  ["ESCAPE", "Escape", "menu / back"],
+  ["ENTER", "Enter", "menu select"],
+  ["MENU_UP", "ArrowUp", "menu cursor up"],
+  ["MENU_DOWN", "ArrowDown", "menu cursor down"],
+  ["FORWARD", "ArrowUp", "move forward"],
+  ["BACK", "ArrowDown", "move backward"],
+  ["TURN_LEFT", "ArrowLeft", "turn left"],
+  ["TURN_RIGHT", "ArrowRight", "turn right"],
+  ["RUN", "ShiftLeft", "run (hold with a move key)"],
+  ["STRAFE", "AltLeft", "strafe (turn keys move sideways)"],
+  ["USE", "Space", "use / open doors / press switches"],
+  ["FIRE", "ControlLeft", "fire"],
+  ["AUTOMAP", "Tab", "automap"],
+  ["YES", "KeyY", "yes in prompts"],
+  ["NO", "KeyN", "no in prompts"],
+  ["FIST", "Digit1", "fist / chainsaw"],
+  ["PISTOL", "Digit2", "pistol"],
+  ["SHOTGUN", "Digit3", "shotgun"],
+  ["CHAINGUN", "Digit4", "chaingun"],
+  ["ROCKET_LAUNCHER", "Digit5", "rocket launcher"],
+  ["PLASMA_RIFLE", "Digit6", "plasma rifle"],
+  ["BFG", "Digit7", "BFG"],
+];
+const KEY_HEADER = [
+  "// Keys. Several in one tic: hold<[FORWARD, RUN], 35>",
+  ...KEY_CONSTS.map(([name, code, doc]) => `${`type ${name} = "${code}";`.padEnd(36)} // ${doc}`),
+  "",
+  "// 35 tics = 1 second. none<N>: N tics with nothing pressed. hold<KEY, N>: hold KEY for N tics.",
+].join("\n");
+// In a menu the arrows move the cursor; elsewhere they move the player.
+const constName = (code, inMenu) =>
+  KEY_CONSTS.find(([n, c]) => c === code && (inMenu ? !["FORWARD", "BACK"].includes(n) : !n.startsWith("MENU_")))[0];
+
+function stepLines(steps) {
+  // the presets start on the skill menu: arrows are menu keys until Enter picks a skill
+  let inMenuUntil = steps.findIndex((s) => s.keys.includes("Enter"));
+  while (inMenuUntil >= 0 && steps[inMenuUntil]?.keys.includes("Enter")) inMenuUntil++;
+  const keyList = (k, inMenu) => (k.length === 1 ? constName(k[0], inMenu) : `[${k.map((x) => constName(x, inMenu)).join(", ")}]`);
+  const lines = [];
+  for (let i = 0; i < steps.length; ) {
+    const st = steps[i];
+    let j = i;
+    while (j < steps.length && steps[j].keys.join() === st.keys.join() && j - i < 500) j++;
+    const n = j - i;
+    lines.push(st.keys.length ? `  ...hold<${keyList(st.keys, i < inMenuUntil)}${n > 1 ? `, ${n}` : ""}>,` : `  ...none<${n}>,`);
+    i = j;
+  }
+  return lines;
+}
+
+const SCRIPT_TOP = "// One element per tic, starting on the skill menu. Edit any line, then Restart & Run.";
+
+// Where the demo goes in doom-keys.wasm's memory and the globals that start
+// playback (bench/doom/tas-keys.mjs). Scripts never see these: playDemo,
+// extendDemo and setDemoTic become the memory writes below.
+const DEMO_AT = 8192;          // under the stack, which never gets this low
+const DEMO_P = 4408264;        // G_ReadDemoTiccmd's cursor into the demo
+const DEMOPLAYBACK = 4407472;  // G_Ticker reads the demo instead of the keyboard when this is 1
+const PLAYER0_STATE = 4406324; // players[0].playerstate
+const PST_REBORN = 2;          // a death's state: G_Ticker reloads the map, as G_InitNew does
+const RNDINDEX = 4411108;      // M_Random's index
+const PRNDINDEX = 4411112;     // P_Random's index
+const DEMO_END = 0x80;
+
+// A ticcmd as stored in a demo: forward, side (+ right), angleturn's high byte (+ left), buttons.
+const s8 = (b) => (b << 24) >> 24;
+const ticWord = ([f, s, t, b]) => ((f & 255) | ((s & 255) << 8) | ((t & 255) << 16) | ((b & 255) << 24)) >>> 0;
+const wordTic = (w) => [s8(w & 255), s8((w >> 8) & 255), s8((w >> 16) & 255), w >>> 24];
+
+// A word as a Move type: { forward: 50; strafeRight: 50; turnRight: 3 }
+function moveType(w) {
+  const [f, s, t, b] = wordTic(w);
+  const out = [];
+  if (f) out.push(f > 0 ? `forward: ${f}` : `back: ${-f}`);
+  if (s) out.push(s > 0 ? `strafeRight: ${s}` : `strafeLeft: ${-s}`);
+  if (t) out.push(t > 0 ? `turnLeft: ${t}` : `turnRight: ${-t}`);
+  if (b & 1) out.push("fire: true");
+  if (b & 2) out.push("use: true");
+  return out.length ? `{ ${out.join("; ")} }` : "{}";
+}
+function moveLines(words) {
+  const lines = [];
+  for (let i = 0; i < words.length; ) {
+    let j = i;
+    while (j < words.length && words[j] === words[i]) j++;
+    lines.push(j - i > 1 ? `  ...Repeat<${moveType(words[i])}, ${j - i}>,` : `  ${moveType(words[i])},`);
+    i = j;
+  }
+  return lines;
+}
+
+// tas-keys.mjs's KEY_SCRIPT (bench/doom/tas-keys.mjs) as TypeScript. Its raw
+// memory writes are read back as the demo actions they perform.
+function tasScript(steps, note) {
+  const start = steps.find((s) => s.poke);
+  // the step that writes idle tics over the demo's end marker
+  const idle = steps.find((s) => s !== start && s.poke?.at(-1)[1] === DEMO_END);
+  const startAt = steps.indexOf(start);
+  const idleAt = steps.indexOf(idle);
+  const words = start.poke.filter(([a]) => a < 65536).map(([, w]) => w);
+  const tics = words.slice(0, words.indexOf(DEMO_END));
+  const idleWords = idle ? idle.poke.slice(0, -1).map(([, w]) => w) : [];
+  const use = steps.at(-1).poke?.[0];
+  const after = steps.length - startAt - 1;
+  return `// Based on: ${note}
+${SCRIPT_TOP}
+
+${KEY_HEADER}
+
+// The TAS is a Doom demo: one recorded move per tic, replayed by Doom itself.
+// forward, back, strafeLeft, strafeRight: speed (50 is running, 25 walking).
+// turnLeft, turnRight: a mouse turn.
+type Demo = [
+${moveLines(tics).join("\n")}
+];
+
+type Inputs = Run<[
+${stepLines(steps.slice(0, startAt)).join("\n")}
+  { playDemo: Demo }, // restart E1M1 and replay Demo from its first tic
+${idle ? `  ...none<${idleAt - startAt - 1}>, // the demo plays; keys are ignored
+  // The switch is pressed on the demo's last tic. ${idleWords.length} more tics keep the demo
+  // playing while the level exits, so the screen wipes to the E1M1 clear screen.
+  {
+    extendDemo: [
+${moveLines(idleWords).map((l) => "    " + l).join("\n")}
+    ];
+  },
+  ...none<${steps.length - idleAt - 1 - (use ? 1 : 0)}>,
+` : `  ...none<${use ? after - 1 : after}>, // the demo plays; keys are ignored
+`}${use ? `  // The wipe reads the first tics of that. Use on the next one skips the clear
+  // screen's count-up, so TIME and PAR show.
+  { setDemoTic: [${(use[0] - DEMO_AT) / 4}, ${moveType(use[1])}] },
+` : ""}]>;
+`;
+}
+
+// The memory writes for a step's demo actions. `demoLen` is the length of the
+// demo already in memory, so extendDemo writes past it.
+function demoPokes(st, demoLen, i) {
+  const words = (moves) => moves.map(ticWord);
+  if (st.playDemo) {
+    const w = words(st.playDemo);
+    return {
+      len: w.length,
+      poke: [
+        ...w.map((x, k) => [DEMO_AT + 4 * k, x]),
+        [DEMO_AT + 4 * w.length, DEMO_END],
+        [DEMO_P, DEMO_AT], [DEMOPLAYBACK, 1], [PLAYER0_STATE, PST_REBORN], [RNDINDEX, 0], [PRNDINDEX, 0],
+      ],
+    };
+  }
+  if (demoLen === undefined) throw new Error(`Inputs[${i}]: no demo to change; use playDemo first`);
+  if (st.extendDemo) {
+    const w = words(st.extendDemo);
+    const at = DEMO_AT + 4 * demoLen;
+    return {
+      len: demoLen + w.length,
+      poke: [...w.map((x, k) => [at + 4 * k, x]), [at + 4 * w.length, DEMO_END]],
+    };
+  }
+  const [n, move] = st.setDemoTic;
+  if (!(Number.isInteger(n) && n >= 0 && n < demoLen)) throw new Error(`Inputs[${i}]: setDemoTic ${n}: the demo has tics 0 to ${demoLen - 1}`);
+  return { len: demoLen, poke: [[DEMO_AT + 4 * n, ticWord(move)]] };
+}
+
+const SCRIPT_URI = "file:///inputs.ts";
+let editorModel;
+async function evalScript() {
+  const getWorker = await monaco.languages.typescript.getTypeScriptWorker();
+  const worker = await getWorker(editorModel.uri);
+  const res = await worker.evalInputs(SCRIPT_URI);
+  if (res.error) throw new Error(res.error);
+  let demoLen;
+  const steps = res.steps.map((st, i) => {
+    for (const k of st.keys) if (!BITS.includes(k)) throw new Error(`Inputs[${i}]: "${k}" is not a Key`);
+    let poke;
+    if (st.playDemo || st.extendDemo || st.setDemoTic) ({ len: demoLen, poke } = demoPokes(st, demoLen, i));
+    return { keys: st.keys, poke };
+  });
+  const labels = labelsOf(steps);
+  return steps.map((st, i) => ({ ...st, label: labels[i] }));
+}
+
+// The timeline text for each tic, from the keys and memory writes alone, so a
+// saved run's labels can be rebuilt from its keyScript whatever the script said.
+function labelsOf(steps) {
+  const demo = demoReader();
+  return steps.map((st) => {
+    const { keys = st, poke } = Array.isArray(st) ? {} : st;
+    const pressed = keys.map((k) => SHORT[k] || k).join(" ");
+    const label = demo(poke) ?? (pressed || "nothing pressed");
+    const does = demoAction(poke);
+    return does ? `${label}   [${does}]` : label;
+  });
+}
+function demoAction(poke) {
+  if (!poke?.length) return "";
+  const n = poke.findIndex(([, w]) => w === DEMO_END);
+  if (poke.some(([a]) => a === DEMO_P)) return `play demo (${n} tics)`;
+  if (n >= 0 && n === poke.length - 1) return `extend demo (${n} tics)`;
+  if (poke.length === 1 && poke[0][0] >= DEMO_AT) return `set demo tic ${(poke[0][0] - DEMO_AT) / 4}`;
+  return `write memory (${poke.length})`;
+}
+
+// While a demo plays, Doom ignores the keyboard and reads one ticcmd per tic
+// from memory, so the timeline shows the demo's input instead of the keys.
+// This mirrors G_ReadDemoTiccmd: pokes land before the tic runs, a write to
+// DEMO_P points the cursor, and each tic reads the word under it until the
+// 0x80 end marker. Returns undefined for tics the demo does not drive.
+function demoReader() {
+  const mem = new Map();
+  let cursor;
+  return (poke = []) => {
+    for (const [a, w] of poke) {
+      if (a === DEMO_P) cursor = w;
+      else if (a < 65536) mem.set(a, w);
+    }
+    if (cursor === undefined) return undefined;
+    const w = mem.get(cursor);
+    if (w === undefined || w === DEMO_END) { cursor = undefined; return undefined; }
+    cursor += 4;
+    return ticcmdLabel(w);
+  };
+}
+function ticcmdLabel(w) {
+  const [f, s, t, b] = wordTic(w);
+  const out = [];
+  if (f) out.push(f > 0 ? `forward ${f}` : `back ${-f}`);
+  if (s) out.push(s > 0 ? `strafe right ${s}` : `strafe left ${-s}`);
+  if (t) out.push(t > 0 ? `turn left ${t}` : `turn right ${-t}`);
+  if (b & 1) out.push("fire");
+  if (b & 2) out.push("use");
+  return out.join(", ") || "nothing pressed";
+}
+
+const maskOf = (keys) => keys.reduce((m, k) => {
+  const i = BITS.indexOf(k);
+  return i >= 0 ? m | (1 << i) : m;
+}, 0x5a100000) >>> 0;
+
+// Doom runs in the TypeScript type checker: checker-worker.js hands the script
+// to cfg/drive.ts, which resumes from the skill-menu checkpoint and has tsrs
+// (compiled to WebAssembly) check doom-keys.cfg.ts chunk by chunk. A frame
+// lands once the checker has evaluated that tic's `entry` call to completion.
+const hud = document.getElementById("hud");
+const canvas = document.getElementById("screen");
+const ctx = canvas.getContext("2d");
+const img = ctx.createImageData(320, 200);
+const rgba = new Uint32Array(img.data.buffer);
+
+let frames = [];   // Uint32Array(64000) per checked frame
+let labels = [];
+let cur = 0;
+let playing = true;
+let worker;
+let checking = false;
+let runT0 = 0;
+let progress = "";
+let frameAt = [];  // checker ms when each frame landed, measured in this tab
+let runKey;        // OPFS id of the run on screen; the worker uses it as runId too
+let runInfo;       // { t, checker, startedAt } of that run
+let runStatus;     // "checking" | "finished" | "failed"
+// Doom runs 35 tics per second and the checker runs one tic per frame
+// (drive.ts sets singletics for a key script), so 1x plays 35 frames/s.
+for (const tab of document.querySelectorAll(".tabs .tab")) {
+  tab.addEventListener("click", () => {
+    for (const t of document.querySelectorAll(".tabs .tab")) {
+      t.classList.toggle("active", t === tab);
+      document.getElementById(t.dataset.tab).hidden = t !== tab;
+    }
+    if (tab.dataset.tab !== "playbackTab") document.getElementById("recVideo").pause();
+    if (tab.dataset.tab === "playbackTab") refreshPast();
+    else pastStop();
+  });
+}
+
+document.getElementById("recSel").addEventListener("change", (e) => {
+  document.getElementById("recVideo").src = "recordings/" + e.target.value;
+});
+
+const checkerSel = document.getElementById("checkerSel");
+
+// The run checker-worker.js saves to OPFS as it goes (see its header). Returns
+// null when there is none, or when the page was opened for a different script.
+async function restoreRun(wantText) {
+  try {
+    const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle("current-run");
+    const read = async (name) => (await (await dir.getFileHandle(name)).getFile());
+    const saved = JSON.parse(await (await read("meta.json")).text());
+    if (wantText !== undefined && wantText !== saved.meta.t) return null;
+    // frame n at n * FRAME_BYTES; a torn last frame is dropped and checked again
+    const FRAME_BYTES = 320 * 200 * 4;
+    const all = await (await read(`${saved.runId}-frames.rgba`).catch(() => null))?.arrayBuffer();
+    const restoredFrames = [];
+    for (let at = 0; all && at + FRAME_BYTES <= all.byteLength; at += FRAME_BYTES)
+      restoredFrames.push(new Uint32Array(all.slice(at, at + FRAME_BYTES)));
+    const ended = await read("end.json").then(() => true, () => false);
+    return { ...saved.meta, runId: saved.runId, checker: saved.checker, keyScript: saved.keyScript, frames: restoredFrames, ended };
+  } catch {
+    return null;
+  }
+}
+
+const frameMs = () => 1000 / 35 / (Number(fpsSel.value) || 1);
+
+// Every Editor run is copied to OPFS `history/` as `<runKey>.rgba` (raw frames
+// back to back, FRAME_BYTES each) plus `<runKey>.json`, when it finishes, fails
+// or is replaced by a new run. The Playback tab draws those frames on demand.
+// Writes are chained: two createWritable() calls on one file at once throw.
+const PAST_FRAME_BYTES = 320 * 200 * 4;
+const historyDir = async () => (await navigator.storage.getDirectory()).getDirectoryHandle("history", { create: true });
+let archiveChain = Promise.resolve();
+let archived = "";
+const deleted = new Set();  // runs the user deleted: never saved again, even when they finish
+function archiveRun(status) {
+  if (!runKey || !frames.length || deleted.has(runKey)) return;
+  const key = runKey;
+  const snap = frames.slice();
+  const tag = `${key}:${snap.length}:${status}`;
+  if (tag === archived) return;
+  archived = tag;
+  const info = { ...runInfo, labels, frames: snap.length, status, savedAt: Date.now() };
+  archiveChain = archiveChain.then(async () => {
+    try {
+      const dir = await historyDir();
+      const w = await (await dir.getFileHandle(`${key}.rgba`, { create: true })).createWritable();
+      for (const f of snap) await w.write(f);
+      await w.close();
+      const m = await (await dir.getFileHandle(`${key}.json`, { create: true })).createWritable();
+      await m.write(JSON.stringify(info));
+      await m.close();
+      if (!document.getElementById("playbackTab").hidden) refreshPast();
+    } catch (e) {
+      console.error("auto-save failed", e);
+    }
+  });
+}
+
+const pastSel = document.getElementById("pastSel");
+const pastScreen = document.getElementById("pastScreen");
+const pastCtx = pastScreen.getContext("2d");
+const pastImg = pastCtx.createImageData(320, 200);
+const pastRgba = new Uint32Array(pastImg.data.buffer);
+const pastPlayBtn = document.getElementById("pastPlayBtn");
+const pastScrub = document.getElementById("pastScrub");
+const pastLabel = document.getElementById("pastLabel");
+const past = { key: "", frames: [], cur: 0, playing: false, last: 0 };
+
+async function refreshPast() {
+  const runs = [];
+  try {
+    for await (const [name, h] of (await historyDir()).entries()) {
+      if (!name.endsWith(".json")) continue;
+      try { runs.push({ key: name.slice(0, -5), ...JSON.parse(await (await h.getFile()).text()) }); } catch {}
+    }
+  } catch {}
+  runs.sort((a, b) => b.savedAt - a.savedAt);
+  const keep = runs.some((r) => r.key === pastSel.value) ? pastSel.value : runs[0]?.key;
+  const checkerName = (v) => [...checkerSel.options].find((o) => o.value === v)?.textContent ?? v;
+  const preset = (t) => /^\/\/\s*Based on:\s*(.+)$/m.exec(t ?? "")?.[1] ?? "custom script";
+  pastSel.replaceChildren(...(runs.length ? runs.map((r) => {
+    const o = document.createElement("option");
+    o.value = r.key;
+    o.textContent = `${new Date(r.savedAt).toLocaleString()}, ${preset(r.t)}, ${checkerName(r.checker)}, ${r.frames} frames, ${r.status}`;
+    return o;
+  }) : [Object.assign(document.createElement("option"), { textContent: "No saved runs yet", value: "" })]));
+  pastSel.value = keep ?? "";
+  for (const id of ["pastDelBtn", "pastDelAllBtn", "pastPlayBtn"]) document.getElementById(id).disabled = !runs.length;
+  if (pastSel.value !== past.key) await loadPast(pastSel.value);
+}
+
+async function loadPast(key) {
+  pastStop();
+  past.key = key;
+  past.frames = [];
+  past.cur = 0;
+  if (key) {
+    try {
+      const all = await (await (await (await historyDir()).getFileHandle(`${key}.rgba`)).getFile()).arrayBuffer();
+      for (let at = 0; at + PAST_FRAME_BYTES <= all.byteLength; at += PAST_FRAME_BYTES)
+        past.frames.push(new Uint32Array(all, at, PAST_FRAME_BYTES / 4));
+    } catch {}
+  }
+  pastDraw(0);
+}
+
+function pastDraw(idx) {
+  pastScrub.max = String(Math.max(0, past.frames.length - 1));
+  if (!past.frames.length) {
+    pastCtx.clearRect(0, 0, 320, 200);
+    pastLabel.textContent = "0 / 0";
+    return;
+  }
+  past.cur = Math.max(0, Math.min(past.frames.length - 1, idx));
+  pastRgba.set(past.frames[past.cur]);
+  pastCtx.putImageData(pastImg, 0, 0);
+  pastScrub.value = String(past.cur);
+  pastLabel.textContent = `${past.cur + 1} / ${past.frames.length}`;
+}
+
+function pastStop() {
+  past.playing = false;
+  pastPlayBtn.textContent = "Play";
+}
+
+// Plays at 1x: one frame per Doom tic, 35 per second.
+function pastLoop(now) {
+  if (!past.playing) return;
+  requestAnimationFrame(pastLoop);
+  const steps = Math.floor((now - past.last) / (1000 / 35));
+  if (steps < 1) return;
+  past.last += steps * (1000 / 35);
+  if (past.cur + steps < past.frames.length) pastDraw(past.cur + steps);
+  else { pastDraw(past.frames.length - 1); pastStop(); }
+}
+
+pastSel.addEventListener("change", () => loadPast(pastSel.value));
+pastScrub.addEventListener("input", () => { pastStop(); pastDraw(Number(pastScrub.value)); });
+pastPlayBtn.addEventListener("click", () => {
+  if (past.playing) return pastStop();
+  if (!past.frames.length) return;
+  if (past.cur >= past.frames.length - 1) pastDraw(0);
+  past.playing = true;
+  past.last = performance.now();
+  pastPlayBtn.textContent = "Pause";
+  requestAnimationFrame(pastLoop);
+});
+document.getElementById("pastDelBtn").addEventListener("click", async () => {
+  const key = pastSel.value;
+  if (!key) return;
+  await archiveChain;
+  const dir = await historyDir();
+  await dir.removeEntry(`${key}.json`).catch(() => {});
+  await dir.removeEntry(`${key}.rgba`).catch(() => {});
+  deleted.add(key);
+  showToast("Run deleted");
+  await refreshPast();
+});
+document.getElementById("pastDelAllBtn").addEventListener("click", async () => {
+  if (!confirm("Delete all saved runs from this browser?")) return;
+  await archiveChain;
+  await (await navigator.storage.getDirectory()).removeEntry("history", { recursive: true }).catch(() => {});
+  if (runKey) deleted.add(runKey);
+  showToast("All saved runs deleted");
+  await refreshPast();
+});
+
+// A new run, or (with `saved`, from restoreRun) the run a reload interrupted:
+// its frames are already on screen and the worker continues from its checkpoint.
+function execute(script, saved) {
+  if (runStatus) archiveRun(runStatus === "checking" ? "stopped" : runStatus);
+  worker?.terminate();
+  runKey = saved?.runId ?? crypto.randomUUID();
+  runInfo = { t: saved?.t ?? editor.value, checker: saved?.checker ?? checkerSel.value, startedAt: Date.now() };
+  runStatus = "checking";
+  frames = saved?.frames ?? [];
+  frameAt = [];
+  labels = saved?.labels ?? script.map((st) => st.label);
+  cur = saved ? Math.max(0, frames.length - 1) : 0;
+  checking = true;
+  progress = saved ? "resuming" : "loading the checker";
+  runT0 = performance.now();
+  scrub.max = String(Math.max(0, frames.length - 1));
+  worker = new Worker("checker-worker.js", { type: "module" });
+  worker.onmessage = ({ data: m }) => {
+    if (m.kind === "status") progress = m.text;
+    else if (m.kind === "progress") progress = `frame ${m.index + 1}: chunk ${m.chunks} checked`;
+    else if (m.kind === "frame") {
+      frames[m.index] = new Uint32Array(m.rgba.buffer);
+      frameAt[m.index] = m.ms;
+      progress = `frame ${m.index + 1} checked in ${m.chunks} chunks`;
+      scrub.max = String(frames.length - 1);
+      // Follow the newest frame unless the user is scrubbing back.
+      if (playing && cur >= m.index - 1) drawFrame(m.index);
+    } else if (m.kind === "end" && m.result.failed) {
+      // drive.ts gave up on a chunk: the run stopped early, it did not finish.
+      checking = false;
+      progress = `checker failed after ${frames.length} frames`;
+      playing = false;
+      playBtn.textContent = "Play";
+      drawFrame(frames.length - 1);
+      console.error(m.result.failed);
+      showToast(`The checker failed on frame ${frames.length + 1}: ${m.result.failed.split("\n")[0]}`);
+      archiveRun(runStatus = "failed");
+    } else if (m.kind === "end") {
+      checking = false;
+      progress = `done: ${frames.length} frames in ${fmtTime(m.result.ms)}`;
+      archiveRun(runStatus = "finished");
+    } else if (m.kind === "error") {
+      checking = false;
+      progress = "checker error";
+      archiveRun(runStatus = "failed");
+      console.error(m.text);
+      showToast(m.text.split("\n")[0]);
+    }
+    if (!frames.length || m.kind !== "frame") drawHud();
+  };
+  if (saved) return worker.postMessage({ resume: true });
+  worker.postMessage({
+    runId: runKey,
+    checker: checkerSel.value,
+    keyScript: script.map((st) => (st.poke ? { keys: st.keys, poke: st.poke } : st.keys)),
+    meta: { t: editor.value, x: Number(fpsSel.value), labels },
+  });
+}
+
+const fmtTime = (ms) => {
+  const s = Math.round(ms / 1000);
+  return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s` : `${Math.floor(s / 3600)}h${String(Math.floor(s / 60) % 60).padStart(2, "0")}m`;
+};
+
+const scrub = document.getElementById("scrub");
+const frameLabel = document.getElementById("frameLabel");
+const playBtn = document.getElementById("playBtn");
+const presetSel = document.getElementById("presetSel");
+const fpsSel = document.getElementById("fpsSel");
+const loopChk = document.getElementById("loopChk");
+await new Promise((resolve) => {
+  const base = new URL("monaco/", location.href).href;
+  window.MonacoEnvironment = {
+    getWorkerUrl: () => URL.createObjectURL(new Blob([
+      `self.MonacoEnvironment = { baseUrl: "${base}" }; importScripts("${base}vs/base/worker/workerMain.js");`,
+    ], { type: "text/javascript" })),
+  };
+  require.config({ paths: { vs: base + "vs" } });
+  require(["vs/editor/editor.main"], resolve);
+});
+const tsDefaults = monaco.languages.typescript.typescriptDefaults;
+tsDefaults.setCompilerOptions({ target: monaco.languages.typescript.ScriptTarget.ES2020, strict: true, noEmit: true });
+tsDefaults.setWorkerOptions({ customWorkerPath: new URL(`ts-eval-worker.js?${Date.now()}`, location.href).href });
+tsDefaults.setEagerModelSync(true);
+tsDefaults.addExtraLib(PRELUDE, "file:///doom-inputs.d.ts");
+editorModel = monaco.editor.createModel("", "typescript", monaco.Uri.parse(SCRIPT_URI));
+const monacoEditor = monaco.editor.create(document.getElementById("editor"), {
+  model: editorModel, theme: "vs-dark", automaticLayout: true, minimap: { enabled: false },
+  fontSize: 12.5, scrollBeyondLastLine: false, quickSuggestions: { strings: true, other: true, comments: false },
+});
+let settingEditor = false;
+const editor = {
+  get value() { return editorModel.getValue(); },
+  set value(v) { settingEditor = true; editorModel.setValue(v); settingEditor = false; },
+};
+const toast = document.getElementById("toast");
+
+function showToast(msg) {
+  toast.textContent = msg;
+  setTimeout(() => { if (toast.textContent === msg) toast.textContent = ""; }, 2600);
+}
+
+function drawHud() {
+  const t = cur / 35;
+  const elapsed = checking ? fmtTime(performance.now() - runT0) : "";
+  const at = frames.length ? `frame ${cur + 1}/${frames.length} of ${labels.length}  ${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, "0")}\ninput  ${labels[cur]}\n` : "";
+  // Rate measured in this tab. Sparse after a resume: restored frames have no time.
+  const seen = frameAt.flatMap((ms, i) => ms === undefined ? [] : [[i, ms]]);
+  const n = seen.length;
+  const rate = n > 1 ? `\nmeasured: ${((seen[n - 1][1] - seen[0][1]) / (seen[n - 1][0] - seen[0][0]) / 1000).toFixed(1)}s per frame` : "";
+  hud.textContent = `${at}checker: ${progress}${elapsed ? `  (${elapsed})` : ""}${rate}`;
+  drawTimeline();
+}
+
+// The timeline lists every tic of the script. It follows the shown frame (the
+// tic being checked before any frame lands) until the user scrolls it, then
+// stays put until "Follow current frame".
+const timeline = document.getElementById("timeline");
+const followBtn = document.getElementById("followBtn");
+let tlLabels = null, tlRows = [], tlDone = 0, tlNext = -1, tlCur = -1, tlFollow = true;
+function drawTimeline() {
+  if (tlLabels !== labels) {
+    tlLabels = labels;
+    tlDone = 0; tlNext = tlCur = -1;
+    tlRows = labels.map((label, i) => {
+      const li = document.createElement("li");
+      li.dataset.i = String(i);
+      const t = i / 35;
+      li.innerHTML = `<span class="n">${i + 1}</span><span class="t">${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, "0")}</span><span></span>`;
+      li.lastChild.textContent = label;
+      return li;
+    });
+    timeline.replaceChildren(...tlRows);
+  }
+  const done = Math.min(frames.length, tlRows.length);
+  if (done < tlDone) { for (const li of tlRows) li.classList.remove("done"); tlDone = 0; }
+  for (; tlDone < done; tlDone++) tlRows[tlDone].classList.add("done");
+  const next = checking && done < tlRows.length ? done : -1;
+  if (next !== tlNext) { tlRows[tlNext]?.classList.remove("next"); tlRows[next]?.classList.add("next"); tlNext = next; }
+  const at = frames.length ? cur : -1;
+  if (at !== tlCur) { tlRows[tlCur]?.classList.remove("cur"); tlRows[at]?.classList.add("cur"); tlCur = at; }
+  const row = tlRows[at >= 0 ? at : next];
+  // A third of the way down, so the upcoming tics are in view.
+  if (tlFollow && row) timeline.scrollTop = row.offsetTop - timeline.clientHeight / 3;
+}
+// Only user input stops following; drawTimeline's own scrollTop writes do not.
+const stopFollow = () => { tlFollow = false; followBtn.hidden = false; };
+timeline.addEventListener("wheel", stopFollow, { passive: true });
+timeline.addEventListener("touchmove", stopFollow, { passive: true });
+timeline.addEventListener("keydown", stopFollow);
+timeline.addEventListener("pointerdown", (e) => { if (e.target === timeline) stopFollow(); }); // scrollbar drag
+followBtn.addEventListener("click", () => { tlFollow = true; followBtn.hidden = true; drawTimeline(); });
+timeline.addEventListener("click", (e) => {
+  const li = e.target.closest("li");
+  if (!li || Number(li.dataset.i) >= frames.length) return;
+  playing = false; playBtn.textContent = "Play"; drawFrame(Number(li.dataset.i));
+});
+
+function drawFrame(idx) {
+  if (!frames.length) return drawHud();
+  cur = Math.max(0, Math.min(frames.length - 1, idx));
+  rgba.set(frames[cur]);
+  ctx.putImageData(img, 0, 0);
+  scrub.value = String(cur);
+  frameLabel.textContent = `${cur + 1} / ${frames.length}`;
+  drawHud();
+}
+setInterval(() => { if (checking) drawHud(); }, 1000);
+
+async function runCurrent() {
+  try {
+    hud.textContent = "resolving type Inputs…";
+    const script = await evalScript();
+    if (!script.length) { showToast("Script is empty"); return; }
+    execute(script);
+    drawHud();
+    playing = true;
+    playBtn.textContent = "Pause";
+  } catch (e) {
+    playing = false;
+    playBtn.textContent = "Play";
+    hud.textContent = "Error: " + e.message;
+    showToast(e.message);
+  }
+}
+
+// A preset only fills the editor: the user amends it and starts the check with
+// Restart & Run. Switching presets never kills a check that is in progress.
+let editorEdited = false;
+function loadPreset(name) {
+  presetSel.value = name;
+  editorEdited = false;
+  if (name === "tas") {
+    editor.value = tasScript(window.PRESETS.tas.map((e) => (Array.isArray(e) ? { keys: e } : { keys: e.keys ?? [], poke: e.poke })), "almostmatt1's E1M1 0:07.69 UV-Speed TAS");
+  }
+  showToast("Preset loaded. Edit it, then Restart & Run");
+}
+
+// URL hash sharing (deflate-raw + base64url when CompressionStream is available)
+async function encodeHash(obj) {
+  const bytes = new TextEncoder().encode(JSON.stringify(obj));
+  if (typeof CompressionStream !== "undefined") {
+    const cs = new CompressionStream("deflate-raw");
+    const w = cs.writable.getWriter();
+    w.write(bytes); w.close();
+    const buf = new Uint8Array(await new Response(cs.readable).arrayBuffer());
+    let bin = ""; for (const b of buf) bin += String.fromCharCode(b);
+    return "z:" + btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  let bin = ""; for (const b of bytes) bin += String.fromCharCode(b);
+  return "b:" + btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function decodeHash(h) {
+  const s = h.replace(/^#/, "");
+  if (!s) return null;
+  const [tag, payload] = s.includes(":") ? s.split(":", 2) : ["b", s];
+  const b64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(b64);
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  if (tag === "z" && typeof DecompressionStream !== "undefined") {
+    const ds = new DecompressionStream("deflate-raw");
+    const w = ds.writable.getWriter();
+    w.write(bytes); w.close();
+    const out = await new Response(ds.readable).arrayBuffer();
+    return JSON.parse(new TextDecoder().decode(out));
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+presetSel.addEventListener("change", () => {
+  const name = presetSel.value;
+  if (name === "custom") return;
+  // Replacing the editor would drop the user's edits; ask first.
+  if (!editorEdited || confirm("Replace your edits with this preset?")) loadPreset(name);
+  else presetSel.value = "custom";
+});
+editorModel.onDidChangeContent(() => { if (!settingEditor) { presetSel.value = "custom"; editorEdited = true; } });
+document.getElementById("runBtn").addEventListener("click", runCurrent);
+playBtn.addEventListener("click", () => {
+  playing = !playing;
+  playBtn.textContent = playing ? "Pause" : "Play";
+});
+document.getElementById("stepBackBtn").addEventListener("click", () => {
+  playing = false; playBtn.textContent = "Play"; drawFrame(cur - 1);
+});
+document.getElementById("stepFwdBtn").addEventListener("click", () => {
+  playing = false; playBtn.textContent = "Play"; drawFrame(cur + 1);
+});
+scrub.addEventListener("input", () => {
+  playing = false; playBtn.textContent = "Play"; drawFrame(Number(scrub.value));
+});
+
+document.getElementById("shareBtn").addEventListener("click", async () => {
+  const hash = await encodeHash({ x: Number(fpsSel.value), t: editor.value });
+  history.replaceState(null, "", "#" + hash);
+  try { await navigator.clipboard.writeText(location.href); showToast("Link copied!"); }
+  catch { showToast("URL updated in address bar"); }
+});
+
+
+document.getElementById("videoBtn").addEventListener("click", async () => {
+  if (!frames.length) return;
+  const btn = document.getElementById("videoBtn");
+  btn.disabled = true;
+  const wasPlaying = playing; playing = false;
+  const dt = frameMs();
+  const stream = canvas.captureStream(Math.ceil(1000 / dt));
+  const mime = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"].find((m) => MediaRecorder.isTypeSupported(m)) || "";
+  const rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 4_000_000 } : undefined);
+  const chunks = [];
+  rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  const done = new Promise((r) => { rec.onstop = r; });
+  rec.start();
+  const start = performance.now();
+  for (let i = 0; i < frames.length; i++) {
+    drawFrame(i);
+    btn.textContent = `Recording ${i + 1}/${frames.length}…`;
+    await new Promise((r) => setTimeout(r, Math.max(0, start + (i + 1) * dt - performance.now())));
+  }
+  rec.stop();
+  await done;
+  const ext = mime.includes("mp4") ? "mp4" : "webm";
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(chunks, { type: mime || "video/webm" }));
+  a.download = `doom-speedrun.${ext}`;
+  a.click();
+  btn.disabled = false;
+  btn.textContent = "Download Video";
+  playing = wasPlaying;
+  showToast(`Saved doom-speedrun.${ext}`);
+});
+
+// Playback loop
+let lastTick = performance.now();
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (!playing || !frames.length) return;
+  const interval = frameMs();
+  if (now - lastTick > 4 * interval) lastTick = now - interval;
+  if (now - lastTick >= interval) {
+    const steps = Math.floor((now - lastTick) / interval);
+    lastTick += steps * interval;
+    if (cur + steps < frames.length) drawFrame(cur + steps);
+    else if (checking) drawFrame(frames.length - 1);
+    else if (loopChk.checked) drawFrame(0);
+    else { playing = false; playBtn.textContent = "Play"; }
+  }
+}
+
+// Saved runs live in the Origin Private File System: one `<name>.json` per run
+// under `speedruns/`, holding the same { s, f, t } the share hash carries.
+// OPFS is per-origin and per-browser, so a saved run is local; Share Link is
+// how it leaves the machine.
+const savedSel = document.getElementById("savedSel");
+const saveName = document.getElementById("saveName");
+const runsDir = navigator.storage?.getDirectory
+  ? await navigator.storage.getDirectory().then((root) => root.getDirectoryHandle("speedruns", { create: true })).catch(() => null)
+  : null;
+const fileOf = (name) => encodeURIComponent(name) + ".json";
+
+async function refreshSaved(select) {
+  if (!runsDir) return;
+  const names = [];
+  for await (const [file, h] of runsDir.entries())
+    if (h.kind === "file" && file.endsWith(".json")) names.push(decodeURIComponent(file.slice(0, -5)));
+  names.sort();
+  savedSel.replaceChildren(new Option("(none)", ""), ...names.map((n) => new Option(n, n)));
+  if (select && names.includes(select)) savedSel.value = select;
+}
+
+document.getElementById("saveBtn").addEventListener("click", async () => {
+  if (!runsDir) return showToast("OPFS not available in this browser");
+  const name = saveName.value.trim() || savedSel.value || `run ${new Date().toISOString().slice(0, 19).replace("T", " ")}`;
+  const fh = await runsDir.getFileHandle(fileOf(name), { create: true });
+  const w = await fh.createWritable();
+  await w.write(JSON.stringify({ x: Number(fpsSel.value), t: editor.value, savedAt: Date.now() }));
+  await w.close();
+  saveName.value = "";
+  await refreshSaved(name);
+  showToast(`Saved "${name}"`);
+});
+
+// Real files. The run is saved as the plain .ts script; playback settings ride
+// along in a first-line comment so Open restores them.
+const SETTINGS_RE = /^\/\/ speedrun-settings: (\{.*\})\n/;
+function fileText() {
+  return `// speedrun-settings: ${JSON.stringify({ x: Number(fpsSel.value) })}\n` + editor.value;
+}
+async function openText(text, name) {
+  const m = text.match(SETTINGS_RE);
+  if (m) {
+    const st = JSON.parse(m[1]);
+    if (st.x) fpsSel.value = String(st.x);
+    text = text.slice(m[0].length);
+  }
+  presetSel.value = "custom";
+  editorEdited = true;
+  editor.value = text;
+  await runCurrent();
+  showToast(`Opened ${name}`);
+}
+document.getElementById("saveFileBtn").addEventListener("click", async () => {
+  const blob = new Blob([fileText()], { type: "text/plain" });
+  if (window.showSaveFilePicker) {
+    try {
+      const fh = await showSaveFilePicker({ suggestedName: "doom-run.ts", types: [{ description: "Doom run", accept: { "text/plain": [".ts"] } }] });
+      const w = await fh.createWritable();
+      await w.write(blob);
+      await w.close();
+      return showToast(`Saved ${fh.name}`);
+    } catch (e) {
+      if (e.name === "AbortError") return;
+    }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "doom-run.ts";
+  a.click();
+  showToast("Downloaded doom-run.ts");
+});
+const fileInput = document.getElementById("fileInput");
+document.getElementById("openFileBtn").addEventListener("click", async () => {
+  if (window.showOpenFilePicker) {
+    try {
+      const [fh] = await showOpenFilePicker({ types: [{ description: "Doom run", accept: { "text/plain": [".ts"] } }] });
+      const f = await fh.getFile();
+      return openText(await f.text(), f.name);
+    } catch (e) {
+      if (e.name === "AbortError") return;
+    }
+  }
+  fileInput.click();
+});
+fileInput.addEventListener("change", async () => {
+  const f = fileInput.files[0];
+  if (f) await openText(await f.text(), f.name);
+  fileInput.value = "";
+});
+
+document.getElementById("loadBtn").addEventListener("click", async () => {
+  if (!runsDir || !savedSel.value) return;
+  const file = await (await runsDir.getFileHandle(fileOf(savedSel.value))).getFile();
+  const run = JSON.parse(await file.text());
+  presetSel.value = "custom";
+  editorEdited = true;
+  if (run.x) fpsSel.value = String(run.x);
+  editor.value = run.t;
+  runCurrent();
+  showToast(`Loaded "${savedSel.value}"`);
+});
+
+document.getElementById("deleteBtn").addEventListener("click", async () => {
+  if (!runsDir || !savedSel.value) return;
+  const name = savedSel.value;
+  await runsDir.removeEntry(fileOf(name));
+  await refreshSaved();
+  showToast(`Deleted "${name}"`);
+});
+
+if (!runsDir) for (const id of ["saveBtn", "loadBtn", "deleteBtn"]) document.getElementById(id).disabled = true;
+await refreshSaved();
+
+const restored = await decodeHash(location.hash).catch(() => null);
+const hashText = restored && typeof restored.t === "string" ? restored.t : undefined;
+const run = await restoreRun(hashText);
+if (run) {
+  // A reload: show what was checked and continue the check where it stopped.
+  presetSel.value = "custom";
+  editorEdited = true;
+  fpsSel.value = String(run.x || 1);
+  checkerSel.value = run.checker;
+  // Runs saved by a checker the page no longer offers continue on tsrs (the worker falls back too).
+  if (!checkerSel.value) checkerSel.value = "tsrs";
+  editor.value = run.t;
+  if (run.ended) {
+    frames = run.frames;
+    labels = run.keyScript ? labelsOf(run.keyScript) : run.labels;
+    runKey = run.runId;
+    runInfo = { t: run.t, checker: run.checker, startedAt: Date.now() };
+    runStatus = "finished";
+    archived = `${runKey}:${frames.length}:finished`;
+    progress = `done: ${frames.length} frames (saved run)`;
+    scrub.max = String(Math.max(0, frames.length - 1));
+    playing = false;
+    playBtn.textContent = "Play";
+    drawFrame(0);
+  } else {
+    execute(null, run);
+    if (frames.length) drawFrame(cur);
+    // The saved labels may come from an older page; rebuild them from the memory writes.
+    if (run.keyScript) { labels = labelsOf(run.keyScript); drawHud(); }
+    showToast(frames.length ? `Resuming: ${frames.length} frames already checked` : "Resuming the check");
+  }
+} else if (hashText !== undefined) {
+  presetSel.value = "custom";
+  editorEdited = true;
+  if (restored.x) fpsSel.value = String(restored.x);
+  editor.value = restored.t;
+  await runCurrent();
+} else {
+  const qp = new URLSearchParams(location.search);
+  loadPreset(qp.get("preset") || "tas");
+  await runCurrent();
+  if (qp.get("f") !== null) { playing = false; playBtn.textContent = "Play"; drawFrame(Number(qp.get("f"))); }
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

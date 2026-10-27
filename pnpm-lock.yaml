@@ -64,6 +64,9 @@ importers:
       http-server:
         specifier: ^14.1.1
         version: 14.1.1
+      monaco-editor:
+        specifier: 0.52.2
+        version: 0.52.2
       tsc-rs:
         specifier: 0.7.0
         version: 0.7.0
@@ -886,6 +889,9 @@ packages:
 
   minimist@1.2.8:
     resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
+
+  monaco-editor@0.52.2:
+    resolution: {integrity: sha512-GEQWEZmfkOGLdd3XK8ryrfWz3AIP8YymVXiPHEdewrUq7mh0qrKrfHLNCXcbB6sTnMLnOZ3ztSiKcciFUkIJwQ==}
 
   ms@2.1.2:
     resolution: {integrity: sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==}
@@ -1720,6 +1726,8 @@ snapshots:
   mime@1.6.0: {}
 
   minimist@1.2.8: {}
+
+  monaco-editor@0.52.2: {}
 
   ms@2.1.2: {}
 

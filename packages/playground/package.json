@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "http-server": "^14.1.1",
+    "monaco-editor": "0.52.2",
     "tsc-rs": "0.7.0",
     "tsrs": "0.18.0-ts7.1.0-dev.20260929"
   }
