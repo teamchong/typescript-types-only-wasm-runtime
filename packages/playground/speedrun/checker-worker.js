@@ -5,10 +5,13 @@
 // evaluated to.
 //
 // in:  { runId, keyScript, checker: "tsrs" | "ts7", meta }   a new run: one held-key list per frame
-//      { resume: true }                               continue the run saved in OPFS
+//      { ..., continue: true }    the same, but keep the frames of the saved run up to
+//                                 where its key script stops matching this one
+//      { resume: true }           continue the run saved in OPFS
 // out: { kind: "status", text }                   loading / tsc timings
 //      { kind: "progress", index, chunks, ms }     a chunk of frame `index` checked
 //      { kind: "frame", index, rgba, chunks, ms }  frame `index` finished
+//      { kind: "kept", frames }                    frames 0 to frames-1 are the saved run's
 //      { kind: "log", text } | { kind: "end", result } | { kind: "error", text }
 import { start, moduleShape, rgbaFrom } from "./run.browser.js";
 import * as tsrs from "./tsrs/browser.js";
@@ -23,10 +26,15 @@ const post = (m, transfer) => self.postMessage(m, transfer ?? []);
 
 // The run is saved as it goes, so a reload picks it up where it stopped (the
 // page reads the same directory; see restoreRun in index.html):
-//   meta.json                { runId, meta, keyScript, checker }, written when the run starts
-//   <runId>-frames.rgba      every finished frame, 320x200 RGBA, frame n at n * FRAME_BYTES
-//   <runId>-ckpt-0/1.json    { seq, point }: drive.ts's checkpoint, after every chunk
+//   meta.json                { runId, files, meta, keyScript, checker }, written when the run starts
+//   <files>-frames.rgba      every finished frame, 320x200 RGBA, frame n at n * FRAME_BYTES
+//   <files>-ckpt-0/1.json    { seq, point }: drive.ts's checkpoint, after every chunk
+//   <files>-bounds.jsonl     the checkpoint at the end of every frame, appended
+//   <files>-bounds.json      [at, length] of frame n's entry in bounds.jsonl, or null
 //   end.json                 the run reached the end of its script
+// `files` is the runId of the run that created the files: a continued run
+// keeps the frames and frame-end checkpoints its script shares with the old
+// one, so editing tic 200 restarts at frame 200 rather than at frame 0.
 // The writes are synchronous, through access handles opened before the run:
 // drive.ts keeps this thread busy between chunks, and an async OPFS call made
 // from onCheckpoint did not settle until the run ended. Checkpoints alternate
@@ -57,6 +65,19 @@ const writeAll = (h, bytes, at = 0) => {
   h.flush();
 };
 
+// A terminated worker lets go of its access handles some time after
+// terminate() returns; until then opening one throws NoModificationAllowedError.
+const openHandleRetry = async (name) => {
+  for (let i = 0; ; i++) {
+    try {
+      return await openHandle(name);
+    } catch (e) {
+      if (e?.name !== "NoModificationAllowedError" || i >= 100) throw e;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+};
+
 const writeFile = async (name, text) => {
   const h = await openHandle(name);
   if (!h) return;
@@ -72,6 +93,24 @@ const readText = async (name) => {
   }
 };
 
+const readBoundsIndex = async (files) => {
+  try { return JSON.parse((await readText(`${files}-bounds.json`)) ?? "[]"); } catch { return []; }
+};
+const readBound = async (files, [at, len]) => {
+  const dir = await runDir;
+  const file = await (await dir.getFileHandle(`${files}-bounds.jsonl`)).getFile();
+  return JSON.parse(await file.slice(at, at + len).text());
+};
+
+// The last frame both scripts produce the same way: frame n depends only on
+// key-script entries 0 to n. -1 when the first entry already differs.
+const lastAlignedFrame = (a, b) => {
+  const n = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < n && JSON.stringify(a[i]) === JSON.stringify(b[i])) i++;
+  return i - 1;
+};
+
 const readCheckpoint = async (runId) => {
   const saved = [];
   for (const i of [0, 1]) {
@@ -81,30 +120,50 @@ const readCheckpoint = async (runId) => {
   return saved.sort((a, b) => b.seq - a.seq)[0] ?? null;
 };
 
-const clearRun = async () => {
+// Deletes the saved run's files, except those whose names start with `keep`.
+const clearRun = async (keep) => {
   const dir = await runDir;
   if (!dir) return;
   const names = [];
   for await (const name of dir.keys()) names.push(name);
-  for (const name of names) await dir.removeEntry(name).catch(() => {});
+  for (const name of names) if (!keep || !name.startsWith(keep + "-")) await dir.removeEntry(name).catch(() => {});
 };
 
 // Set up by openStore before the run; null when OPFS is unavailable.
 let store = null;
-const openStore = async (runId) => {
+// `kept` frames of an earlier run with these files stay; everything past them is cut.
+const openStore = async (files, kept = 0, boundsIndex = []) => {
   try {
-    const [frames, ckpt0, ckpt1] = await Promise.all([
-      openHandle(`${runId}-frames.rgba`),
-      openHandle(`${runId}-ckpt-0.json`),
-      openHandle(`${runId}-ckpt-1.json`),
-    ]);
-    store = frames && { frames, ckpts: [ckpt0, ckpt1] };
+    const [frames, ckpt0, ckpt1, bounds, boundsAt] = await Promise.all(
+      ["frames.rgba", "ckpt-0.json", "ckpt-1.json", "bounds.jsonl", "bounds.json"].map((n) => openHandleRetry(`${files}-${n}`)),
+    );
+    if (!frames) return;
+    const index = boundsIndex.slice(0, kept);
+    frames.truncate(kept * FRAME_BYTES);
+    bounds.truncate(boundsEnd(index));
+    writeAll(boundsAt, new TextEncoder().encode(JSON.stringify(index)));
+    store = { frames, ckpts: [ckpt0, ckpt1], bounds, boundsAt, index };
   } catch (e) {
     post({ kind: "log", text: `progress will not survive a reload: ${e}` });
   }
 };
+const encoder = new TextEncoder();
 const saveCheckpoint = (seq, point) => {
-  if (store) writeAll(store.ckpts[seq % 2], new TextEncoder().encode(`{"seq":${seq},"point":${JSON.stringify(point)}}`));
+  if (!store) return;
+  const json = typeof point === "string" ? point : JSON.stringify(point);
+  writeAll(store.ckpts[seq % 2], encoder.encode(`{"seq":${seq},"point":${json}}`));
+  return json;
+};
+const boundsEnd = (index) => Math.max(0, ...index.filter(Boolean).map(([at, len]) => at + len));
+// Called with the JSON saveCheckpoint wrote for frame n's end.
+const saveBound = (n, json) => {
+  if (!store || !json) return;
+  const bytes = encoder.encode(json);
+  const at = boundsEnd(store.index);
+  store.bounds.write(bytes, { at });
+  store.bounds.flush();
+  store.index[n] = [at, bytes.byteLength];
+  writeAll(store.boundsAt, encoder.encode(JSON.stringify(store.index)));
 };
 const saveFrame = (n, rgba) => {
   if (store) writeAll(store.frames, rgba, n * FRAME_BYTES);
@@ -135,19 +194,57 @@ const load = async () => {
 self.onmessage = async ({ data }) => {
   try {
     let { keyScript, checker: checkerName, runId } = data;
+    let files = runId;
     let resume = null;
     let seq = 0;
+    let kept = 0;
+    let boundsIndex = [];
     if (data.resume) {
       const saved = JSON.parse((await readText("meta.json")) ?? "null");
       if (!saved) throw new Error("no saved run to resume");
       ({ runId, keyScript, checker: checkerName } = saved);
-      const ckpt = await readCheckpoint(runId);
+      files = saved.files ?? runId;
+      const ckpt = await readCheckpoint(files);
       if (ckpt) ({ seq, point: resume } = ckpt);
+      boundsIndex = await readBoundsIndex(files);
+      kept = resume ? (resume.scriptFrame ?? 0) + (resume.done ? 1 : 0) : 0;
     } else {
-      await clearRun();
-      await writeFile("meta.json", JSON.stringify({ runId, meta: data.meta, keyScript, checker: checkerName }));
+      const saved = data.continue ? JSON.parse((await readText("meta.json")) ?? "null") : null;
+      if (saved && saved.checker === checkerName) {
+        const old = saved.files ?? saved.runId;
+        boundsIndex = await readBoundsIndex(old);
+        // The newest frame end the two scripts agree on and a checkpoint was
+        // saved for. An imported run has no bounds, only its latest checkpoint.
+        const aligned = lastAlignedFrame(saved.keyScript, keyScript);
+        let f = Math.min(aligned, boundsIndex.length - 1);
+        while (f >= 0 && !boundsIndex[f]) f--;
+        // The latest checkpoint wins while its frame is still aligned, even
+        // mid-frame: that frame's keys are unchanged, so its chunks carry over.
+        const latest = (await readCheckpoint(old))?.point;
+        const latestAt = latest ? latest.scriptFrame ?? 0 : -1;
+        const latestKept = latest ? latestAt + (latest.done ? 1 : 0) : 0;
+        if (latest && latestAt <= aligned && latestKept >= f + 1) {
+          resume = latest;
+          f = latestKept - 1;
+        } else if (f >= 0) resume = await readBound(old, boundsIndex[f]);
+        if (resume) {
+          files = old;
+          kept = f + 1;
+        }
+      }
+      await clearRun(resume ? files : null);
+      await writeFile("meta.json", JSON.stringify({ runId, files, meta: data.meta, keyScript, checker: checkerName }));
     }
-    await openStore(runId);
+    await openStore(files, kept, boundsIndex);
+    if (!data.resume) {
+      post({ kind: "kept", frames: kept });
+      // a reload now resumes from the kept frame's end, not from where the old run was
+      if (resume) seq = Math.max(seq, (await readCheckpoint(files))?.seq ?? 0), saveCheckpoint(++seq, resume);
+    }
+    if (resume?.done && kept >= keyScript.length) {
+      await writeFile("end.json", "{}");
+      return post({ kind: "end", result: { chunks: 0, ms: 0 } });
+    }
     const checker = CHECKERS[checkerName] ?? CHECKERS.tsrs;
     const a = await load();
     post({ kind: "status", text: `fetching ${checker.label}` });
@@ -173,7 +270,7 @@ self.onmessage = async ({ data }) => {
         }
         const rgba = rgbaFrom(a.shape, p.memory, p.result);
         saveFrame(index, rgba);
-        saveCheckpoint(++seq, p);
+        saveBound(index, saveCheckpoint(++seq, p));
         post({ kind: "frame", index, rgba, chunks: p.entryChunks, ms }, [rgba.buffer]);
         index++;
       },

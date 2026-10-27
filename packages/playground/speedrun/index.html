@@ -189,7 +189,7 @@
 <body>
 <header>
   <h1><span>DOOM</span> IN TYPESCRIPT TYPES — SPEEDRUN EDITOR</h1>
-  <p>Doom, played by the TypeScript compiler in your browser. Type your key presses below, press <b>Restart &amp; Run</b>, and watch.</p>
+  <p>Doom, played by the TypeScript compiler in your browser. Type your key presses below, press <b>Run</b>, and watch.</p>
 </header>
 
 <nav class="tabs" role="tablist">
@@ -250,7 +250,7 @@
           <option value="ts7">tsgo (TS7.1, Go build)</option>
         </select>
       </label>
-      <button id="runBtn" class="primary">Restart &amp; Run</button>
+      <button id="runBtn" class="primary" title="Check the script. Frames from the last run stay up to the first tic the edit changes; checking continues from there.">Run</button>
       <button id="shareBtn">Share Link</button>
       <span id="toast" class="toast"></span>
     </div>
@@ -258,16 +258,10 @@
       <button id="openFileBtn" title="Open a .ts run from your disk">Open file…</button>
       <button id="saveFileBtn" title="Save this run as a .ts file on your disk">Save file…</button>
       <input id="fileInput" type="file" accept=".ts,text/plain" hidden />
-    </div>
-    <div class="row">
-      <label class="meta" title="Browser-private storage (OPFS): stays in this browser for this site only, not visible on disk">Browser drafts
-        <select id="savedSel"><option value="">(none)</option></select>
-      </label>
-      <button id="loadBtn">Load</button>
-      <button id="deleteBtn">Delete</button>
       <span style="flex:1"></span>
-      <input id="saveName" placeholder="run name" style="background:#0d0e10;color:var(--fg);border:1px solid var(--border);border-radius:4px;padding:6px 8px;font:inherit;font-size:12px;width:140px" />
-      <button id="saveBtn">Save</button>
+      <button id="exportBtn" title="Download the script, the frames checked so far and the checker's progress, as one file">Export run…</button>
+      <button id="importBtn" title="Open an exported run: shows its frames and continues the check where it stopped">Import run…</button>
+      <input id="importInput" type="file" accept=".doomrun" hidden />
     </div>
 
     <div id="editor" aria-label="Speedrun input script"></div>
@@ -436,7 +430,7 @@ function stepLines(steps) {
   return lines;
 }
 
-const SCRIPT_TOP = "// One element per tic, starting on the skill menu. Edit any line, then Restart & Run.";
+const SCRIPT_TOP = "// One element per tic, starting on the skill menu. Edit any line, then Run.";
 
 // Where the demo goes in doom-keys.wasm's memory and the globals that start
 // playback (bench/doom/tas-keys.mjs). Scripts never see these: playDemo,
@@ -479,6 +473,19 @@ function moveLines(words) {
 
 // tas-keys.mjs's KEY_SCRIPT (bench/doom/tas-keys.mjs) as TypeScript. Its raw
 // memory writes are read back as the demo actions they perform.
+// extendDemo's moves. The TAS presses Use with a late write over tic `at` of the
+// extension; it is folded in here so the script shows the press where it plays.
+function extendLines(words, at, useWord) {
+  if (at === undefined) return moveLines(words);
+  if (!(at >= 0 && at < words.length)) throw new Error(`Use tic ${at} is outside the extension`);
+  const before = moveLines(words.slice(0, at));
+  return [
+    ...before.map((l, i) => (i === before.length - 1 ? `${l} // the screen wipes to the finished screen` : l)),
+    `  ${moveType(useWord)}, // Use skips the count-up, so the final TIME shows at once`,
+    ...moveLines(words.slice(at + 1)),
+  ];
+}
+
 function tasScript(steps, note) {
   const start = steps.find((s) => s.poke);
   // the step that writes idle tics over the demo's end marker
@@ -506,19 +513,18 @@ type Inputs = Run<[
 ${stepLines(steps.slice(0, startAt)).join("\n")}
   { playDemo: Demo }, // restart E1M1 and replay Demo from its first tic
 ${idle ? `  ...none<${idleAt - startAt - 1}>, // the demo plays; keys are ignored
-  // The switch is pressed on the demo's last tic. ${idleWords.length} more tics keep the demo
-  // playing while the level exits, so the screen wipes to the E1M1 clear screen.
+  // The demo's last tic presses the exit switch. Doom then shows the E1M1 finished
+  // screen, counting kills, items, secrets and TIME up from 0. Keep the demo going
+  // ${idleWords.length} more tics so Doom has input while that happens.
   {
     extendDemo: [
-${moveLines(idleWords).map((l) => "    " + l).join("\n")}
+${extendLines(idleWords, use ? (use[0] - DEMO_AT) / 4 - tics.length : undefined, use?.[1]).map((l) => "    " + l).join("\n")}
     ];
   },
-  ...none<${steps.length - idleAt - 1 - (use ? 1 : 0)}>,
+  ...none<${steps.length - idleAt - 1}>,
 ` : `  ...none<${use ? after - 1 : after}>, // the demo plays; keys are ignored
-`}${use ? `  // The wipe reads the first tics of that. Use on the next one skips the clear
-  // screen's count-up, so TIME and PAR show.
-  { setDemoTic: [${(use[0] - DEMO_AT) / 4}, ${moveType(use[1])}] },
-` : ""}]>;
+${use ? `  { setDemoTic: [${(use[0] - DEMO_AT) / 4}, ${moveType(use[1])}] },
+` : ""}`}]>;
 `;
 }
 
@@ -678,7 +684,7 @@ async function restoreRun(wantText) {
     if (wantText !== undefined && wantText !== saved.meta.t) return null;
     // frame n at n * FRAME_BYTES; a torn last frame is dropped and checked again
     const FRAME_BYTES = 320 * 200 * 4;
-    const all = await (await read(`${saved.runId}-frames.rgba`).catch(() => null))?.arrayBuffer();
+    const all = await (await read(`${saved.files ?? saved.runId}-frames.rgba`).catch(() => null))?.arrayBuffer();
     const restoredFrames = [];
     for (let at = 0; all && at + FRAME_BYTES <= all.byteLength; at += FRAME_BYTES)
       restoredFrames.push(new Uint32Array(all.slice(at, at + FRAME_BYTES)));
@@ -712,7 +718,7 @@ function archiveRun(status) {
     try {
       const dir = await historyDir();
       const w = await (await dir.getFileHandle(`${key}.rgba`, { create: true })).createWritable();
-      for (const f of snap) await w.write(f);
+      for (const f of snap) await w.write(f ?? new Uint8Array(PAST_FRAME_BYTES));
       await w.close();
       const m = await (await dir.getFileHandle(`${key}.json`, { create: true })).createWritable();
       await m.write(JSON.stringify(info));
@@ -841,10 +847,12 @@ function execute(script, saved) {
   runKey = saved?.runId ?? crypto.randomUUID();
   runInfo = { t: saved?.t ?? editor.value, checker: saved?.checker ?? checkerSel.value, startedAt: Date.now() };
   runStatus = "checking";
-  frames = saved?.frames ?? [];
+  // A new run keeps showing the old frames until the worker says how many it kept.
+  const oldFrames = frames;
+  frames = saved?.frames ?? oldFrames;
   frameAt = [];
   labels = saved?.labels ?? script.map((st) => st.label);
-  cur = saved ? Math.max(0, frames.length - 1) : 0;
+  cur = saved ? Math.max(0, frames.length - 1) : cur;
   checking = true;
   progress = saved ? "resuming" : "loading the checker";
   runT0 = performance.now();
@@ -852,7 +860,30 @@ function execute(script, saved) {
   worker = new Worker("checker-worker.js", { type: "module" });
   worker.onmessage = ({ data: m }) => {
     if (m.kind === "status") progress = m.text;
-    else if (m.kind === "progress") progress = `frame ${m.index + 1}: chunk ${m.chunks} checked`;
+    else if (m.kind === "kept") {
+      // The worker kept the old run's frames up to where the scripts differ.
+      frames = oldFrames.slice(0, m.frames);
+      frameAt = [];
+      // This page may not have them, if it opened on a different script.
+      if (oldFrames.length < m.frames) {
+        const w = worker;
+        restoreRun().then((r) => {
+          if (worker !== w || !r) return;
+          for (let i = 0; i < m.frames; i++) frames[i] ??= r.frames[i];
+          scrub.max = String(Math.max(0, frames.length - 1));
+          drawFrame(Math.min(cur, frames.length - 1));
+        });
+      }
+      cur = Math.min(cur, Math.max(0, frames.length - 1));
+      scrub.max = String(Math.max(0, frames.length - 1));
+      progress = m.frames ? `continuing after frame ${m.frames}` : "type-checking chunk 1";
+      if (m.frames) drawFrame(frames.length - 1);
+      else {
+        ctx.clearRect(0, 0, 320, 200);
+        scrub.value = "0";
+        frameLabel.textContent = "0 / 0";
+      }
+    } else if (m.kind === "progress") progress = `frame ${m.index + 1}: chunk ${m.chunks} checked`;
     else if (m.kind === "frame") {
       frames[m.index] = new Uint32Array(m.rgba.buffer);
       frameAt[m.index] = m.ms;
@@ -889,6 +920,7 @@ function execute(script, saved) {
     checker: checkerSel.value,
     keyScript: script.map((st) => (st.poke ? { keys: st.keys, poke: st.poke } : st.keys)),
     meta: { t: editor.value, x: Number(fpsSel.value), labels },
+    continue: true,
   });
 }
 
@@ -994,7 +1026,9 @@ timeline.addEventListener("click", (e) => {
 function drawFrame(idx) {
   if (!frames.length) return drawHud();
   cur = Math.max(0, Math.min(frames.length - 1, idx));
-  rgba.set(frames[cur]);
+  // a kept frame still being read back from OPFS
+  if (frames[cur]) rgba.set(frames[cur]);
+  else rgba.fill(0);
   ctx.putImageData(img, 0, 0);
   scrub.value = String(cur);
   frameLabel.textContent = `${cur + 1} / ${frames.length}`;
@@ -1020,7 +1054,7 @@ async function runCurrent() {
 }
 
 // A preset only fills the editor: the user amends it and starts the check with
-// Restart & Run. Switching presets never kills a check that is in progress.
+// Run. Switching presets never kills a check that is in progress.
 let editorEdited = false;
 function presetText(name) {
   if (name === "tas") return tasScript(window.PRESETS.tas.map((e) => (Array.isArray(e) ? { keys: e } : { keys: e.keys ?? [], poke: e.poke })), "almostmatt1's E1M1 0:07.69 UV-Speed TAS");
@@ -1029,7 +1063,7 @@ function loadPreset(name) {
   presetSel.value = name;
   editorEdited = false;
   editor.value = presetText(name);
-  showToast("Preset loaded. Edit it, then Restart & Run");
+  showToast("Preset loaded. Edit it, then Run");
 }
 // Restored text (reload, share link, saved run, file) that is a preset, byte for
 // byte, keeps the preset selected; anything else is "Your edits".
@@ -1152,39 +1186,6 @@ function loop(now) {
   }
 }
 
-// Saved runs live in the Origin Private File System: one `<name>.json` per run
-// under `speedruns/`, holding the same { s, f, t } the share hash carries.
-// OPFS is per-origin and per-browser, so a saved run is local; Share Link is
-// how it leaves the machine.
-const savedSel = document.getElementById("savedSel");
-const saveName = document.getElementById("saveName");
-const runsDir = navigator.storage?.getDirectory
-  ? await navigator.storage.getDirectory().then((root) => root.getDirectoryHandle("speedruns", { create: true })).catch(() => null)
-  : null;
-const fileOf = (name) => encodeURIComponent(name) + ".json";
-
-async function refreshSaved(select) {
-  if (!runsDir) return;
-  const names = [];
-  for await (const [file, h] of runsDir.entries())
-    if (h.kind === "file" && file.endsWith(".json")) names.push(decodeURIComponent(file.slice(0, -5)));
-  names.sort();
-  savedSel.replaceChildren(new Option("(none)", ""), ...names.map((n) => new Option(n, n)));
-  if (select && names.includes(select)) savedSel.value = select;
-}
-
-document.getElementById("saveBtn").addEventListener("click", async () => {
-  if (!runsDir) return showToast("OPFS not available in this browser");
-  const name = saveName.value.trim() || savedSel.value || `run ${new Date().toISOString().slice(0, 19).replace("T", " ")}`;
-  const fh = await runsDir.getFileHandle(fileOf(name), { create: true });
-  const w = await fh.createWritable();
-  await w.write(JSON.stringify({ x: Number(fpsSel.value), t: editor.value, savedAt: Date.now() }));
-  await w.close();
-  saveName.value = "";
-  await refreshSaved(name);
-  showToast(`Saved "${name}"`);
-});
-
 // Real files. The run is saved as the plain .ts script; playback settings ride
 // along in a first-line comment so Open restores them.
 const SETTINGS_RE = /^\/\/ speedrun-settings: (\{.*\})\n/;
@@ -1240,32 +1241,118 @@ fileInput.addEventListener("change", async () => {
   fileInput.value = "";
 });
 
-document.getElementById("loadBtn").addEventListener("click", async () => {
-  if (!runsDir || !savedSel.value) return;
-  const file = await (await runsDir.getFileHandle(fileOf(savedSel.value))).getFile();
-  const run = JSON.parse(await file.text());
-  if (run.x) fpsSel.value = String(run.x);
-  showScript(run.t);
-  runCurrent();
-  showToast(`Loaded "${savedSel.value}"`);
+// Export run / Import run: one gzipped file holding the run checker-worker.js
+// keeps in OPFS `current-run/` (see the header there). A JSON header line
+//   { format, version, script, x, checker, keyScript, labels, ended, frames, checkpoint }
+// is followed by `frames` raw frames, FRAME_BYTES each. The checkpoint is read
+// before the frames file, and a frame is written before the checkpoint that
+// counts it, so the file never holds a checkpoint past its last frame.
+// Reading works while the worker holds sync access handles on these files.
+const RUN_FILE = { format: "doomrun", version: 1 };
+const FRAME_BYTES = 320 * 200 * 4;
+const currentRunDir = async () => (await navigator.storage.getDirectory()).getDirectoryHandle("current-run", { create: true });
+const gzipBytes = (blob, mode) => new Response(blob.stream().pipeThrough(mode === "gzip" ? new CompressionStream("gzip") : new DecompressionStream("gzip")));
+
+async function exportRun() {
+  const dir = await currentRunDir();
+  const readFile = async (name) => (await dir.getFileHandle(name)).getFile();
+  const saved = JSON.parse(await (await readFile("meta.json").catch(() => null))?.text() ?? "null");
+  if (!saved) return showToast("Nothing to export yet: press Run first");
+  let checkpoint = null;
+  for (const i of [0, 1]) {
+    try {
+      const c = JSON.parse(await (await readFile(`${saved.files ?? saved.runId}-ckpt-${i}.json`)).text());
+      if (!checkpoint || c.seq > checkpoint.seq) checkpoint = c;
+    } catch { /* missing, or torn by a tab closed mid-write */ }
+  }
+  const ended = await readFile("end.json").then(() => true, () => false);
+  const all = await readFile(`${saved.files ?? saved.runId}-frames.rgba`).catch(() => null);
+  const n = all ? Math.floor(all.size / FRAME_BYTES) : 0;
+  const header = {
+    ...RUN_FILE,
+    script: saved.meta.t,
+    x: saved.meta.x,
+    checker: saved.checker,
+    keyScript: saved.keyScript,
+    labels: saved.meta.labels,
+    ended,
+    frames: n,
+    checkpoint,
+  };
+  const parts = [JSON.stringify(header) + "\n"];
+  if (n) parts.push(all.slice(0, n * FRAME_BYTES));
+  const blob = await gzipBytes(new Blob(parts), "gzip").blob();
+  const name = `doom-run-${n}-frames.doomrun`;
+  if (window.showSaveFilePicker) {
+    try {
+      const fh = await showSaveFilePicker({ suggestedName: name, types: [{ description: "Doom run", accept: { "application/octet-stream": [".doomrun"] } }] });
+      const w = await fh.createWritable();
+      await w.write(blob);
+      await w.close();
+      return showToast(`Exported ${fh.name}: ${n} frames`);
+    } catch (e) {
+      if (e.name === "AbortError") return;
+    }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  showToast(`Downloaded ${name}: ${n} frames`);
+}
+
+async function importRun(file) {
+  const bytes = new Uint8Array(await gzipBytes(file, "gunzip").arrayBuffer());
+  const nl = bytes.indexOf(10);
+  const header = JSON.parse(new TextDecoder().decode(bytes.subarray(0, nl)));
+  if (header.format !== RUN_FILE.format || header.version !== RUN_FILE.version) throw new Error("not an exported Doom run");
+  const frameBytes = bytes.subarray(nl + 1, nl + 1 + header.frames * FRAME_BYTES);
+  if (frameBytes.byteLength !== header.frames * FRAME_BYTES) throw new Error("the file is cut short");
+  // Stop the run on screen first: its worker writes into the same directory.
+  if (runStatus) archiveRun(runStatus === "checking" ? "stopped" : runStatus);
+  runStatus = undefined;
+  worker?.terminate();
+  worker = null;
+  checking = false;
+  // A fresh runId: files the terminated worker still holds open cannot be
+  // deleted, and must not be mistaken for this run's.
+  const runId = crypto.randomUUID();
+  const dir = await currentRunDir();
+  const names = [];
+  for await (const name of dir.keys()) names.push(name);
+  for (const name of names) await dir.removeEntry(name).catch(() => {});
+  const put = async (name, data) => {
+    const w = await (await dir.getFileHandle(name, { create: true })).createWritable();
+    await w.write(data);
+    await w.close();
+  };
+  await put(`${runId}-frames.rgba`, frameBytes);
+  if (header.checkpoint) await put(`${runId}-ckpt-0.json`, JSON.stringify(header.checkpoint));
+  if (header.ended) await put("end.json", "{}");
+  // meta.json last: restoreRun treats a directory without it as no run.
+  await put("meta.json", JSON.stringify({
+    runId,
+    meta: { t: header.script, x: header.x, labels: header.labels },
+    keyScript: header.keyScript,
+    checker: header.checker,
+  }));
+  history.replaceState(null, "", "#" + (await encodeHash({ x: header.x, t: header.script })));
+  showRestored(await restoreRun());
+  showToast(`Imported ${file.name}: ${header.frames} frames${header.ended ? "" : ", continuing the check"}`);
+}
+
+document.getElementById("exportBtn").addEventListener("click", () => exportRun().catch((e) => showToast(`Export failed: ${e.message}`)));
+const importInput = document.getElementById("importInput");
+document.getElementById("importBtn").addEventListener("click", () => importInput.click());
+importInput.addEventListener("change", async () => {
+  const f = importInput.files[0];
+  importInput.value = "";
+  if (f) await importRun(f).catch((e) => showToast(`Import failed: ${e.message}`));
 });
 
-document.getElementById("deleteBtn").addEventListener("click", async () => {
-  if (!runsDir || !savedSel.value) return;
-  const name = savedSel.value;
-  await runsDir.removeEntry(fileOf(name));
-  await refreshSaved();
-  showToast(`Deleted "${name}"`);
-});
-
-if (!runsDir) for (const id of ["saveBtn", "loadBtn", "deleteBtn"]) document.getElementById(id).disabled = true;
-await refreshSaved();
-
-const restored = await decodeHash(location.hash).catch(() => null);
-const hashText = restored && typeof restored.t === "string" ? restored.t : undefined;
-const run = await restoreRun(hashText);
-if (run) {
-  // A reload: show what was checked and continue the check where it stopped.
+// A run read back from OPFS by restoreRun (a reload, or Import run): show what
+// was checked and continue the check where it stopped.
+function showRestored(run) {
   fpsSel.value = String(run.x || 1);
   checkerSel.value = run.checker;
   // Runs saved by a checker the page no longer offers continue on tsrs (the worker falls back too).
@@ -1280,16 +1367,26 @@ if (run) {
     archived = `${runKey}:${frames.length}:finished`;
     progress = `done: ${frames.length} frames (saved run)`;
     scrub.max = String(Math.max(0, frames.length - 1));
+    cur = 0;
     playing = false;
     playBtn.textContent = "Play";
     drawFrame(0);
+    drawHud();
   } else {
     execute(null, run);
     if (frames.length) drawFrame(cur);
     // The saved labels may come from an older page; rebuild them from the memory writes.
     if (run.keyScript) { labels = labelsOf(run.keyScript); drawHud(); }
-    showToast(frames.length ? `Resuming: ${frames.length} frames already checked` : "Resuming the check");
   }
+}
+
+
+const restored = await decodeHash(location.hash).catch(() => null);
+const hashText = restored && typeof restored.t === "string" ? restored.t : undefined;
+const run = await restoreRun(hashText);
+if (run) {
+  showRestored(run);
+  if (!run.ended) showToast(run.frames.length ? `Resuming: ${run.frames.length} frames already checked` : "Resuming the check");
 } else if (hashText !== undefined) {
   if (restored.x) fpsSel.value = String(restored.x);
   showScript(restored.t);
