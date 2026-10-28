@@ -130,7 +130,7 @@ const w4Decode = (text: string): string => {
 /// passthrough alias (see the import rewrite) instead of a plain, non-generic
 /// one that would make `ToStr<A>` an error and collapse the result to `any`.
 const genericArity = (text: string, name: string): number => {
-  const at = new RegExp(`(?<![.\\w$])${name}<`).exec(text);
+  const at = new RegExp(`(?<![\\w$])(?<![^.]\\.)${name}<`).exec(text);
   if (!at) return 0;
   let depth = 1;
   let commas = 0;
@@ -802,8 +802,9 @@ export const run = async (
         const arity = genericArity(text, local);
         const params = Array.from({ length: arity }, (_, k) => `A${k}`);
         let used = false;
-        // not `Convert.WasmValue.ToTSNumber`: only the head of a qualified name
-        text = text.replace(new RegExp(`(?<![.\\w$])${local}\\b(\\.)?`, "g"), (_mm, dot: string | undefined) => {
+        // not `Convert.WasmValue.ToTSNumber`: only the head of a qualified name.
+        // A spread (`...WasmValue[]`) is a bare use: only a single `.` qualifies.
+        text = text.replace(new RegExp(`(?<![\\w$])(?<![^.]\\.)${local}\\b(\\.)?`, "g"), (_mm, dot: string | undefined) => {
           if (dot) return `import('${src}').${imported}.`;
           used = true;
           return alias;

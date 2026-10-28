@@ -49,13 +49,16 @@ if (platform === "browser") {
   writeFileSync(out + "data/doom-keys.cfg.ts.gz", gzipSync(readFileSync(pg + "doom/doom-keys.cfg.ts"), { level: 9 }));
   copyFileSync(pg + "doom/.live/menu-boot.json", out + "data/menu-boot.json");
   const lib = { "/p/global.d.ts": readFileSync(repo + "global.d.ts", "utf8") };
+  // ts-type-math goes in as declaration files: under skipLibCheck the checker
+  // then never checks them, and tsgo parses their type literals lazily.
+  // Imports like `./add` resolve to `add.d.ts` the same way.
   const ttm = pg + "../ts-type-math";
   const walk = (d) => {
     for (const n of readdirSync(d)) {
       const p = join(d, n);
       if (n === "node_modules" || n === "tests" || n === "test-cases") continue;
       if (statSync(p).isDirectory()) walk(p);
-      else if (/\.ts$/.test(n) && !/\.test\.ts$/.test(n)) lib["/p/ttm/" + relative(ttm, p)] = readFileSync(p, "utf8");
+      else if (/\.ts$/.test(n) && !/\.test\.ts$/.test(n)) lib["/p/ttm/" + relative(ttm, p).replace(/(?<!\.d)\.ts$/, ".d.ts")] = readFileSync(p, "utf8");
     }
   };
   walk(ttm);
