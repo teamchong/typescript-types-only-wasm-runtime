@@ -1,10 +1,10 @@
 // Runs Doom in the TypeScript type checker: cfg/drive.ts (bundled as run.browser.js)
 // walks doom-keys.cfg.ts chunk by chunk, and every chunk is type-checked by a
-// TypeScript checker compiled to WebAssembly: tsrs or tsgo. Nothing here
+// TypeScript checker compiled to WebAssembly: tsgo-teamchong, tsgo or tsrs. Nothing here
 // executes doom.wasm: each frame is read out of the memory the checker's types
 // evaluated to.
 //
-// in:  { runId, keyScript, checker: "tsrs" | "ts7", meta }   a new run: one held-key list per frame
+// in:  { runId, keyScript, checker: "teamchong" | "ts7" | "tsrs", meta }   a new run: one held-key list per frame
 //      { ..., continue: true }    the same, but keep the frames of the saved run up to
 //                                 where its key script stops matching this one
 //      { resume: true }           continue the run saved in OPFS
@@ -16,10 +16,12 @@
 import { start, moduleShape, rgbaFrom } from "./run.browser.js";
 import * as tsrs from "./tsrs/browser.js";
 import * as tsgo from "./tsgo/tsgo.js";
+import * as teamchong from "./tsgo/teamchong.js";
 
 const CHECKERS = {
-  tsrs: { label: "tsrs", load: () => tsrs.loadModule(new URL("./tsrs/tsrs.wasm", import.meta.url)), tsc: (args, o) => tsrs.tsc(args, { ...o, stackSizeMb: 1024 }) },
+  teamchong: { label: "tsgo-teamchong", load: () => teamchong.loadModule(), tsc: (args, o) => teamchong.tsc(args, o) },
   ts7: { label: "tsgo", load: () => tsgo.loadModule(), tsc: (args, o) => tsgo.tsc(args, o) },
+  tsrs: { label: "tsrs", load: () => tsrs.loadModule(new URL("./tsrs/tsrs.wasm", import.meta.url)), tsc: (args, o) => tsrs.tsc(args, { ...o, stackSizeMb: 1024 }) },
 };
 
 const post = (m, transfer) => self.postMessage(m, transfer ?? []);
@@ -245,7 +247,7 @@ self.onmessage = async ({ data }) => {
       await writeFile("end.json", "{}");
       return post({ kind: "end", result: { chunks: 0, ms: 0 } });
     }
-    const checker = CHECKERS[checkerName] ?? CHECKERS.tsrs;
+    const checker = CHECKERS[checkerName] ?? CHECKERS.teamchong;
     const a = await load();
     post({ kind: "status", text: `fetching ${checker.label}` });
     await checker.load();

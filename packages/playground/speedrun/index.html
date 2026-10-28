@@ -246,8 +246,9 @@
       </label>
       <label class="meta" title="Which TypeScript type checker, compiled to WebAssembly, runs your script">Checker
         <select id="checkerSel">
-          <option value="tsrs" selected>tsrs</option>
+          <option value="teamchong" selected>tsgo-teamchong (TS7.1 with checker speedups, TinyGo build)</option>
           <option value="ts7">tsgo (TS7.1, Go build)</option>
+          <option value="tsrs">tsrs</option>
         </select>
       </label>
       <button id="runBtn" class="primary" title="Check the script. Frames from the last run stay up to the first tic the edit changes; checking continues from there.">Run</button>
@@ -633,7 +634,7 @@ const maskOf = (keys) => keys.reduce((m, k) => {
 }, 0x5a100000) >>> 0;
 
 // Doom runs in the TypeScript type checker: checker-worker.js hands the script
-// to cfg/drive.ts, which resumes from the skill-menu checkpoint and has tsrs
+// to cfg/drive.ts, which resumes from the skill-menu checkpoint and has the chosen checker
 // (compiled to WebAssembly) check doom-keys.cfg.ts chunk by chunk. A frame
 // lands once the checker has evaluated that tic's `entry` call to completion.
 const hud = document.getElementById("hud");
@@ -1355,8 +1356,8 @@ importInput.addEventListener("change", async () => {
 function showRestored(run) {
   fpsSel.value = String(run.x || 1);
   checkerSel.value = run.checker;
-  // Runs saved by a checker the page no longer offers continue on tsrs (the worker falls back too).
-  if (!checkerSel.value) checkerSel.value = "tsrs";
+  // Runs saved by a checker the page no longer offers continue on tsgo-teamchong (the worker falls back too).
+  if (!checkerSel.value) checkerSel.value = "teamchong";
   showScript(run.t);
   if (run.ended) {
     frames = run.frames;
