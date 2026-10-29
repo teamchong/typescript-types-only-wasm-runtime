@@ -106,7 +106,7 @@ const readBound = async (files, [at, len]) => {
 
 // Frames where both scripts reach the same VM state: identical keys, active
 // demo ticcmd, non-demo pokes, and demo buffer contents at frame end.
-const DEMO_P = 3272296;
+const isDemoP = (addr) => addr === 4408264 || addr === 3272296;
 const DEMO_END = 128;
 const sameMap = (a, b) => {
   if (a.size !== b.size) return false;
@@ -119,9 +119,11 @@ const alignedFrames = (a, b) => {
   const out = new Array(n).fill(false);
   let curA, curB;
   const step = (entry, mem, cur) => {
+    const keys = Array.isArray(entry) ? entry : (entry?.keys ?? []);
+    const pokes = Array.isArray(entry) ? [] : (entry?.poke ?? []);
     const other = [];
-    for (const [addr, w] of entry.poke ?? []) {
-      if (addr === DEMO_P) cur = w;
+    for (const [addr, w] of pokes) {
+      if (isDemoP(addr)) cur = w;
       else if (addr < 65536) mem.set(addr, w);
       else other.push([addr, w]);
     }
@@ -131,7 +133,7 @@ const alignedFrames = (a, b) => {
       if (w === undefined || w === DEMO_END) cur = undefined;
       else { tic = w; cur += 4; }
     }
-    return { cur, sig: JSON.stringify([entry.keys, tic, other]) };
+    return { cur, sig: JSON.stringify([keys, tic, other]) };
   };
   for (let i = 0; i < n; i++) {
     const sa = step(a[i], memA, curA);
@@ -232,6 +234,7 @@ self.onmessage = async ({ data }) => {
     let seq = 0;
     let kept = 0;
     let boundsIndex = [];
+    let baseMs = 0;
     if (data.resume) {
       const saved = JSON.parse((await readText("meta.json")) ?? "null");
       if (!saved) throw new Error("no saved run to resume");
@@ -241,6 +244,7 @@ self.onmessage = async ({ data }) => {
       if (ckpt) ({ seq, point: resume } = ckpt);
       boundsIndex = await readBoundsIndex(files);
       kept = resume ? (resume.scriptFrame ?? 0) + (resume.done ? 1 : 0) : 0;
+      baseMs = resume?.elapsedMs ?? (saved.meta?.startedAt ? Math.max(0, Date.now() - saved.meta.startedAt) : 0);
     } else {
       const saved = data.continue ? JSON.parse((await readText("meta.json")) ?? "null") : null;
       if (saved && Array.isArray(saved.keyScript)) {
@@ -263,6 +267,7 @@ self.onmessage = async ({ data }) => {
         if (resume) {
           files = old;
           kept = f + 1;
+          baseMs = resume.elapsedMs ?? (saved.meta?.startedAt ? Math.max(0, Date.now() - saved.meta.startedAt) : 0);
         }
       }
       await clearRun(resume ? files : null);
@@ -270,13 +275,13 @@ self.onmessage = async ({ data }) => {
     }
     await openStore(files, kept, boundsIndex);
     if (!data.resume) {
-      post({ kind: "kept", frames: kept });
+      post({ kind: "kept", frames: kept, elapsedMs: baseMs });
       // a reload now resumes from the kept frame's end, not from where the old run was
       if (resume) seq = Math.max(seq, (await readCheckpoint(files))?.seq ?? 0), saveCheckpoint(++seq, resume);
     }
     if (resume?.done && kept >= keyScript.length) {
-      await writeFile("end.json", "{}");
-      return post({ kind: "end", result: { chunks: 0, ms: 0 } });
+      await writeFile("end.json", JSON.stringify({ ms: Math.round(baseMs) }));
+      return post({ kind: "end", result: { chunks: 0, ms: baseMs } });
     }
     const checker = CHECKERS[checkerName] ?? CHECKERS.teamchong;
     const a = await load();
@@ -294,7 +299,8 @@ self.onmessage = async ({ data }) => {
       fuel: 12288,
       onCheckpoint: (p, path) => {
         if (path.endsWith(".final")) return;
-        const ms = performance.now() - t0;
+        const ms = baseMs + (performance.now() - t0);
+        p.elapsedMs = Math.round(ms);
         // mid-frame the screen is in a buffer `entry` has not returned yet
         if (p.scriptFrame !== undefined) index = p.scriptFrame;
         if (!p.done) {
@@ -310,9 +316,10 @@ self.onmessage = async ({ data }) => {
       onLog: (t) => post({ kind: "log", text: t }),
       onCheck: (ms, n) => post({ kind: "status", text: `tsc ${ms.toFixed(0)} ms, ${n} probes` }),
     });
+    const totalMs = baseMs + (performance.now() - t0);
     // A failed run is not finished: leave end.json out so a reload retries from the checkpoint.
-    if (!result.failed) await writeFile("end.json", "{}");
-    post({ kind: "end", result: { chunks: result.chunks, failed: result.failed, ms: performance.now() - t0 } });
+    if (!result.failed) await writeFile("end.json", JSON.stringify({ ms: Math.round(totalMs) }));
+    post({ kind: "end", result: { chunks: result.chunks, failed: result.failed, ms: totalMs } });
   } catch (e) {
     post({ kind: "error", text: String(e?.stack ?? e) });
   }

@@ -674,6 +674,22 @@ document.getElementById("recSel").addEventListener("change", (e) => {
 });
 
 const checkerSel = document.getElementById("checkerSel");
+try {
+  const lastChecker = localStorage.getItem("doom-checker");
+  if (lastChecker && [...checkerSel.options].some((o) => o.value === lastChecker)) checkerSel.value = lastChecker;
+} catch {}
+checkerSel.addEventListener("change", () => {
+  try { localStorage.setItem("doom-checker", checkerSel.value); } catch {}
+});
+
+// Upgrades unmodified pre-cd525bd TAS scripts (which had `setDemoTic: [272, ...]`
+// before `extendDemo` folded it in) so "Start from" stays on the TAS preset.
+function normalizeScriptText(text) {
+  if (typeof text === "string" && text.includes("// Based on: almostmatt1's E1M1 0:07.69 UV-Speed TAS") && text.includes("{ setDemoTic: [272, { use: true }] }")) {
+    return presetText("tas");
+  }
+  return text;
+}
 
 // The run checker-worker.js saves to OPFS as it goes (see its header). Returns
 // null when there is none, or when the page was opened for a different script.
@@ -682,15 +698,26 @@ async function restoreRun(wantText) {
     const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle("current-run");
     const read = async (name) => (await (await dir.getFileHandle(name)).getFile());
     const saved = JSON.parse(await (await read("meta.json")).text());
-    if (wantText !== undefined && wantText !== saved.meta.t) return null;
+    const savedText = normalizeScriptText(saved.meta.t);
+    if (wantText !== undefined && normalizeScriptText(wantText) !== savedText) return null;
     // frame n at n * FRAME_BYTES; a torn last frame is dropped and checked again
     const FRAME_BYTES = 320 * 200 * 4;
-    const all = await (await read(`${saved.files ?? saved.runId}-frames.rgba`).catch(() => null))?.arrayBuffer();
+    const files = saved.files ?? saved.runId;
+    const all = await (await read(`${files}-frames.rgba`).catch(() => null))?.arrayBuffer();
     const restoredFrames = [];
     for (let at = 0; all && at + FRAME_BYTES <= all.byteLength; at += FRAME_BYTES)
       restoredFrames.push(new Uint32Array(all.slice(at, at + FRAME_BYTES)));
-    const ended = await read("end.json").then(() => true, () => false);
-    return { ...saved.meta, runId: saved.runId, checker: saved.checker, keyScript: saved.keyScript, frames: restoredFrames, ended };
+    let ckpt = null;
+    for (const i of [0, 1]) {
+      try {
+        const c = JSON.parse(await (await read(`${files}-ckpt-${i}.json`)).text());
+        if (!ckpt || c.seq > ckpt.seq) ckpt = c;
+      } catch {}
+    }
+    const endObj = await read("end.json").then(async (f) => { try { return JSON.parse(await f.text()); } catch { return {}; } }, () => null);
+    const ended = endObj !== null;
+    const elapsedMs = endObj?.ms ?? ckpt?.point?.elapsedMs ?? (saved.meta.startedAt ? Math.max(0, Date.now() - saved.meta.startedAt) : 0);
+    return { ...saved.meta, t: savedText, runId: saved.runId, checker: saved.checker, keyScript: saved.keyScript, frames: restoredFrames, ended, elapsedMs };
   } catch {
     return null;
   }
@@ -846,7 +873,8 @@ function execute(script, saved) {
   if (runStatus) archiveRun(runStatus === "checking" ? "stopped" : runStatus);
   worker?.terminate();
   runKey = saved?.runId ?? crypto.randomUUID();
-  runInfo = { t: saved?.t ?? editor.value, checker: saved?.checker ?? checkerSel.value, startedAt: Date.now() };
+  const startedAt = saved?.startedAt ?? Date.now();
+  runInfo = { t: saved?.t ?? editor.value, checker: saved?.checker ?? checkerSel.value, startedAt };
   runStatus = "checking";
   // A new run keeps showing the old frames until the worker says how many it kept.
   const oldFrames = frames;
@@ -856,7 +884,7 @@ function execute(script, saved) {
   cur = saved ? Math.max(0, frames.length - 1) : cur;
   checking = true;
   progress = saved ? "resuming" : "loading the checker";
-  runT0 = performance.now();
+  runT0 = performance.now() - (saved?.elapsedMs ?? 0);
   scrub.max = String(Math.max(0, frames.length - 1));
   worker = new Worker("checker-worker.js", { type: "module" });
   worker.onmessage = ({ data: m }) => {
@@ -877,6 +905,7 @@ function execute(script, saved) {
       }
       cur = Math.min(cur, Math.max(0, frames.length - 1));
       scrub.max = String(Math.max(0, frames.length - 1));
+      runT0 = performance.now() - (m.frames ? (m.elapsedMs ?? 0) : 0);
       progress = m.frames ? `continuing after frame ${m.frames}` : "type-checking chunk 1";
       if (m.frames) drawFrame(frames.length - 1);
       else {
@@ -920,7 +949,7 @@ function execute(script, saved) {
     runId: runKey,
     checker: checkerSel.value,
     keyScript: script.map((st) => (st.poke ? { keys: st.keys, poke: st.poke } : st.keys)),
-    meta: { t: editor.value, x: Number(fpsSel.value), labels },
+    meta: { t: editor.value, x: Number(fpsSel.value), labels, startedAt },
     continue: true,
   });
 }
@@ -1044,6 +1073,13 @@ setInterval(() => { if (checking) drawHud(); }, 1000);
 
 async function runCurrent() {
   try {
+    try { localStorage.setItem("doom-checker", checkerSel.value); } catch {}
+    if (location.hash) {
+      const h = await decodeHash(location.hash).catch(() => null);
+      if (!h || normalizeScriptText(h.t) !== normalizeScriptText(editor.value)) {
+        history.replaceState(null, "", location.pathname + location.search);
+      }
+    }
     hud.textContent = "resolving type Inputs…";
     const script = await evalScript();
     if (!script.length) { showToast("Script is empty"); return; }
@@ -1074,6 +1110,7 @@ function loadPreset(name) {
 // Restored text (reload, share link, saved run, file) that is a preset, byte for
 // byte, keeps the preset selected; anything else is "Your edits".
 function showScript(text) {
+  text = normalizeScriptText(text);
   editor.value = text;
   const name = [...presetSel.options].map((o) => o.value).find((v) => v !== "custom" && presetText(v) === text);
   presetSel.value = name ?? "custom";
@@ -1364,15 +1401,16 @@ function showRestored(run) {
   checkerSel.value = run.checker;
   // Runs saved by a checker the page no longer offers continue on tsgo-teamchong (the worker falls back too).
   if (!checkerSel.value) checkerSel.value = "teamchong";
+  try { localStorage.setItem("doom-checker", checkerSel.value); } catch {}
   showScript(run.t);
   if (run.ended) {
     frames = run.frames;
     labels = run.keyScript ? labelsOf(run.keyScript) : run.labels;
     runKey = run.runId;
-    runInfo = { t: run.t, checker: run.checker, startedAt: Date.now() };
+    runInfo = { t: run.t, checker: run.checker, startedAt: run.startedAt ?? Date.now() };
     runStatus = "finished";
     archived = `${runKey}:${frames.length}:finished`;
-    progress = `done: ${frames.length} frames (saved run)`;
+    progress = `done: ${frames.length} frames${run.elapsedMs ? ` in ${fmtTime(run.elapsedMs)}` : ""} (saved run)`;
     scrub.max = String(Math.max(0, frames.length - 1));
     cur = 0;
     playing = false;
