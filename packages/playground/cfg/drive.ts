@@ -761,10 +761,46 @@ export const run = async (
     // declaration exists for the host, which parses it out of the .cfg.ts
     // itself (see `initialMemory` and render-frame). Handing it to the checker
     // costs a parse and a bind of 39MB on every compiler instance for nothing.
-    const withoutInitial = process.env.KEEP_INITIAL ? moduleText : moduleText.replace(
+    const oldBlit = `type $Blit8<M extends $Node, D extends WasmValue, S extends WasmValue, C extends WasmValue, DS extends WasmValue, SS extends WasmValue> =
+  C extends '00000000000000000000000000000000'
+  ? M
+  : C extends \`00000000000000000000000\${string}\`
+  ? ($Store8<M, D, $Load8U<M, S>> extends infer M2 extends $Node
+    ? $Blit8<M2, Wasm.I32Add<D, DS>, Wasm.I32Add<S, SS>, Wasm.I32Sub<C, '00000000000000000000000000000001'>, DS, SS>
+    : never)
+  : $BlitH<C> extends infer H extends WasmValue
+    ? $Blit8<M, D, S, H, DS, SS> extends infer M2 extends $Node
+      ? $Blit8<M2, Wasm.I32Add<D, Wasm.I32Mul<H, DS>>, Wasm.I32Add<S, Wasm.I32Mul<H, SS>>, Wasm.I32Sub<C, H>, DS, SS>
+      : never
+    : never`;
+    const newBlit = `type $Blit8<M extends $Node, D extends WasmValue, S extends WasmValue, C extends WasmValue, DS extends WasmValue, SS extends WasmValue> =
+  C extends '00000000000000000000000000000000'
+  ? M
+  : C extends \`00000000000000000000000\${string}\`
+  ? (DS extends '00000000000000000000000000000001'
+    ? (SS extends '00000000000000000000000000000001'
+      ? (C extends \`\${string}00\`
+        ? (D extends \`\${string}00\`
+          ? (S extends \`\${string}00\`
+            ? ($Write<M, D, $Read<M, S>> extends infer M2 extends $Node
+              ? $Blit8<M2, Wasm.I32Add<D, '00000000000000000000000000000100'>, Wasm.I32Add<S, '00000000000000000000000000000100'>, Wasm.I32Sub<C, '00000000000000000000000000000100'>, DS, SS>
+              : never)
+            : ($Store8<M, D, $Load8U<M, S>> extends infer M2 extends $Node ? $Blit8<M2, Wasm.I32Add<D, DS>, Wasm.I32Add<S, SS>, Wasm.I32Sub<C, '00000000000000000000000000000001'>, DS, SS> : never))
+          : ($Store8<M, D, $Load8U<M, S>> extends infer M2 extends $Node ? $Blit8<M2, Wasm.I32Add<D, DS>, Wasm.I32Add<S, SS>, Wasm.I32Sub<C, '00000000000000000000000000000001'>, DS, SS> : never))
+        : ($Store8<M, D, $Load8U<M, S>> extends infer M2 extends $Node ? $Blit8<M2, Wasm.I32Add<D, DS>, Wasm.I32Add<S, SS>, Wasm.I32Sub<C, '00000000000000000000000000000001'>, DS, SS> : never))
+      : ($Store8<M, D, $Load8U<M, S>> extends infer M2 extends $Node ? $Blit8<M2, Wasm.I32Add<D, DS>, Wasm.I32Add<S, SS>, Wasm.I32Sub<C, '00000000000000000000000000000001'>, DS, SS> : never))
+    : ($Store8<M, D, $Load8U<M, S>> extends infer M2 extends $Node ? $Blit8<M2, Wasm.I32Add<D, DS>, Wasm.I32Add<S, SS>, Wasm.I32Sub<C, '00000000000000000000000000000001'>, DS, SS> : never))
+  : $BlitH<C> extends infer H extends WasmValue
+    ? $Blit8<M, D, S, H, DS, SS> extends infer M2 extends $Node
+      ? $Blit8<M2, Wasm.I32Add<D, Wasm.I32Mul<H, DS>>, Wasm.I32Add<S, Wasm.I32Mul<H, SS>>, Wasm.I32Sub<C, H>, DS, SS>
+      : never
+    : never`;
+    const withoutInitial = (process.env.KEEP_INITIAL ? moduleText : moduleText.replace(
       /^type \$InitialMemory = [^\n]*\n/m,
       "type $InitialMemory = $Absent\n",
-    );
+    ))
+      .replace(oldBlit, newBlit)
+      .replace("${c28}${c29}${c30}` : never", "${c28}00` : never");
     // The string module has one import (`from 'ts-type-math'`, bare names); the
     // Word4 module has two (`Convert` from the package, and the byte-tuple
     // helpers from the `/word4` subpath, some `X as Y` aliased and one a

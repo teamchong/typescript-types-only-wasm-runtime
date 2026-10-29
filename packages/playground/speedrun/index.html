@@ -558,7 +558,7 @@ function demoPokes(st, demoLen, i) {
   return { len: demoLen, poke: [[DEMO_AT + 4 * n, ticWord(move)]] };
 }
 
-const SCRIPT_URI = "file:///inputs.ts";
+const SCRIPT_URI = "inmemory://model/inputs.ts";
 let editorModel;
 async function evalScript() {
   const getWorker = await monaco.languages.typescript.getTypeScriptWorker();
@@ -943,14 +943,19 @@ await new Promise((resolve) => {
       `self.MonacoEnvironment = { baseUrl: "${base}" }; importScripts("${base}vs/base/worker/workerMain.js");`,
     ], { type: "text/javascript" })),
   };
-  require.config({ paths: { vs: base + "vs" } });
+  require.config({ baseUrl: base, paths: { vs: base + "vs" } });
   require(["vs/editor/editor.main"], resolve);
+});
+monaco.editor.registerLinkOpener({
+  open(resource) {
+    return resource.scheme !== "http" && resource.scheme !== "https";
+  },
 });
 const tsDefaults = monaco.languages.typescript.typescriptDefaults;
 tsDefaults.setCompilerOptions({ target: monaco.languages.typescript.ScriptTarget.ES2020, strict: true, noEmit: true });
 tsDefaults.setWorkerOptions({ customWorkerPath: new URL(`ts-eval-worker.js?${Date.now()}`, location.href).href });
 tsDefaults.setEagerModelSync(true);
-tsDefaults.addExtraLib(PRELUDE, "file:///doom-inputs.d.ts");
+tsDefaults.addExtraLib(PRELUDE, "inmemory://model/doom-inputs.d.ts");
 editorModel = monaco.editor.createModel("", "typescript", monaco.Uri.parse(SCRIPT_URI));
 const monacoEditor = monaco.editor.create(document.getElementById("editor"), {
   model: editorModel, theme: "vs-dark", automaticLayout: true, minimap: { enabled: false },
@@ -1117,6 +1122,7 @@ presetSel.addEventListener("change", () => {
 editorModel.onDidChangeContent(() => { if (!settingEditor) { presetSel.value = "custom"; editorEdited = true; } });
 document.getElementById("runBtn").addEventListener("click", runCurrent);
 playBtn.addEventListener("click", () => {
+  if (!playing && cur >= frames.length - 1) drawFrame(0);
   playing = !playing;
   playBtn.textContent = playing ? "Pause" : "Play";
 });

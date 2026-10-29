@@ -104,13 +104,44 @@ const readBound = async (files, [at, len]) => {
   return JSON.parse(await file.slice(at, at + len).text());
 };
 
-// The last frame both scripts produce the same way: frame n depends only on
-// key-script entries 0 to n. -1 when the first entry already differs.
-const lastAlignedFrame = (a, b) => {
+// Frames where both scripts reach the same VM state: identical keys, active
+// demo ticcmd, non-demo pokes, and demo buffer contents at frame end.
+const DEMO_P = 3272296;
+const DEMO_END = 128;
+const sameMap = (a, b) => {
+  if (a.size !== b.size) return false;
+  for (const [k, v] of a) if (b.get(k) !== v) return false;
+  return true;
+};
+const alignedFrames = (a, b) => {
   const n = Math.min(a.length, b.length);
-  let i = 0;
-  while (i < n && JSON.stringify(a[i]) === JSON.stringify(b[i])) i++;
-  return i - 1;
+  const memA = new Map(), memB = new Map();
+  const out = new Array(n).fill(false);
+  let curA, curB;
+  const step = (entry, mem, cur) => {
+    const other = [];
+    for (const [addr, w] of entry.poke ?? []) {
+      if (addr === DEMO_P) cur = w;
+      else if (addr < 65536) mem.set(addr, w);
+      else other.push([addr, w]);
+    }
+    let tic;
+    if (cur !== undefined) {
+      const w = mem.get(cur);
+      if (w === undefined || w === DEMO_END) cur = undefined;
+      else { tic = w; cur += 4; }
+    }
+    return { cur, sig: JSON.stringify([entry.keys, tic, other]) };
+  };
+  for (let i = 0; i < n; i++) {
+    const sa = step(a[i], memA, curA);
+    const sb = step(b[i], memB, curB);
+    curA = sa.cur;
+    curB = sb.cur;
+    if (sa.sig !== sb.sig || curA !== curB) break;
+    out[i] = sameMap(memA, memB);
+  }
+  return out;
 };
 
 const readCheckpoint = async (runId) => {
@@ -212,20 +243,20 @@ self.onmessage = async ({ data }) => {
       kept = resume ? (resume.scriptFrame ?? 0) + (resume.done ? 1 : 0) : 0;
     } else {
       const saved = data.continue ? JSON.parse((await readText("meta.json")) ?? "null") : null;
-      if (saved && saved.checker === checkerName) {
+      if (saved && Array.isArray(saved.keyScript)) {
         const old = saved.files ?? saved.runId;
         boundsIndex = await readBoundsIndex(old);
         // The newest frame end the two scripts agree on and a checkpoint was
         // saved for. An imported run has no bounds, only its latest checkpoint.
-        const aligned = lastAlignedFrame(saved.keyScript, keyScript);
-        let f = Math.min(aligned, boundsIndex.length - 1);
-        while (f >= 0 && !boundsIndex[f]) f--;
+        const aligned = alignedFrames(saved.keyScript, keyScript);
+        let f = Math.min(aligned.length - 1, boundsIndex.length - 1);
+        while (f >= 0 && (!boundsIndex[f] || !aligned[f])) f--;
         // The latest checkpoint wins while its frame is still aligned, even
         // mid-frame: that frame's keys are unchanged, so its chunks carry over.
         const latest = (await readCheckpoint(old))?.point;
         const latestAt = latest ? latest.scriptFrame ?? 0 : -1;
         const latestKept = latest ? latestAt + (latest.done ? 1 : 0) : 0;
-        if (latest && latestAt <= aligned && latestKept >= f + 1) {
+        if (latest && aligned[latestAt] && latestKept >= f + 1) {
           resume = latest;
           f = latestKept - 1;
         } else if (f >= 0) resume = await readBound(old, boundsIndex[f]);
