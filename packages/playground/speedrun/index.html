@@ -156,10 +156,15 @@
     gap: 8px;
     font-size: 12px;
     line-height: 1.35;
+    min-width: 0;
   }
   .live-banner-top strong {
     color: #fff;
     letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
   }
   .live-badge {
     margin-left: auto;
@@ -388,11 +393,11 @@
     <div id="liveBanner" class="live-banner" role="status" aria-live="polite">
       <div class="live-banner-top">
         <span id="recDot" class="rec-dot"></span>
-        <strong id="liveTitle">RECORDING FRAME 1 OF 277 IN THE TYPESCRIPT TYPE CHECKER...</strong>
-        <span id="liveBadge" class="live-badge">Chunk 1 / ~71 &middot; 0s</span>
+        <strong id="liveTitle">RECORDING FRAME 1 / 277 IN TYPESCRIPT...</strong>
+        <span id="liveBadge" class="live-badge">Chunk 1/~71 &middot; 0s</span>
       </div>
       <div id="liveSub" class="live-sub">
-        <span id="liveSubText">We are live type-checking Doom in your browser &mdash; this takes a while (~20&ndash;30s per frame across ~35&ndash;70 type-check chunks; hours for all 277 frames). Keep this tab open; frames appear below and auto-save as they finish.</span>
+        <span id="liveSubText">Live type-checking Doom (~20&ndash;30s per frame, ~35&ndash;70 chunks). Keep this tab open; frames auto-save as they finish.</span>
         <button type="button" class="inline-link" id="bannerWatchBtn">Watch 1000&times; pre-recorded run &rarr;</button>
       </div>
       <div class="live-bar" title="Overall run progress across all frames"><div id="liveBarFill" class="live-bar-fill" style="width:0%"></div></div>
@@ -1581,19 +1586,22 @@ function updateLiveStatus(elapsed) {
   liveBarFill.style.width = `${runPct.toFixed(2)}%`;
   overlayBarFill.style.width = `${frame1Pct}%`;
   if (checking) {
-    const chunkDesc = stageText
-      ? stageText
-      : curChunk > 0
-        ? `Chunk ${curChunk} / ~${targetChunks}${lastTscText ? ` (${lastTscText})` : ""}`
-        : `Checking chunk 1 / ~${targetChunks}${lastTscText ? ` (${lastTscText})` : ""}`;
-    liveBadge.textContent = `${chunkDesc}${elapsed ? ` · ${elapsed}` : ""}`;
-    if (frames.length === 0) {
-      liveTitle.textContent = `RECORDING FRAME 1 OF ${total} IN THE TYPESCRIPT TYPE CHECKER...`;
-      liveSubText.textContent = `We are live type-checking Doom in your browser — this takes a while (~20–30s per frame across ~35–70 type-check chunks; hours for all ${total} frames). Keep this tab open; frames appear below and auto-save as they finish.`;
-    } else {
-      liveTitle.textContent = `RECORDING FRAME ${nextFrame} OF ${total} IN BACKGROUND (${frames.length} ${frames.length === 1 ? "FRAME" : "FRAMES"} READY)`;
-      liveSubText.textContent = `${frames.length} ${frames.length === 1 ? "frame is" : "frames are"} on screen below! You can Play, Step, or Scrub now while ${checkerLabel} continues recording the rest of the run (auto-saved to this browser).`;
-    }
+      const chunkDesc = stageText
+        ? stageText
+        : curChunk > 0
+          ? `Chunk ${curChunk}/${targetChunks}${lastTscText ? ` (${lastTscText})` : ""}`
+          : `Chunk 1/~${targetChunks}`;
+      const badgeDesc = stageText
+        ? stageText
+        : `Chunk ${curChunk || 1}/~${targetChunks}`;
+      liveBadge.textContent = `${badgeDesc}${elapsed ? ` · ${elapsed}` : ""}`;
+      if (frames.length === 0) {
+        liveTitle.textContent = `RECORDING FRAME 1 / ${total} IN TYPESCRIPT...`;
+        liveSubText.textContent = `Live type-checking Doom (~20–30s per frame, ~35–70 chunks). Keep this tab open; frames auto-save as they finish.`;
+      } else {
+        liveTitle.textContent = `RECORDING FRAME ${nextFrame} / ${total} (${frames.length} READY)`;
+        liveSubText.textContent = `${frames.length} ${frames.length === 1 ? "frame" : "frames"} ready below — Play, Step, or Scrub while ${checkerLabel} records the rest in background.`;
+      }
     overlayPillText.textContent = "LIVE TYPE-CHECK RECORDING IN PROGRESS — THIS TAKES A WHILE";
     overlayTitle.textContent = `TypeScript (${checkerLabel}) is compiling Frame 1 of ${total}...`;
     overlaySub.textContent = `${chunkDesc}${elapsed ? ` · ${elapsed} elapsed` : ""}${labels[0] ? ` · tic 1 input: ${labels[0]}` : ""}`;
