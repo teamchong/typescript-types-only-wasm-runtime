@@ -1163,6 +1163,7 @@ function execute(script, saved) {
   labels = saved?.labels ?? script.map((st) => st.label);
   cur = saved ? Math.max(0, frames.length - 1) : cur;
   checking = true;
+  if (typeof doomAudio !== "undefined") doomAudio.syncBgm();
   progress = saved ? "resuming" : "loading the checker";
   curChunk = 0;
   estChunks = 71;
@@ -1364,9 +1365,10 @@ const doomAudio = (() => {
     if (!soundChk.checked && !recordingVideo) return false;
     if (recordingVideo || past.playing) return true;
     if (!document.getElementById("playbackTab")?.hidden) return false;
-    return playing && (checking || frames.length > 0);
+    if (playing && (checking || frames.length > 0)) return true;
+    if (checking && (frames.length === 0 || cur >= frames.length - 1)) return true;
+    return false;
   }
-
   function startBgmNode() {
     if (bgmPlaying || !bgmBuffer || !actx) return;
     const src = actx.createBufferSource();
@@ -1452,8 +1454,8 @@ soundChk.addEventListener("change", () => {
   doomAudio.unlock();
 });
 loopChk.addEventListener("change", () => doomAudio.syncBgm());
-for (const ev of ["pointerdown", "keydown"]) {
-  document.addEventListener(ev, () => { if (soundChk.checked) doomAudio.unlock(); }, { passive: true });
+for (const ev of ["pointerdown", "keydown", "wheel", "touchstart"]) {
+  window.addEventListener(ev, () => { if (soundChk.checked) doomAudio.unlock(); }, { passive: true });
 }
 await new Promise((resolve) => {
   const base = new URL("monaco/", location.href).href;
@@ -1625,7 +1627,7 @@ timeline.addEventListener("wheel", stopFollow, { passive: true });
 timeline.addEventListener("touchmove", stopFollow, { passive: true });
 timeline.addEventListener("keydown", stopFollow);
 timeline.addEventListener("pointerdown", (e) => { if (e.target === timeline) stopFollow(); }); // scrollbar drag
-followBtn.addEventListener("click", () => { tlFollow = true; followBtn.hidden = true; drawTimeline(); });
+followBtn.addEventListener("click", () => { tlFollow = true; followBtn.hidden = true; if (frames.length) drawFrame(frames.length - 1); drawTimeline(); doomAudio.syncBgm(); });
 timeline.addEventListener("click", (e) => {
   const li = e.target.closest("li");
   if (!li || Number(li.dataset.i) >= frames.length) return;
@@ -1644,7 +1646,7 @@ function drawFrame(idx) {
   frameLabel.textContent = `${cur + 1} / ${frames.length}`;
   drawHud();
 }
-setInterval(() => { if (checking) drawHud(); }, 1000);
+setInterval(() => { if (checking) { drawHud(); doomAudio.syncBgm(); } }, 1000);
 
 async function runCurrent() {
   try {
@@ -1662,9 +1664,11 @@ async function runCurrent() {
     drawHud();
     playing = true;
     playBtn.textContent = "Pause";
+    doomAudio.syncBgm();
   } catch (e) {
     playing = false;
     playBtn.textContent = "Play";
+    doomAudio.syncBgm();
     hud.textContent = "Error: " + e.message;
     showToast(e.message);
   }
