@@ -926,6 +926,7 @@ document.getElementById("recSel").addEventListener("change", (e) => {
   const v = document.getElementById("recVideo");
   v.src = "recordings/" + e.target.value + "?v=3";
   v.muted = !document.getElementById("soundChk")?.checked;
+  v.play().catch(() => {});
 });
 
 const checkerSel = document.getElementById("checkerSel");
@@ -1021,7 +1022,7 @@ const pastRgba = new Uint32Array(pastImg.data.buffer);
 const pastPlayBtn = document.getElementById("pastPlayBtn");
 const pastScrub = document.getElementById("pastScrub");
 const pastLabel = document.getElementById("pastLabel");
-const past = { key: "", frames: [], cur: 0, playing: false, last: 0 };
+const past = { key: "", frames: [], labels: [], cur: 0, playing: false, last: 0 };
 
 async function refreshPast() {
   const runs = [];
@@ -1050,10 +1051,15 @@ async function loadPast(key) {
   pastStop();
   past.key = key;
   past.frames = [];
+  past.labels = [];
   past.cur = 0;
   if (key) {
     try {
-      const all = await (await (await (await historyDir()).getFileHandle(`${key}.rgba`)).getFile()).arrayBuffer();
+      const dir = await historyDir();
+      const infoText = await (await (await dir.getFileHandle(`${key}.json`)).getFile()).text().catch(() => "{}");
+      const info = JSON.parse(infoText);
+      if (Array.isArray(info.labels)) past.labels = info.labels;
+      const all = await (await (await dir.getFileHandle(`${key}.rgba`)).getFile()).arrayBuffer();
       for (let at = 0; at + PAST_FRAME_BYTES <= all.byteLength; at += PAST_FRAME_BYTES)
         past.frames.push(new Uint32Array(all, at, PAST_FRAME_BYTES / 4));
     } catch {}
@@ -1088,15 +1094,16 @@ function pastLoop(now) {
   if (steps < 1) return;
   past.last += steps * (1000 / 35);
   const prevCur = past.cur;
+  const activeLabels = past.labels.length ? past.labels : labels;
   if (past.cur + steps < past.frames.length) {
     pastDraw(past.cur + steps);
     if (typeof doomAudio !== "undefined") {
-      for (let k = prevCur + 1; k <= past.cur; k++) doomAudio.onFrame(k, labels[k] || "");
+      for (let k = prevCur + 1; k <= past.cur; k++) doomAudio.onFrame(k, activeLabels[k] || "", false, activeLabels);
     }
   } else {
     pastDraw(past.frames.length - 1);
     if (typeof doomAudio !== "undefined") {
-      for (let k = prevCur + 1; k <= past.cur; k++) doomAudio.onFrame(k, labels[k] || "");
+      for (let k = prevCur + 1; k <= past.cur; k++) doomAudio.onFrame(k, activeLabels[k] || "", false, activeLabels);
     }
     pastStop();
   }
@@ -1107,11 +1114,17 @@ pastScrub.addEventListener("input", () => { pastStop(); pastDraw(Number(pastScru
 pastPlayBtn.addEventListener("click", () => {
   if (past.playing) return pastStop();
   if (!past.frames.length) return;
+  document.getElementById("recVideo")?.pause();
   if (past.cur >= past.frames.length - 1) pastDraw(0);
   past.playing = true;
   past.last = performance.now();
   pastPlayBtn.textContent = "Pause";
-  if (typeof doomAudio !== "undefined") { doomAudio.unlock(); doomAudio.syncBgm(); }
+  const activeLabels = past.labels.length ? past.labels : labels;
+  if (typeof doomAudio !== "undefined") {
+    doomAudio.unlock();
+    doomAudio.syncBgm();
+    doomAudio.onFrame(past.cur, activeLabels[past.cur] || "", false, activeLabels);
+  }
   requestAnimationFrame(pastLoop);
 });
 document.getElementById("pastDelBtn").addEventListener("click", async () => {
@@ -1212,10 +1225,13 @@ function execute(script, saved) {
       progress = `frame ${m.index + 1} checked in ${m.chunks} chunks`;
       scrub.max = String(frames.length - 1);
       // Follow the newest frame unless the user is scrubbing back.
-    if (playing && cur >= m.index - 1) {
-      drawFrame(m.index);
-      if (typeof doomAudio !== "undefined") { doomAudio.onFrame(m.index, labels[m.index] || "", true); doomAudio.syncBgm(); }
-    }
+      if (playing && cur >= m.index - 1) {
+        drawFrame(m.index);
+      }
+      if (typeof doomAudio !== "undefined") {
+        doomAudio.onFrame(m.index, labels[m.index] || "", true);
+        doomAudio.syncBgm();
+      }
   } else if (m.kind === "end" && m.result.failed) {
     // drive.ts gave up on a chunk: the run stopped early, it did not finish.
     checking = false;
@@ -1348,9 +1364,8 @@ const doomAudio = (() => {
     if (!soundChk.checked && !recordingVideo) return false;
     if (recordingVideo || past.playing) return true;
     if (!document.getElementById("playbackTab")?.hidden) return false;
-    if (!playing || frames.length < 2) return false;
-    if (checking && cur >= frames.length - 1 && !loopChk.checked) return false;
-    return true;
+    if (checking || (playing && frames.length > 0)) return true;
+    return false;
   }
 
   function startBgmNode() {
@@ -1386,20 +1401,20 @@ const doomAudio = (() => {
     }
   }
 
-  function onFrame(idx, label = "", fromWorker = false) {
+  function onFrame(idx, label = "", fromWorker = false, labelList = labels) {
     if (!soundChk.checked && !recordingVideo) return;
-    if (fromWorker && (!playing || cur < idx - 1)) return;
     const lbl = String(label || "").toLowerCase();
-    if (!lbl) return;
-    const prevLbl = idx > 0 ? String(labels[idx - 1] || "").toLowerCase() : "";
+    const prevLbl = idx > 0 ? String((labelList && labelList[idx - 1]) || "").toLowerCase() : "";
     const hasWord = (s, w) => s.split(/[^a-z0-9]+/).includes(w);
     if (idx < 0 || idx < lastFireIdx) lastFireIdx = -999;
+    let played = false;
 
     const fired = hasWord(lbl, "fire") || lbl.includes("controlleft");
     const prevFired = hasWord(prevLbl, "fire") || prevLbl.includes("controlleft");
     if (fired && (!prevFired || idx - lastFireIdx >= 14)) {
       lastFireIdx = idx;
       playSfx("DSPISTOL", 1.05);
+      played = true;
     }
 
     const used = hasWord(lbl, "use") || lbl.includes("space") || lbl.includes("set demo tic");
@@ -1408,12 +1423,19 @@ const doomAudio = (() => {
       if (idx >= 275) playSfx("DSSWTCHN", 0.95);
       else if (idx >= 170) playSfx("DSSWTCHX", 1.0);
       else playSfx("DSDOROPN", 0.95);
+      played = true;
     }
 
     if (idx < 10 && hasWord(lbl, "enter") && !hasWord(prevLbl, "enter")) {
       playSfx("DSSWTCHN", 0.95);
+      played = true;
     } else if (idx < 6 && (hasWord(lbl, "down") || hasWord(lbl, "up") || lbl.includes("arrowdown") || lbl.includes("arrowup"))) {
       playSfx("DSPSTOP", 0.9);
+      played = true;
+    }
+
+    if (fromWorker && !played) {
+      playSfx("DSPSTOP", 0.45);
     }
   }
 
@@ -1431,7 +1453,9 @@ soundChk.addEventListener("change", () => {
   doomAudio.unlock();
 });
 loopChk.addEventListener("change", () => doomAudio.syncBgm());
-document.addEventListener("pointerdown", () => { if (soundChk.checked) doomAudio.unlock(); }, { once: true });
+for (const ev of ["pointerdown", "keydown"]) {
+  document.addEventListener(ev, () => { if (soundChk.checked) doomAudio.unlock(); }, { passive: true });
+}
 await new Promise((resolve) => {
   const base = new URL("monaco/", location.href).href;
   window.MonacoEnvironment = {
