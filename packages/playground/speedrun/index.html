@@ -457,6 +457,8 @@
       <label class="meta" title="Loads the preset's script into the editor as a starting point">Start from
         <select id="presetSel">
           <option value="tas" selected>E1M1 0:07.69 UV-Speed TAS (277 tics)</option>
+          <option value="clear">E1M1 Clear (1000 tics)</option>
+          <option value="kill">E1M1 Kill Run (1999 tics)</option>
           <option value="custom">Your edits</option>
         </select>
       </label>
@@ -503,7 +505,7 @@
     </div>
     <p class="meta"><button type="button" class="inline-link" id="backToEditorBtn">&larr; Back to Live Type-Checker &amp; Editor</button></p>
     <p class="meta">A full run takes hours to check, so these are screen recordings of runs that were checked to the end earlier. The overlay shows each frame's check time.</p>
-    <video id="recVideo" controls muted playsinline preload="metadata" src="recordings/ts7.1-tas.mp4" style="width:100%;background:#000;border-radius:4px"></video>
+    <video id="recVideo" controls playsinline preload="metadata" src="recordings/ts7.1-tas.mp4?v=3" style="width:100%;background:#000;border-radius:4px"></video>
   </section>
   <section class="card" style="max-width:1000px">
     <div class="row">
@@ -650,6 +652,21 @@ function stepLines(steps) {
 
 const SCRIPT_TOP = "// One element per tic, starting on the skill menu. Edit any line, then Run.";
 
+function scriptFromSteps(steps, note) {
+  return `// Based on: ${note}\n${SCRIPT_TOP}\n\n${KEY_HEADER}\n\ntype Inputs = Run<[\n${stepLines(steps).join("\n")}\n]>;\n`;
+}
+
+function legacySteps(text, ticsPerLine = 1) {
+  const out = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const tokens = raw.trim().split(/\s+/).filter(Boolean);
+    if (!tokens.length) continue;
+    const n = parseInt(tokens.shift(), 10);
+    const keys = tokens.filter((t) => t !== "-").map((t) => ALIAS[t.toLowerCase()]);
+    for (let i = 0; i < n * ticsPerLine; i++) out.push({ keys });
+  }
+  return out;
+}
 // Where the demo goes in doom-keys.wasm's memory and the globals that start
 // playback (bench/doom/tas-keys.mjs). Scripts never see these: playDemo,
 // extendDemo and setDemoTic become the memory writes below.
@@ -885,14 +902,17 @@ function switchToTab(tabId, autoPlayVideo = false) {
   }
   if (tabId === "playbackTab") {
     refreshPast();
+    if (typeof doomAudio !== "undefined") doomAudio.syncBgm();
     const v = document.getElementById("recVideo");
+    v.muted = !document.getElementById("soundChk")?.checked;
     if (autoPlayVideo) {
-      if (document.getElementById("soundChk")?.checked) v.muted = false;
       v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+    } else {
+      v.pause();
     }
-    else v.pause();
   } else {
     pastStop();
+    if (typeof doomAudio !== "undefined") doomAudio.syncBgm();
   }
 }
 for (const tab of document.querySelectorAll(".tabs .tab")) {
@@ -904,8 +924,8 @@ document.getElementById("backToEditorBtn").addEventListener("click", () => switc
 
 document.getElementById("recSel").addEventListener("change", (e) => {
   const v = document.getElementById("recVideo");
-  v.src = "recordings/" + e.target.value;
-  if (document.getElementById("soundChk")?.checked) v.muted = false;
+  v.src = "recordings/" + e.target.value + "?v=3";
+  v.muted = !document.getElementById("soundChk")?.checked;
 });
 
 const checkerSel = document.getElementById("checkerSel");
@@ -1053,7 +1073,6 @@ function pastDraw(idx) {
   pastCtx.putImageData(pastImg, 0, 0);
   pastScrub.value = String(past.cur);
   pastLabel.textContent = `${past.cur + 1} / ${past.frames.length}`;
-  if (past.playing && typeof doomAudio !== "undefined") doomAudio.onFrame(past.cur, labels[past.cur] || "");
 }
 function pastStop() {
   past.playing = false;
@@ -1068,8 +1087,19 @@ function pastLoop(now) {
   const steps = Math.floor((now - past.last) / (1000 / 35));
   if (steps < 1) return;
   past.last += steps * (1000 / 35);
-  if (past.cur + steps < past.frames.length) pastDraw(past.cur + steps);
-  else { pastDraw(past.frames.length - 1); pastStop(); }
+  const prevCur = past.cur;
+  if (past.cur + steps < past.frames.length) {
+    pastDraw(past.cur + steps);
+    if (typeof doomAudio !== "undefined") {
+      for (let k = prevCur + 1; k <= past.cur; k++) doomAudio.onFrame(k, labels[k] || "");
+    }
+  } else {
+    pastDraw(past.frames.length - 1);
+    if (typeof doomAudio !== "undefined") {
+      for (let k = prevCur + 1; k <= past.cur; k++) doomAudio.onFrame(k, labels[k] || "");
+    }
+    pastStop();
+  }
 }
 
 pastSel.addEventListener("change", () => loadPast(pastSel.value));
@@ -1239,174 +1269,159 @@ const fpsSel = document.getElementById("fpsSel");
 const loopChk = document.getElementById("loopChk");
 const soundChk = document.getElementById("soundChk");
 
-// Procedural Web Audio API E-Phrygian Doom synth + tic-synced SFX (zero external assets).
+// Doom E1M1 background music (normal 1x speed) + authentic Doom WAD SFX (DSPISTOL, DSSWTCHX, DSDOROPN, DSPSTOP, DSSWTCHN)
 const doomAudio = (() => {
-  let actx = null, master = null, mediaDest = null, noiseBuf = null, distCurve = null;
-  let bgmTimer = null, stepIdx = 0, nextNoteTime = 0, lastStepSfxAt = 0, recordingVideo = false;
-  const STEP_DUR = 60 / 138 / 4; // 138 BPM 16th notes
-  const SEC_A = [[0,0,1],[0,0,1],[12,1,1],[0,0,1],[0,0,1],[10,1,1],[0,0,1],[0,0,1],[7,1,1],[0,0,1],[0,0,1],[5,1,1],[0,0,1],[0,0,1],[1,1,2],[0,0,1],[0,0,1],[12,1,1],[0,0,1],[0,0,1],[10,1,1],[0,0,1],[0,0,1],[7,1,1],[0,0,1],[8,1,2],[7,1,2],[5,1,2]];
-  const SEC_B = [[0,1,2],[0,0,1],[0,0,1],[1,1,2],[0,0,1],[0,0,1],[3,1,2],[0,0,1],[0,0,1],[1,1,2],[0,0,1],[0,0,1],[0,1,2],[0,0,1],[0,0,1],[1,1,2],[0,0,1],[0,0,1],[6,1,4],[5,1,4]];
-  const LEAD = [[0,12,3],[3,15,3],[6,14,2],[8,12,3],[11,10,3],[14,8,2],[16,7,4],[20,8,2],[22,10,2],[24,12,4],[28,6,4]];
-  const hz = (semi) => 41.2034 * Math.pow(2, semi / 12);
+  let actx = null, master = null, bgmGain = null, mediaDest = null;
+  let sfxRaw = null, sfxBuffers = {}, bgmArrayBuf = null, bgmBuffer = null;
+  let bgmSource = null, bgmPlaying = false, bgmOffset = 0, bgmStartedAt = 0;
+  let recordingVideo = false, lastFireIdx = -999;
+
+  fetch("recordings/doom-sfx.json?v=3").then((r) => r.json()).then((data) => {
+    sfxRaw = data;
+    if (actx) buildSfxBuffers();
+  }).catch(() => {});
+
+  fetch("recordings/e1m1.m4a?v=3").then((r) => r.arrayBuffer()).then((buf) => {
+    bgmArrayBuf = buf;
+    if (actx) decodeBgm();
+  }).catch(() => {});
+
+  function buildSfxBuffers() {
+    if (!actx || !sfxRaw) return;
+    for (const [name, item] of Object.entries(sfxRaw)) {
+      if (sfxBuffers[name]) continue;
+      const bin = atob(item.pcm);
+      const buf = actx.createBuffer(1, bin.length, item.rate);
+      const ch = buf.getChannelData(0);
+      for (let i = 0; i < bin.length; i++) ch[i] = (bin.charCodeAt(i) - 128) / 128;
+      sfxBuffers[name] = buf;
+    }
+  }
+
+  function decodeBgm() {
+    if (!actx || !bgmArrayBuf || bgmBuffer) return;
+    const copy = bgmArrayBuf.slice(0);
+    actx.decodeAudioData(copy).then((decoded) => {
+      bgmBuffer = decoded;
+      syncBgm();
+    }).catch(() => {});
+  }
+
   function ensure() {
     if (!actx) {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return null;
       actx = new Ctx();
       master = actx.createGain();
-      master.gain.value = soundChk.checked ? 0.32 : 0;
+      master.gain.value = soundChk.checked ? 0.85 : 0;
       master.connect(actx.destination);
-      try { mediaDest = actx.createMediaStreamDestination(); master.connect(mediaDest); } catch {}
-      noiseBuf = actx.createBuffer(1, actx.sampleRate * 0.5, actx.sampleRate);
-      const d = noiseBuf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-      distCurve = new Float32Array(512);
-      for (let i = 0; i < 512; i++) { const x = (i * 2) / 512 - 1; distCurve[i] = Math.tanh(x * 3.2); }
+      try {
+        mediaDest = actx.createMediaStreamDestination();
+        master.connect(mediaDest);
+      } catch {}
+      bgmGain = actx.createGain();
+      bgmGain.gain.value = 0.65;
+      bgmGain.connect(master);
+      buildSfxBuffers();
+      decodeBgm();
     }
     if (actx.state === "suspended") actx.resume().catch(() => {});
-    master.gain.setTargetAtTime(soundChk.checked || recordingVideo ? 0.32 : 0, actx.currentTime, 0.015);
+    master.gain.setTargetAtTime(soundChk.checked || recordingVideo ? 0.85 : 0, actx.currentTime, 0.015);
     return actx;
   }
-  function playChug(t, semi, open, dur) {
-    const o1 = actx.createOscillator(), o2 = actx.createOscillator(), sh = actx.createWaveShaper(), flt = actx.createBiquadFilter(), g = actx.createGain();
-    o1.type = "sawtooth"; o2.type = "square";
-    const f = hz(semi);
-    o1.frequency.setValueAtTime(f, t); o2.frequency.setValueAtTime(f * (open ? 1.4983 : 2), t);
-    sh.curve = distCurve;
-    flt.type = "lowpass"; flt.frequency.setValueAtTime(open ? 1900 : 820, t);
-    const a = open ? 0.14 : 0.11;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(a, t + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.0008, t + Math.max(0.04, dur * (open ? 0.92 : 0.65)));
-    o1.connect(sh); o2.connect(sh); sh.connect(flt); flt.connect(g); g.connect(master);
-    o1.start(t); o2.start(t); o1.stop(t + dur); o2.stop(t + dur);
+
+  function playSfx(name, vol = 1.0) {
+    if (!ensure()) return;
+    buildSfxBuffers();
+    const buf = sfxBuffers[name];
+    if (!buf) return;
+    const src = actx.createBufferSource();
+    const g = actx.createGain();
+    src.buffer = buf;
+    g.gain.value = vol;
+    src.connect(g);
+    g.connect(master);
+    src.start();
   }
-  function playLead(t, semi, dur) {
-    const o1 = actx.createOscillator(), o2 = actx.createOscillator(), flt = actx.createBiquadFilter(), g = actx.createGain();
-    o1.type = "sawtooth"; o2.type = "sawtooth";
-    const f = hz(24 + semi);
-    o1.frequency.setValueAtTime(f, t); o2.frequency.setValueAtTime(f * 1.004, t);
-    flt.type = "lowpass"; flt.frequency.setValueAtTime(2600, t);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.085, t + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
-    o1.connect(flt); o2.connect(flt); flt.connect(g); g.connect(master);
-    o1.start(t); o2.start(t); o1.stop(t + dur); o2.stop(t + dur);
-  }
-  function playKick(t, amp = 0.24) {
-    const o = actx.createOscillator(), g = actx.createGain();
-    o.type = "sine";
-    o.frequency.setValueAtTime(155, t);
-    o.frequency.exponentialRampToValueAtTime(38, t + 0.11);
-    g.gain.setValueAtTime(amp, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
-    o.connect(g); g.connect(master);
-    o.start(t); o.stop(t + 0.17);
-  }
-  function playSnare(t, amp = 0.14) {
-    const n = actx.createBufferSource(), flt = actx.createBiquadFilter(), g = actx.createGain();
-    n.buffer = noiseBuf;
-    flt.type = "bandpass"; flt.frequency.setValueAtTime(1800, t); flt.Q.setValueAtTime(0.9, t);
-    g.gain.setValueAtTime(amp, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
-    n.connect(flt); flt.connect(g); g.connect(master);
-    n.start(t); n.stop(t + 0.15);
-  }
-  function playHat(t, open = false) {
-    const n = actx.createBufferSource(), flt = actx.createBiquadFilter(), g = actx.createGain();
-    n.buffer = noiseBuf;
-    flt.type = "highpass"; flt.frequency.setValueAtTime(6800, t);
-    const dur = open ? 0.14 : 0.04;
-    g.gain.setValueAtTime(open ? 0.045 : 0.03, t);
-    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
-    n.connect(flt); flt.connect(g); g.connect(master);
-    n.start(t); n.stop(t + dur + 0.01);
-  }
-  function scheduleBar(barStart, barIdx) {
-    const sec = barIdx % 4 === 2 ? SEC_B : SEC_A;
-    let sub = 0;
-    for (const [semi, open, d16] of sec) {
-      if (sub >= 32) break;
-      playChug(barStart + sub * STEP_DUR, semi, open, d16 * STEP_DUR);
-      sub += d16;
-    }
-    if (barIdx % 2 === 1) {
-      for (const [st, semi, d16] of LEAD) {
-        playLead(barStart + st * STEP_DUR, semi, d16 * STEP_DUR);
-      }
-    }
-    for (let s = 0; s < 32; s++) {
-      const t = barStart + s * STEP_DUR;
-      if (s % 4 === 0) playKick(t, 0.22);
-      if (s % 8 === 4) playSnare(t, 0.13);
-      if (s % 2 === 0) playHat(t, s % 8 === 6);
-    }
-  }
-  function tickScheduler() {
-    if (!actx) return;
-    while (nextNoteTime < actx.currentTime + 0.25) {
-      scheduleBar(nextNoteTime, stepIdx++);
-      nextNoteTime += 32 * STEP_DUR;
-    }
-  }
+
   function shouldPlayBgm() {
     if (!soundChk.checked && !recordingVideo) return false;
     if (recordingVideo || past.playing) return true;
+    if (!document.getElementById("playbackTab")?.hidden) return false;
     if (!playing || frames.length < 2) return false;
     if (checking && cur >= frames.length - 1 && !loopChk.checked) return false;
     return true;
   }
+
+  function startBgmNode() {
+    if (bgmPlaying || !bgmBuffer || !actx) return;
+    const src = actx.createBufferSource();
+    src.buffer = bgmBuffer;
+    src.loop = true;
+    src.playbackRate.value = 1.0; // Always normal 1x speed
+    src.connect(bgmGain);
+    const offset = bgmBuffer.duration > 0 ? bgmOffset % bgmBuffer.duration : 0;
+    src.start(0, offset);
+    bgmStartedAt = actx.currentTime - offset;
+    bgmSource = src;
+    bgmPlaying = true;
+  }
+
+  function stopBgmNode() {
+    if (!bgmPlaying) return;
+    if (actx && bgmBuffer && bgmBuffer.duration > 0) {
+      bgmOffset = (actx.currentTime - bgmStartedAt) % bgmBuffer.duration;
+    }
+    try { bgmSource.stop(); bgmSource.disconnect(); } catch {}
+    bgmSource = null;
+    bgmPlaying = false;
+  }
+
   function syncBgm() {
     if (shouldPlayBgm()) {
       if (!ensure()) return;
-      if (!bgmTimer) {
-        nextNoteTime = actx.currentTime + 0.02;
-        tickScheduler();
-        bgmTimer = setInterval(tickScheduler, 80);
-      }
-    } else if (bgmTimer) {
-      clearInterval(bgmTimer);
-      bgmTimer = null;
+      startBgmNode();
+    } else {
+      stopBgmNode();
     }
   }
+
   function onFrame(idx, label = "", fromWorker = false) {
     if (!soundChk.checked && !recordingVideo) return;
-    if (!ensure()) return;
-    const t = actx.currentTime;
-    const lbl = String(label).toLowerCase();
-    if (lbl.includes("enter") && idx < 10) {
-      playSnare(t, 0.18);
-      playChug(t + 0.05, 12, 1, 0.12);
-    } else if ((lbl.includes("arrowdown") || lbl.includes("arrowup")) && idx < 6) {
-      const o = actx.createOscillator(), g = actx.createGain();
-      o.type = "square"; o.frequency.setValueAtTime(260, t); o.frequency.exponentialRampToValueAtTime(520, t + 0.045);
-      g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-      o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.055);
-    } else if (lbl.includes("fire") || lbl.includes("controlleft")) {
-      playKick(t, 0.34);
-      playSnare(t, 0.28);
-    } else if (lbl.includes("use") || lbl.includes("space") || lbl.includes("set demo tic")) {
-      const o = actx.createOscillator(), g = actx.createGain();
-      o.type = "sawtooth";
-      const isExit = idx >= 170;
-      o.frequency.setValueAtTime(isExit ? 880 : 75, t);
-      o.frequency.exponentialRampToValueAtTime(isExit ? 210 : 125, t + 0.16);
-      g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-      o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.19);
-      if (isExit) playKick(t, 0.3);
-    } else if (lbl.includes("extend demo")) {
-      playKick(t, 0.32);
-      playChug(t, 0, 1, 0.25);
-    } else if (t - lastStepSfxAt >= 0.12 && (lbl.includes("forward") || lbl.includes("strafe") || lbl.includes("arrow") || fromWorker)) {
-      lastStepSfxAt = t;
-      playKick(t, fromWorker ? 0.12 : 0.08);
+    if (fromWorker && (!playing || cur < idx - 1)) return;
+    const lbl = String(label || "").toLowerCase();
+    if (!lbl) return;
+    const prevLbl = idx > 0 ? String(labels[idx - 1] || "").toLowerCase() : "";
+    const hasWord = (s, w) => s.split(/[^a-z0-9]+/).includes(w);
+    if (idx < 0 || idx < lastFireIdx) lastFireIdx = -999;
+
+    const fired = hasWord(lbl, "fire") || lbl.includes("controlleft");
+    const prevFired = hasWord(prevLbl, "fire") || prevLbl.includes("controlleft");
+    if (fired && (!prevFired || idx - lastFireIdx >= 14)) {
+      lastFireIdx = idx;
+      playSfx("DSPISTOL", 1.05);
+    }
+
+    const used = hasWord(lbl, "use") || lbl.includes("space") || lbl.includes("set demo tic");
+    const prevUsed = hasWord(prevLbl, "use") || prevLbl.includes("space") || prevLbl.includes("set demo tic");
+    if (used && !prevUsed) {
+      if (idx >= 275) playSfx("DSSWTCHN", 0.95);
+      else if (idx >= 170) playSfx("DSSWTCHX", 1.0);
+      else playSfx("DSDOROPN", 0.95);
+    }
+
+    if (idx < 10 && hasWord(lbl, "enter") && !hasWord(prevLbl, "enter")) {
+      playSfx("DSSWTCHN", 0.95);
+    } else if (idx < 6 && (hasWord(lbl, "down") || hasWord(lbl, "up") || lbl.includes("arrowdown") || lbl.includes("arrowup"))) {
+      playSfx("DSPSTOP", 0.9);
     }
   }
+
   return {
     unlock() { ensure(); syncBgm(); },
     syncBgm,
     onFrame,
-    setRecording(v) { recordingVideo = v; ensure(); syncBgm(); },
+    setRecording(v) { recordingVideo = v; if (v) bgmOffset = 0; ensure(); syncBgm(); },
     getAudioTracks() { ensure(); return mediaDest ? mediaDest.stream.getAudioTracks() : []; },
   };
 })();
@@ -1635,6 +1650,8 @@ async function runCurrent() {
 // Run. Switching presets never kills a check that is in progress.
 let editorEdited = false;
 function presetText(name) {
+  if (name === "clear") return scriptFromSteps(legacySteps(window.PRESETS.clear, 5), "E1M1 clear");
+  if (name === "kill") return scriptFromSteps(legacySteps(window.PRESETS.kill), "E1M1 kill run");
   if (name === "tas") return tasScript(window.PRESETS.tas.map((e) => (Array.isArray(e) ? { keys: e } : { keys: e.keys ?? [], poke: e.poke })), "almostmatt1's E1M1 0:07.69 UV-Speed TAS");
 }
 function loadPreset(name) {
@@ -1770,12 +1787,20 @@ function loop(now) {
     const steps = Math.floor((now - lastTick) / interval);
     lastTick += steps * interval;
     if (cur + steps < frames.length) {
+      const prevCur = cur;
       drawFrame(cur + steps);
       doomAudio.syncBgm();
-      doomAudio.onFrame(cur, labels[cur] || "");
+      for (let k = prevCur + 1; k <= cur; k++) doomAudio.onFrame(k, labels[k] || "");
     } else if (checking) { drawFrame(frames.length - 1); doomAudio.syncBgm(); }
     else if (loopChk.checked) { drawFrame(0); doomAudio.onFrame(0, labels[0] || ""); }
-    else { playing = false; playBtn.textContent = "Play"; doomAudio.syncBgm(); }
+    else {
+      const prevCur = cur;
+      drawFrame(frames.length - 1);
+      for (let k = prevCur + 1; k <= cur; k++) doomAudio.onFrame(k, labels[k] || "");
+      playing = false;
+      playBtn.textContent = "Play";
+      doomAudio.syncBgm();
+    }
   }
 }
 
