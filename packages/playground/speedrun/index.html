@@ -1364,8 +1364,7 @@ const doomAudio = (() => {
     if (!soundChk.checked && !recordingVideo) return false;
     if (recordingVideo || past.playing) return true;
     if (!document.getElementById("playbackTab")?.hidden) return false;
-    if (checking || (playing && frames.length > 0)) return true;
-    return false;
+    return playing && (checking || frames.length > 0);
   }
 
   function startBgmNode() {
@@ -1631,6 +1630,7 @@ timeline.addEventListener("click", (e) => {
   const li = e.target.closest("li");
   if (!li || Number(li.dataset.i) >= frames.length) return;
   playing = false; playBtn.textContent = "Play"; drawFrame(Number(li.dataset.i));
+  doomAudio.syncBgm(); doomAudio.onFrame(cur, labels[cur] || "");
 });
 
 function drawFrame(idx) {
