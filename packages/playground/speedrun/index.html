@@ -94,6 +94,192 @@
     pointer-events: none;
     white-space: pre;
   }
+  @keyframes recPulse {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.75), 0 0 8px 2px rgba(255, 59, 48, 0.55);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.12);
+      box-shadow: 0 0 0 6px rgba(255, 59, 48, 0), 0 0 12px 3px rgba(255, 59, 48, 0.85);
+      opacity: 0.82;
+    }
+  }
+  @keyframes barStripe {
+    0% { background-position: 0 0; }
+    100% { background-position: 28px 0; }
+  }
+  @keyframes textPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+  .rec-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ff3b30;
+    flex-shrink: 0;
+    animation: recPulse 1.4s ease-in-out infinite;
+  }
+  .rec-dot.done {
+    background: #5ec269;
+    animation: none;
+    box-shadow: 0 0 6px rgba(94, 194, 105, 0.5);
+  }
+  .rec-dot.stopped {
+    background: #e09b3d;
+    animation: none;
+    box-shadow: none;
+  }
+  .live-banner {
+    background: rgba(217, 74, 56, 0.09);
+    border: 1px solid rgba(217, 74, 56, 0.42);
+    border-radius: 5px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .live-banner.done {
+    background: rgba(94, 194, 105, 0.08);
+    border-color: rgba(94, 194, 105, 0.38);
+  }
+  .live-banner.stopped {
+    background: rgba(224, 155, 61, 0.08);
+    border-color: rgba(224, 155, 61, 0.38);
+  }
+  .live-banner-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .live-banner-top strong {
+    color: #fff;
+    letter-spacing: 0.02em;
+  }
+  .live-badge {
+    margin-left: auto;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 1px 8px;
+    font-size: 11px;
+    color: var(--accent2);
+    white-space: nowrap;
+  }
+  .live-sub {
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  .live-bar, .overlay-bar {
+    width: 100%;
+    height: 6px;
+    background: #0d0e10;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .live-bar-fill, .overlay-bar-fill {
+    height: 100%;
+    background-color: var(--accent);
+    background-image: linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.22) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.22) 50%,
+      rgba(255, 255, 255, 0.22) 75%,
+      transparent 75%,
+      transparent
+    );
+    background-size: 28px 28px;
+    animation: barStripe 0.9s linear infinite;
+    transition: width 0.25s ease;
+  }
+  .live-bar-fill.done, .overlay-bar-fill.done {
+    background-color: #5ec269;
+    background-image: none;
+    animation: none;
+  }
+  .screen-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: radial-gradient(circle at center, #161822 0%, #08090c 100%);
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 7px;
+    overflow-y: auto;
+  }
+  .screen-overlay[hidden] { display: none; }
+  .overlay-rec-pill {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: 8px;
+    background: rgba(255, 59, 48, 0.14);
+    border: 1px solid rgba(255, 59, 48, 0.48);
+    color: #ffb3ad;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .overlay-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.3;
+  }
+  .overlay-sub {
+    font-size: 12px;
+    color: var(--accent2);
+    line-height: 1.35;
+  }
+  .overlay-guide {
+    margin-top: 2px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 11.5px;
+    line-height: 1.42;
+    color: var(--muted);
+  }
+  .overlay-guide-title {
+    color: var(--fg);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .overlay-guide ul {
+    margin: 0;
+    padding-left: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .overlay-guide b { color: var(--fg); }
+  .inline-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent2);
+    text-decoration: underline;
+    font: inherit;
+    cursor: pointer;
+  }
+  .inline-link:hover {
+    color: #fff;
+    border: none;
+  }
   #timeline {
     position: relative;
     height: 168px;
@@ -109,8 +295,9 @@
   }
   #timeline li { display: flex; gap: 12px; padding: 0 8px; color: var(--muted); white-space: pre; }
   #timeline li.done { color: var(--fg); cursor: pointer; }
+  #timeline li.done::after { content: "✓ ready"; margin-left: auto; color: #5ec269; opacity: 0.75; font-size: 11px; }
   #timeline li.next { color: var(--accent2); }
-  #timeline li.next::after { content: "checking"; margin-left: auto; }
+  #timeline li.next::after { content: attr(data-status); margin-left: auto; color: #ff6b60; font-weight: 600; animation: textPulse 1.5s ease-in-out infinite; }
   #timeline li.cur { background: var(--hl); }
   #timeline .n { width: 4ch; text-align: right; opacity: 0.6; }
   #timeline .t { width: 7ch; opacity: 0.6; }
@@ -189,18 +376,46 @@
 <body>
 <header>
   <h1><span>DOOM</span> IN TYPESCRIPT TYPES — SPEEDRUN EDITOR</h1>
-  <p>Doom, played by the TypeScript compiler in your browser. Type your key presses below, press <b>Run</b>, and watch.</p>
+  <p>Doom compiled to 107 MB of TypeScript types — every frame is rendered live by running the TypeScript type checker in your browser.</p>
 </header>
-
 <nav class="tabs" role="tablist">
-  <button class="tab active" role="tab" data-tab="editorTab">Editor</button>
-  <button class="tab" role="tab" data-tab="playbackTab">Playback</button>
+  <button class="tab active" role="tab" data-tab="editorTab">Live Type-Checker &amp; Editor</button>
+  <button class="tab" role="tab" data-tab="playbackTab">Pre-recorded Videos &amp; Saved Runs</button>
 </nav>
 
 <main id="editorTab">
   <section class="card">
+    <div id="liveBanner" class="live-banner" role="status" aria-live="polite">
+      <div class="live-banner-top">
+        <span id="recDot" class="rec-dot"></span>
+        <strong id="liveTitle">RECORDING FRAME 1 OF 277 IN THE TYPESCRIPT TYPE CHECKER...</strong>
+        <span id="liveBadge" class="live-badge">Chunk 1 / ~71 &middot; 0s</span>
+      </div>
+      <div id="liveSub" class="live-sub">
+        <span id="liveSubText">We are live type-checking Doom in your browser &mdash; this takes a while (~20&ndash;30s per frame across ~35&ndash;70 type-check chunks; hours for all 277 frames). Keep this tab open; frames appear below and auto-save as they finish.</span>
+        <button type="button" class="inline-link" id="bannerWatchBtn">Watch 1000&times; pre-recorded run &rarr;</button>
+      </div>
+      <div class="live-bar"><div id="liveBarFill" class="live-bar-fill" style="width:6%"></div></div>
+    </div>
     <div id="screenWrap">
       <canvas id="screen" width="320" height="200"></canvas>
+      <div id="screenOverlay" class="screen-overlay">
+        <div class="overlay-rec-pill">
+          <span class="rec-dot" id="overlayDot"></span>
+          <span id="overlayPillText">LIVE TYPE-CHECK RECORDING IN PROGRESS — THIS TAKES A WHILE</span>
+        </div>
+        <div id="overlayTitle" class="overlay-title">TypeScript is compiling Frame 1 of 277...</div>
+        <div id="overlaySub" class="overlay-sub">Checking chunk 1 of ~71 in tsgo-doom (0s elapsed)</div>
+        <div class="overlay-bar"><div id="overlayBarFill" class="overlay-bar-fill" style="width:6%"></div></div>
+        <div class="overlay-guide">
+          <div class="overlay-guide-title">First time here? How this works &amp; what to expect:</div>
+          <ul>
+            <li><b>Why it takes a while:</b> There is no JS game engine here — Doom runs 100% inside the TypeScript type checker (<code>tsgo</code> / <code>tsrs</code>). Each frame takes ~35–70 type-check passes ("chunks", ~20–30s per frame).</li>
+            <li><b>Where frames appear:</b> Stay on this tab! Frame 1 will draw right on this screen as soon as its chunks finish. You can Play, Step, or Scrub finished frames while Frame 2+ keep recording in the background.</li>
+            <li><b>Edit inputs or skip the wait:</b> Edit <code>type Inputs = Run&lt;[ ... ]&gt;</code> on the right and press <b>Run</b>, or <button type="button" class="inline-link" id="overlayWatchBtn">watch a pre-recorded full run (1000× speed) &rarr;</button></li>
+          </ul>
+        </div>
+      </div>
       <div id="hud">loading…</div>
     </div>
 
@@ -246,7 +461,7 @@
       </label>
       <label class="meta" title="Which TypeScript type checker, compiled to WebAssembly, runs your script">Checker
         <select id="checkerSel">
-          <option value="teamchong" selected>tsgo-teamchong (TS7.1 with checker speedups, TinyGo build)</option>
+          <option value="teamchong" selected>tsgo-doom (TS7.1 with checker speedups, TinyGo build)</option>
           <option value="ts7">tsgo (TS7.1, Go build)</option>
           <option value="tsrs">tsrs</option>
         </select>
@@ -285,6 +500,7 @@
         </select>
       </label>
     </div>
+    <p class="meta"><button type="button" class="inline-link" id="backToEditorBtn">&larr; Back to Live Type-Checker &amp; Editor</button></p>
     <p class="meta">A full run takes hours to check, so these are screen recordings of runs that were checked to the end earlier. The overlay shows each frame's check time.</p>
     <video id="recVideo" controls muted playsinline preload="metadata" src="recordings/ts7.1-tas.mp4" style="width:100%;background:#000;border-radius:4px"></video>
   </section>
@@ -651,23 +867,36 @@ let worker;
 let checking = false;
 let runT0 = 0;
 let progress = "";
+let curChunk = 0;
+let estChunks = 71;
+let lastTscText = "";
+let stageText = "loading the checker";
 let frameAt = [];  // checker ms when each frame landed, measured in this tab
 let runKey;        // OPFS id of the run on screen; the worker uses it as runId too
 let runInfo;       // { t, checker, startedAt } of that run
 let runStatus;     // "checking" | "finished" | "failed"
 // Doom runs 35 tics per second and the checker runs one tic per frame
 // (drive.ts sets singletics for a key script), so 1x plays 35 frames/s.
-for (const tab of document.querySelectorAll(".tabs .tab")) {
-  tab.addEventListener("click", () => {
-    for (const t of document.querySelectorAll(".tabs .tab")) {
-      t.classList.toggle("active", t === tab);
-      document.getElementById(t.dataset.tab).hidden = t !== tab;
-    }
-    if (tab.dataset.tab !== "playbackTab") document.getElementById("recVideo").pause();
-    if (tab.dataset.tab === "playbackTab") refreshPast();
-    else pastStop();
-  });
+function switchToTab(tabId, autoPlayVideo = false) {
+  for (const t of document.querySelectorAll(".tabs .tab")) {
+    t.classList.toggle("active", t.dataset.tab === tabId);
+    document.getElementById(t.dataset.tab).hidden = t.dataset.tab !== tabId;
+  }
+  if (tabId === "playbackTab") {
+    refreshPast();
+    const v = document.getElementById("recVideo");
+    if (autoPlayVideo) v.play().catch(() => {});
+    else v.pause();
+  } else {
+    pastStop();
+  }
 }
+for (const tab of document.querySelectorAll(".tabs .tab")) {
+  tab.addEventListener("click", () => switchToTab(tab.dataset.tab));
+}
+document.getElementById("bannerWatchBtn").addEventListener("click", () => switchToTab("playbackTab", true));
+document.getElementById("overlayWatchBtn").addEventListener("click", () => switchToTab("playbackTab", true));
+document.getElementById("backToEditorBtn").addEventListener("click", () => switchToTab("editorTab"));
 
 document.getElementById("recSel").addEventListener("change", (e) => {
   document.getElementById("recVideo").src = "recordings/" + e.target.value;
@@ -884,12 +1113,30 @@ function execute(script, saved) {
   cur = saved ? Math.max(0, frames.length - 1) : cur;
   checking = true;
   progress = saved ? "resuming" : "loading the checker";
+  curChunk = 0;
+  estChunks = 71;
+  lastTscText = "";
+  stageText = saved ? "resuming from checkpoint" : "loading the checker";
   runT0 = performance.now() - (saved?.elapsedMs ?? 0);
   scrub.max = String(Math.max(0, frames.length - 1));
   worker = new Worker("checker-worker.js", { type: "module" });
   worker.onmessage = ({ data: m }) => {
-    if (m.kind === "status") progress = m.text;
-    else if (m.kind === "kept") {
+    if (m.kind === "status") {
+      if (m.text.startsWith("tsc ")) {
+        lastTscText = m.text;
+        stageText = "";
+        const target = Math.max(estChunks, curChunk + 1);
+        progress = `frame ${frames.length + 1}: chunk ${curChunk}/${target} (${lastTscText})`;
+      } else if (m.text === "type-checking chunk 1" || m.text.startsWith("resuming at frame")) {
+        stageText = "";
+        progress = `frame ${frames.length + 1}: checking chunk 1 of ~${estChunks}`;
+      } else {
+        stageText = m.text;
+        progress = m.text;
+      }
+    } else if (m.kind === "kept") {
+      curChunk = 0;
+      stageText = "";
       // The worker kept the old run's frames up to where the scripts differ.
       frames = oldFrames.slice(0, m.frames);
       frameAt = [];
@@ -913,10 +1160,17 @@ function execute(script, saved) {
         scrub.value = "0";
         frameLabel.textContent = "0 / 0";
       }
-    } else if (m.kind === "progress") progress = `frame ${m.index + 1}: chunk ${m.chunks} checked`;
-    else if (m.kind === "frame") {
+    } else if (m.kind === "progress") {
+      curChunk = m.chunks;
+      stageText = "";
+      const target = Math.max(estChunks, curChunk + 2);
+      progress = `frame ${m.index + 1}: chunk ${m.chunks} of ~${target} checked`;
+    } else if (m.kind === "frame") {
       frames[m.index] = new Uint32Array(m.rgba.buffer);
       frameAt[m.index] = m.ms;
+      if (m.chunks > 0) estChunks = m.chunks;
+      curChunk = 0;
+      stageText = "";
       progress = `frame ${m.index + 1} checked in ${m.chunks} chunks`;
       scrub.max = String(frames.length - 1);
       // Follow the newest frame unless the user is scrubbing back.
@@ -924,6 +1178,7 @@ function execute(script, saved) {
     } else if (m.kind === "end" && m.result.failed) {
       // drive.ts gave up on a chunk: the run stopped early, it did not finish.
       checking = false;
+      stageText = "";
       progress = `checker failed after ${frames.length} frames`;
       playing = false;
       playBtn.textContent = "Play";
@@ -933,10 +1188,13 @@ function execute(script, saved) {
       archiveRun(runStatus = "failed");
     } else if (m.kind === "end") {
       checking = false;
+      curChunk = 0;
+      stageText = "";
       progress = `done: ${frames.length} frames in ${fmtTime(m.result.ms)}`;
       archiveRun(runStatus = "finished");
     } else if (m.kind === "error") {
       checking = false;
+      stageText = "";
       progress = "checker error";
       archiveRun(runStatus = "failed");
       console.error(m.text);
@@ -1004,14 +1262,94 @@ function showToast(msg) {
 
 function drawHud() {
   const t = cur / 35;
-  const elapsed = checking ? fmtTime(performance.now() - runT0) : "";
-  const at = frames.length ? `frame ${cur + 1}/${frames.length} of ${labels.length}  ${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, "0")}\ninput  ${labels[cur]}\n` : "";
+  const elapsedMs = checking ? Math.max(0, performance.now() - runT0) : 0;
+  const elapsed = checking ? fmtTime(elapsedMs) : "";
+  const at = frames.length ? `frame ${cur + 1}/${frames.length} of ${labels.length} (${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, "0")})\ninput  ${labels[cur]}\n` : "";
   // Rate measured in this tab. Sparse after a resume: restored frames have no time.
   const seen = frameAt.flatMap((ms, i) => ms === undefined ? [] : [[i, ms]]);
   const n = seen.length;
   const rate = n > 1 ? `\nmeasured: ${((seen[n - 1][1] - seen[0][1]) / (seen[n - 1][0] - seen[0][0]) / 1000).toFixed(1)}s per frame` : "";
-  hud.textContent = `${at}checker: ${progress}${elapsed ? `  (${elapsed})` : ""}${rate}`;
+  hud.textContent = `${at}checker: ${progress}${elapsed ? ` (${elapsed})` : ""}${rate}`;
+  updateLiveStatus(elapsed);
   drawTimeline();
+}
+function updateLiveStatus(elapsed) {
+  const total = labels.length || 277;
+  const nextFrame = Math.min(total, frames.length + 1);
+  const targetChunks = Math.max(estChunks, curChunk + 2);
+  const checkerLabel = checkerSel.selectedOptions[0]?.textContent?.split(" ")[0] || checkerSel.value || "tsgo-doom";
+  const recDot = document.getElementById("recDot");
+  const liveBanner = document.getElementById("liveBanner");
+  const liveTitle = document.getElementById("liveTitle");
+  const liveBadge = document.getElementById("liveBadge");
+  const liveSubText = document.getElementById("liveSubText");
+  const liveBarFill = document.getElementById("liveBarFill");
+  const overlay = document.getElementById("screenOverlay");
+  const overlayDot = document.getElementById("overlayDot");
+  const overlayPillText = document.getElementById("overlayPillText");
+  const overlayTitle = document.getElementById("overlayTitle");
+  const overlaySub = document.getElementById("overlaySub");
+  const overlayBarFill = document.getElementById("overlayBarFill");
+
+  const isDone = !checking && runStatus === "finished" && frames.length > 0;
+  const isStopped = !checking && !isDone;
+  recDot.className = "rec-dot" + (isDone ? " done" : isStopped ? " stopped" : "");
+  overlayDot.className = recDot.className;
+  liveBanner.className = "live-banner" + (isDone ? " done" : isStopped ? " stopped" : "");
+  liveBarFill.className = "live-bar-fill" + (isDone ? " done" : "");
+  overlayBarFill.className = "overlay-bar-fill" + (isDone ? " done" : "");
+
+  let pct = 6;
+  if (isDone) {
+    pct = 100;
+  } else if (checking) {
+    pct = stageText
+      ? 5
+      : Math.min(98, Math.max(6, Math.round(((curChunk + 0.35) / targetChunks) * 100)));
+  } else {
+    pct = frames.length ? Math.min(100, Math.round((frames.length / total) * 100)) : 0;
+  }
+  liveBarFill.style.width = `${pct}%`;
+  overlayBarFill.style.width = `${pct}%`;
+
+  if (checking) {
+    const chunkDesc = stageText
+      ? stageText
+      : curChunk > 0
+        ? `Chunk ${curChunk} / ~${targetChunks}${lastTscText ? ` (${lastTscText})` : ""}`
+        : `Checking chunk 1 / ~${targetChunks}${lastTscText ? ` (${lastTscText})` : ""}`;
+    liveBadge.textContent = `${chunkDesc}${elapsed ? ` · ${elapsed}` : ""}`;
+    if (frames.length === 0) {
+      liveTitle.textContent = `RECORDING FRAME 1 OF ${total} IN THE TYPESCRIPT TYPE CHECKER...`;
+      liveSubText.textContent = `We are live type-checking Doom in your browser — this takes a while (~20–30s per frame across ~35–70 type-check chunks; hours for all ${total} frames). Keep this tab open; frames appear below and auto-save as they finish.`;
+    } else {
+      liveTitle.textContent = `RECORDING FRAME ${nextFrame} OF ${total} IN BACKGROUND (${frames.length} ${frames.length === 1 ? "FRAME" : "FRAMES"} READY)`;
+      liveSubText.textContent = `${frames.length} ${frames.length === 1 ? "frame is" : "frames are"} on screen below! You can Play, Step, or Scrub now while ${checkerLabel} continues recording the rest of the run (auto-saved to this browser).`;
+    }
+    overlayPillText.textContent = "LIVE TYPE-CHECK RECORDING IN PROGRESS — THIS TAKES A WHILE";
+    overlayTitle.textContent = `TypeScript (${checkerLabel}) is compiling Frame 1 of ${total}...`;
+    overlaySub.textContent = `${chunkDesc}${elapsed ? ` · ${elapsed} elapsed` : ""}${labels[0] ? ` · tic 1 input: ${labels[0]}` : ""}`;
+  } else if (isDone) {
+    liveTitle.textContent = `FINISHED — ALL ${frames.length} FRAMES RECORDED BY TYPESCRIPT`;
+    liveBadge.textContent = `${frames.length} / ${total} frames`;
+    liveSubText.textContent = `All ${frames.length} frames have been type-checked and saved in your browser. Press Play below to watch, or edit the TypeScript inputs on the right and click Run.`;
+  } else {
+    liveTitle.textContent = frames.length
+      ? `PAUSED / STOPPED AFTER ${frames.length} OF ${total} FRAMES`
+      : `READY TO RECORD IN THE TYPESCRIPT TYPE CHECKER`;
+    liveBadge.textContent = `${frames.length} / ${total} frames`;
+    liveSubText.textContent = `Click Run on the right to ${frames.length ? "resume type-checking from the last saved checkpoint" : "start type-checking Frame 1"}.`;
+    overlayPillText.textContent = runStatus === "failed" ? "TYPE-CHECKER STOPPED" : "READY TO RUN";
+    overlayTitle.textContent = runStatus === "failed"
+      ? `Type-checker stopped before Frame 1 finished (${progress})`
+      : `Click "Run" on the right to start type-checking Frame 1 of ${total}`;
+    overlaySub.textContent = `Each frame is evaluated live by the TypeScript compiler (~35–70 chunks per frame).`;
+  }
+  overlay.hidden = frames.length > 0;
+  hud.hidden = frames.length === 0;
+  if (!frames.length) {
+    frameLabel.textContent = checking ? `0 / ${total} (recording frame 1...)` : `0 / ${total}`;
+  }
 }
 
 // The timeline lists every tic of the script. It follows the shown frame (the
@@ -1039,6 +1377,12 @@ function drawTimeline() {
   for (; tlDone < done; tlDone++) tlRows[tlDone].classList.add("done");
   const next = checking && done < tlRows.length ? done : -1;
   if (next !== tlNext) { tlRows[tlNext]?.classList.remove("next"); tlRows[next]?.classList.add("next"); tlNext = next; }
+  if (next >= 0 && tlRows[next]) {
+    const targetChunks = Math.max(estChunks, curChunk + 2);
+    tlRows[next].dataset.status = stageText
+      ? `● ${stageText}`
+      : `● rec chunk ${curChunk || 1}/~${targetChunks}`;
+  }
   const at = frames.length ? cur : -1;
   if (at !== tlCur) { tlRows[tlCur]?.classList.remove("cur"); tlRows[at]?.classList.add("cur"); tlCur = at; }
   const row = tlRows[at >= 0 ? at : next];
@@ -1399,7 +1743,7 @@ importInput.addEventListener("change", async () => {
 function showRestored(run) {
   fpsSel.value = String(run.x || 1);
   checkerSel.value = run.checker;
-  // Runs saved by a checker the page no longer offers continue on tsgo-teamchong (the worker falls back too).
+  // Runs saved by a checker the page no longer offers continue on tsgo-doom (the worker falls back too).
   if (!checkerSel.value) checkerSel.value = "teamchong";
   try { localStorage.setItem("doom-checker", checkerSel.value); } catch {}
   showScript(run.t);
@@ -1409,6 +1753,9 @@ function showRestored(run) {
     runKey = run.runId;
     runInfo = { t: run.t, checker: run.checker, startedAt: run.startedAt ?? Date.now() };
     runStatus = "finished";
+    curChunk = 0;
+    stageText = "";
+    lastTscText = "";
     archived = `${runKey}:${frames.length}:finished`;
     progress = `done: ${frames.length} frames${run.elapsedMs ? ` in ${fmtTime(run.elapsedMs)}` : ""} (saved run)`;
     scrub.max = String(Math.max(0, frames.length - 1));

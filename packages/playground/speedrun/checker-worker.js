@@ -1,6 +1,6 @@
 // Runs Doom in the TypeScript type checker: cfg/drive.ts (bundled as run.browser.js)
 // walks doom-keys.cfg.ts chunk by chunk, and every chunk is type-checked by a
-// TypeScript checker compiled to WebAssembly: tsgo-teamchong, tsgo or tsrs. Nothing here
+// TypeScript checker compiled to WebAssembly: tsgo-doom, tsgo or tsrs. Nothing here
 // executes doom.wasm: each frame is read out of the memory the checker's types
 // evaluated to.
 //
@@ -19,7 +19,7 @@ import * as tsgo from "./tsgo/tsgo.js";
 import * as teamchong from "./tsgo/teamchong.js";
 
 const CHECKERS = {
-  teamchong: { label: "tsgo-teamchong", load: () => teamchong.loadModule(), tsc: (args, o) => teamchong.tsc(args, o) },
+  teamchong: { label: "tsgo-doom", load: () => teamchong.loadModule(), tsc: (args, o) => teamchong.tsc(args, o) },
   ts7: { label: "tsgo", load: () => tsgo.loadModule(), tsc: (args, o) => tsgo.tsc(args, o) },
   tsrs: { label: "tsrs", load: () => tsrs.loadModule(new URL("./tsrs/tsrs.wasm", import.meta.url)), tsc: (args, o) => tsrs.tsc(args, { ...o, stackSizeMb: 1024 }) },
 };

@@ -1,4 +1,4 @@
-// tsgo-teamchong: typescript-go from teamchong/TypeScript (perf/checker-memory-and-wasm-speedups),
+// tsgo-doom: typescript-go from teamchong/TypeScript (perf/checker-memory-and-wasm-speedups),
 // built with TinyGo for wasm32-wasip1. It speaks tsrs's ABI (tsrs_input / tsrs_run / tsrs_output and
 // the tsrs_host.fs import), so the file system and request encoding come from tsrs's core.js.
 //
@@ -26,7 +26,7 @@ let loading;
 export function loadModule(url = new URL("./tsgo-teamchong.wasm.gz", import.meta.url)) {
   loading ??= (async () => {
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`tsgo-teamchong: fetching ${url} failed with ${response.status}`);
+    if (!response.ok) throw new Error(`tsgo-doom: fetching ${url} failed with ${response.status}`);
     // Stored gzipped and served without Content-Encoding, like ts7.wasm.gz.
     const body = String(url).endsWith(".gz") ? response.body.pipeThrough(new DecompressionStream("gzip")) : response.body;
     return WebAssembly.compile(await new Response(body).arrayBuffer());
@@ -176,7 +176,7 @@ export async function tsc(args, options = {}) {
     if (e instanceof WasiExit) {
       exitCode = e.code;
     } else if (e instanceof WebAssembly.RuntimeError || (e instanceof RangeError && /call stack/i.test(e.message))) {
-      cur.err.push(encoder.encode(`error: tsgo-teamchong trapped (${e.name}: ${e.message})\n`));
+      cur.err.push(encoder.encode(`error: tsgo-doom trapped (${e.name}: ${e.message})\n`));
       exitCode = EXIT_CRASHED;
       instance = undefined;
     } else {
