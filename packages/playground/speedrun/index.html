@@ -1295,7 +1295,7 @@ const soundChk = document.getElementById("soundChk");
 const doomAudio = (() => {
   let actx = null, master = null, bgmGain = null, mediaDest = null;
   let sfxRaw = null, sfxBuffers = {}, sfxUrls = {}, bgmArrayBuf = null, bgmBuffer = null, decodingBgm = false;
-  let bgmSource = null, bgmPlaying = false;
+  let bgmSource = null, bgmPlaying = false, bgmBlocked = false;
   let recordingVideo = false, lastFireIdx = -999;
 
   const bgmEl = new Audio("recordings/e1m1.m4a?v=3");
@@ -1427,18 +1427,27 @@ const doomAudio = (() => {
     bgmPlaying = false;
   }
 
-  function syncBgm() {
+  function syncBgm(fromGesture = false) {
     if (recordingVideo) {
       bgmEl.pause();
-      if ( ensure()) startRecBgmNode();
+      if (ensure()) startRecBgmNode();
       return;
     }
     stopRecBgmNode();
     bgmEl.muted = !soundChk.checked;
     bgmEl.playbackRate = 1.0;
     if (shouldPlayBgm()) {
-      if (bgmEl.paused) bgmEl.play().catch(() => {});
+      if (bgmEl.paused || (fromGesture && bgmBlocked)) {
+        bgmBlocked = false;
+        bgmEl.play().then(() => {
+          bgmBlocked = false;
+        }).catch(() => {
+          bgmBlocked = true;
+          try { bgmEl.pause(); } catch {}
+        });
+      }
     } else {
+      bgmBlocked = false;
       if (!bgmEl.paused) bgmEl.pause();
     }
   }
@@ -1482,7 +1491,8 @@ const doomAudio = (() => {
   }
 
   return {
-    unlock() { ensure(); syncBgm(); },
+    unlock() { ensure(); syncBgm(true); },
+    isBlocked() { return bgmBlocked; },
     syncBgm,
     onFrame,
     setRecording(v) { recordingVideo = v; ensure(); syncBgm(); },
@@ -1495,8 +1505,10 @@ soundChk.addEventListener("change", () => {
   doomAudio.unlock();
 });
 loopChk.addEventListener("change", () => doomAudio.syncBgm());
-for (const ev of ["pointerdown", "keydown", "wheel", "touchstart", "click"]) {
-  window.addEventListener(ev, () => { if (soundChk.checked) doomAudio.unlock(); }, { passive: true });
+// Only use events that Firefox/Chrome/Safari treat as valid user-activation for HTMLMediaElement.play().
+// (In Firefox, pointerdown is NOT a user-activation event and calling play() in pointerdown poisons the following click!)
+for (const ev of ["click", "keydown", "touchend"]) {
+  window.addEventListener(ev, () => { if (soundChk.checked) doomAudio.unlock(); }, { capture: true, passive: true });
 }
 await new Promise((resolve) => {
   const base = new URL("monaco/", location.href).href;
