@@ -56,7 +56,8 @@ self.customTSWorkerFactory = (TSWorker, tsArg) => class extends TSWorker {
           continue;
         }
         const n = literal(v);
-        if (!(Number.isInteger(n) && n >= 0 && n <= 127)) throw new Error(`${name} must be 0 to 127, got ${n}`);
+        const max = ["back", "strafeLeft", "turnRight"].includes(name) ? 128 : 127;
+        if (!(Number.isInteger(n) && n >= 0 && n <= max)) throw new Error(`${name} must be 0 to ${max}, got ${n}`);
         m[name] = n;
       }
       for (const [x, y] of [["forward", "back"], ["strafeLeft", "strafeRight"], ["turnLeft", "turnRight"]])

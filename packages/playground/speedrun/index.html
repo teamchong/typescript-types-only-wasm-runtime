@@ -462,6 +462,10 @@
       <label class="meta" title="Loads the preset's script into the editor as a starting point">Start from
         <select id="presetSel">
           <option value="tas" selected>E1M1 0:07.69 UV-Speed TAS (277 tics)</option>
+          <option value="ep1_tas">Episode 1 (All 8 Stages E1M1–E1M8) 3:23 UV-Speed TAS (7423 tics)</option>
+          <option value="uvmax_tas">E1M1 0:18.97 UV-Max TAS — 100% Kills &amp; Secrets (672 tics)</option>
+          <option value="uvspeed_rta">E1M1 0:08.74 UV-Speed / Pacifist RTA World Record (314 tics)</option>
+          <option value="uvmax_rta">E1M1 0:24.83 UV-Max RTA World Record (877 tics)</option>
           <option value="clear">E1M1 Clear (1000 tics)</option>
           <option value="kill">E1M1 Kill Run (1999 tics)</option>
           <option value="custom">Your edits</option>
@@ -704,11 +708,18 @@ function moveLines(words) {
   const lines = [];
   for (let i = 0; i < words.length; ) {
     let j = i;
-    while (j < words.length && words[j] === words[i]) j++;
+    while (j < words.length && words[j] === words[i] && j - i < 500) j++;
     lines.push(j - i > 1 ? `  ...Repeat<${moveType(words[i])}, ${j - i}>,` : `  ${moveType(words[i])},`);
     i = j;
   }
   return lines;
+}
+function noneLines(n, comment = "") {
+  const out = [];
+  for (let rem = n; rem > 0; rem -= 500) {
+    out.push(`  ...none<${Math.min(500, rem)}>,${out.length === 0 && comment ? ` // ${comment}` : ""}`);
+  }
+  return out.join("\n");
 }
 
 // tas-keys.mjs's KEY_SCRIPT (bench/doom/tas-keys.mjs) as TypeScript. Its raw
@@ -752,7 +763,7 @@ ${moveLines(tics).join("\n")}
 type Inputs = Run<[
 ${stepLines(steps.slice(0, startAt)).join("\n")}
   { playDemo: Demo }, // restart E1M1 and replay Demo from its first tic
-${idle ? `  ...none<${idleAt - startAt - 1}>, // the demo plays; keys are ignored
+${idle ? `${noneLines(idleAt - startAt - 1, "the demo plays; keys are ignored")}
   // The demo's last tic presses the exit switch. Doom then shows the E1M1 finished
   // screen, counting kills, items, secrets and TIME up from 0. Keep the demo going
   // ${idleWords.length} more tics so Doom has input while that happens.
@@ -761,11 +772,47 @@ ${idle ? `  ...none<${idleAt - startAt - 1}>, // the demo plays; keys are ignore
 ${extendLines(idleWords, use ? (use[0] - DEMO_AT) / 4 - tics.length : undefined, use?.[1]).map((l) => "    " + l).join("\n")}
     ];
   },
-  ...none<${steps.length - idleAt - 1}>,
-` : `  ...none<${use ? after - 1 : after}>, // the demo plays; keys are ignored
-${use ? `  { setDemoTic: [${(use[0] - DEMO_AT) / 4}, ${moveType(use[1])}] },
-` : ""}`}]>;
+${noneLines(steps.length - idleAt - 1)}
+` : `${noneLines(use ? after - 1 : after, "the demo plays; keys are ignored")}
+${use ? `  { setDemoTic: [${(use[0] - DEMO_AT) / 4}, ${moveType(use[1])}] },\n` : ""}`}]>;
 `;
+}
+
+function stepsFromLmp({ lmp, hold = 3 }) {
+  const bin = atob(lmp);
+  const tics = bin.length >>> 2;
+  const view = new DataView(Uint8Array.from(bin, (c) => c.charCodeAt(0)).buffer);
+  const words = [];
+  for (let i = 0; i < tics; i++) words.push([DEMO_AT + i * 4, view.getUint32(i * 4, true)]);
+  words.push([DEMO_AT + tics * 4, DEMO_END]);
+  const steps = [{ keys: [] }, { keys: ["ArrowDown"] }, { keys: [] }, { keys: ["Enter"] }];
+  for (let t = 0; t < tics; t++) {
+    steps.push(t === 0 ? {
+      keys: [],
+      poke: [
+        ...words,
+        [DEMO_P, DEMO_AT],
+        [DEMOPLAYBACK, 1],
+        [PLAYER0_STATE, PST_REBORN],
+        [RNDINDEX, 0],
+        [PRNDINDEX, 0],
+      ],
+    } : { keys: [] });
+  }
+  const IDLE_TICS = 40;
+  for (let h = 0; h < hold; h++) {
+    steps.push(h === 0 ? {
+      keys: [],
+      poke: [
+        ...Array.from({ length: IDLE_TICS }, (_, k) => [DEMO_AT + (tics + k) * 4, 0]),
+        [DEMO_AT + (tics + IDLE_TICS) * 4, DEMO_END],
+      ],
+    } : { keys: [] });
+  }
+  if (hold === 3) {
+    steps.push({ keys: [], poke: [[DEMO_AT + (tics + 3) * 4, 2 << 24]] });
+  }
+  return steps;
 }
 
 // The memory writes for a step's demo actions. `demoLen` is the length of the
@@ -1735,6 +1782,8 @@ function presetText(name) {
   if (name === "clear") return scriptFromSteps(legacySteps(window.PRESETS.clear, 5), "E1M1 clear");
   if (name === "kill") return scriptFromSteps(legacySteps(window.PRESETS.kill), "E1M1 kill run");
   if (name === "tas") return tasScript(window.PRESETS.tas.map((e) => (Array.isArray(e) ? { keys: e } : { keys: e.keys ?? [], poke: e.poke })), "almostmatt1's E1M1 0:07.69 UV-Speed TAS");
+  const p = window.PRESETS[name];
+  if (p?.lmp) return tasScript(stepsFromLmp(p), p.note);
 }
 function loadPreset(name) {
   presetSel.value = name;
