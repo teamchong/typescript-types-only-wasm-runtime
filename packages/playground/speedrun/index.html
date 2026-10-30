@@ -1403,9 +1403,7 @@ const doomAudio = (() => {
     if (!soundChk.checked && !recordingVideo) return false;
     if (recordingVideo || past.playing) return true;
     if (!document.getElementById("playbackTab")?.hidden) return false;
-    if (playing && (checking || frames.length > 0)) return true;
-    if (checking && (frames.length === 0 || cur >= frames.length - 1)) return true;
-    return false;
+    return playing && (checking || frames.length > 0);
   }
 
   function startRecBgmNode() {
@@ -1448,7 +1446,7 @@ const doomAudio = (() => {
       }
     } else {
       bgmBlocked = false;
-      if (!bgmEl.paused) bgmEl.pause();
+      bgmEl.pause();
     }
   }
 
@@ -1508,7 +1506,7 @@ loopChk.addEventListener("change", () => doomAudio.syncBgm());
 // Only use events that Firefox/Chrome/Safari treat as valid user-activation for HTMLMediaElement.play().
 // (In Firefox, pointerdown is NOT a user-activation event and calling play() in pointerdown poisons the following click!)
 for (const ev of ["click", "keydown", "touchend"]) {
-  window.addEventListener(ev, () => { if (soundChk.checked) doomAudio.unlock(); }, { capture: true, passive: true });
+  window.addEventListener(ev, () => { if (soundChk.checked) doomAudio.unlock(); }, { passive: true });
 }
 await new Promise((resolve) => {
   const base = new URL("monaco/", location.href).href;
@@ -1683,7 +1681,7 @@ timeline.addEventListener("wheel", stopFollow, { passive: true });
 timeline.addEventListener("touchmove", stopFollow, { passive: true });
 timeline.addEventListener("keydown", stopFollow);
 timeline.addEventListener("pointerdown", (e) => { if (e.target === timeline) stopFollow(); }); // scrollbar drag
-followBtn.addEventListener("click", () => { tlFollow = true; followBtn.hidden = true; if (frames.length) drawFrame(frames.length - 1); drawTimeline(); doomAudio.syncBgm(); });
+followBtn.addEventListener("click", () => { tlFollow = true; followBtn.hidden = true; if (checking) { playing = true; playBtn.textContent = "Pause"; } if (frames.length) drawFrame(frames.length - 1); drawTimeline(); doomAudio.syncBgm(); });
 timeline.addEventListener("click", (e) => {
   const li = e.target.closest("li");
   if (!li || Number(li.dataset.i) >= frames.length) return;
