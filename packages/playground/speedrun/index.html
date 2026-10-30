@@ -1256,7 +1256,7 @@ function execute(script, saved) {
       }
       cur = Math.min(cur, Math.max(0, frames.length - 1));
       scrub.max = String(Math.max(0, frames.length - 1));
-      runT0 = performance.now() - (m.frames ? (m.elapsedMs ?? 0) : 0);
+      runT0 = performance.now() - (m.elapsedMs ?? 0);
       progress = m.frames ? `continuing after frame ${m.frames}` : "type-checking chunk 1";
       if (m.frames) drawFrame(frames.length - 1);
       else {

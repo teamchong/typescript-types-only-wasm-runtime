@@ -253,21 +253,23 @@ self.onmessage = async ({ data }) => {
         // The newest frame end the two scripts agree on and a checkpoint was
         // saved for. An imported run has no bounds, only its latest checkpoint.
         const aligned = alignedFrames(saved.keyScript, keyScript);
+        const sameScript = saved.keyScript.length === keyScript.length && aligned.every(Boolean);
         let f = Math.min(aligned.length - 1, boundsIndex.length - 1);
         while (f >= 0 && (!boundsIndex[f] || !aligned[f])) f--;
         // The latest checkpoint wins while its frame is still aligned, even
-        // mid-frame: that frame's keys are unchanged, so its chunks carry over.
+        // mid-frame — except when 0 frames finished and the user switched scripts,
+        // where restarting from 0 should reset the timer and start fresh.
         const latest = (await readCheckpoint(old))?.point;
         const latestAt = latest ? latest.scriptFrame ?? 0 : -1;
         const latestKept = latest ? latestAt + (latest.done ? 1 : 0) : 0;
-        if (latest && aligned[latestAt] && latestKept >= f + 1) {
+        if (latest && aligned[latestAt] && latestKept >= f + 1 && (latestKept > 0 || sameScript)) {
           resume = latest;
           f = latestKept - 1;
         } else if (f >= 0) resume = await readBound(old, boundsIndex[f]);
         if (resume) {
           files = old;
           kept = f + 1;
-          baseMs = resume.elapsedMs ?? (saved.meta?.startedAt ? Math.max(0, Date.now() - saved.meta.startedAt) : 0);
+          baseMs = resume.elapsedMs ?? 0;
         }
       }
       await clearRun(resume ? files : null);
