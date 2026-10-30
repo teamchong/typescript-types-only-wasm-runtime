@@ -395,7 +395,7 @@
         <span id="liveSubText">We are live type-checking Doom in your browser &mdash; this takes a while (~20&ndash;30s per frame across ~35&ndash;70 type-check chunks; hours for all 277 frames). Keep this tab open; frames appear below and auto-save as they finish.</span>
         <button type="button" class="inline-link" id="bannerWatchBtn">Watch 1000&times; pre-recorded run &rarr;</button>
       </div>
-      <div class="live-bar"><div id="liveBarFill" class="live-bar-fill" style="width:6%"></div></div>
+      <div class="live-bar" title="Overall run progress across all frames"><div id="liveBarFill" class="live-bar-fill" style="width:0%"></div></div>
     </div>
     <div id="screenWrap">
       <canvas id="screen" width="320" height="200"></canvas>
@@ -438,6 +438,7 @@
         </select>
       </label>
       <label class="meta"><input id="loopChk" type="checkbox" /> Loop</label>
+      <label class="meta" title="Procedural Doom synth soundtrack and tic-synced SFX"><input id="soundChk" type="checkbox" checked /> Sound</label>
       <span style="flex:1"></span>
       <button id="videoBtn">Download Video</button>
     </div>
@@ -496,7 +497,7 @@
         <select id="recSel">
           <option value="ts7.1-tas.mp4">TAS preset, checked by TS7.1, played 1000x faster</option>
           <option value="tsrs-tas.mp4">TAS preset, checked by tsrs, played 1000x faster</option>
-          <option value="ts7.1-e1m1.mp4">Clear preset, checked by TS7.1, played 60x faster</option>
+          <option value="ts7.1-e1m1.mp4">Clear preset, checked by TS7.1, played 1000x faster</option>
         </select>
       </label>
     </div>
@@ -885,7 +886,10 @@ function switchToTab(tabId, autoPlayVideo = false) {
   if (tabId === "playbackTab") {
     refreshPast();
     const v = document.getElementById("recVideo");
-    if (autoPlayVideo) v.play().catch(() => {});
+    if (autoPlayVideo) {
+      if (document.getElementById("soundChk")?.checked) v.muted = false;
+      v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+    }
     else v.pause();
   } else {
     pastStop();
@@ -899,7 +903,9 @@ document.getElementById("overlayWatchBtn").addEventListener("click", () => switc
 document.getElementById("backToEditorBtn").addEventListener("click", () => switchToTab("editorTab"));
 
 document.getElementById("recSel").addEventListener("change", (e) => {
-  document.getElementById("recVideo").src = "recordings/" + e.target.value;
+  const v = document.getElementById("recVideo");
+  v.src = "recordings/" + e.target.value;
+  if (document.getElementById("soundChk")?.checked) v.muted = false;
 });
 
 const checkerSel = document.getElementById("checkerSel");
@@ -1047,11 +1053,12 @@ function pastDraw(idx) {
   pastCtx.putImageData(pastImg, 0, 0);
   pastScrub.value = String(past.cur);
   pastLabel.textContent = `${past.cur + 1} / ${past.frames.length}`;
+  if (past.playing && typeof doomAudio !== "undefined") doomAudio.onFrame(past.cur, labels[past.cur] || "");
 }
-
 function pastStop() {
   past.playing = false;
   pastPlayBtn.textContent = "Play";
+  if (typeof doomAudio !== "undefined") doomAudio.syncBgm();
 }
 
 // Plays at 1x: one frame per Doom tic, 35 per second.
@@ -1074,6 +1081,7 @@ pastPlayBtn.addEventListener("click", () => {
   past.playing = true;
   past.last = performance.now();
   pastPlayBtn.textContent = "Pause";
+  if (typeof doomAudio !== "undefined") { doomAudio.unlock(); doomAudio.syncBgm(); }
   requestAnimationFrame(pastLoop);
 });
 document.getElementById("pastDelBtn").addEventListener("click", async () => {
@@ -1174,32 +1182,38 @@ function execute(script, saved) {
       progress = `frame ${m.index + 1} checked in ${m.chunks} chunks`;
       scrub.max = String(frames.length - 1);
       // Follow the newest frame unless the user is scrubbing back.
-      if (playing && cur >= m.index - 1) drawFrame(m.index);
-    } else if (m.kind === "end" && m.result.failed) {
-      // drive.ts gave up on a chunk: the run stopped early, it did not finish.
-      checking = false;
-      stageText = "";
-      progress = `checker failed after ${frames.length} frames`;
-      playing = false;
-      playBtn.textContent = "Play";
-      drawFrame(frames.length - 1);
-      console.error(m.result.failed);
-      showToast(`The checker failed on frame ${frames.length + 1}: ${m.result.failed.split("\n")[0]}`);
-      archiveRun(runStatus = "failed");
-    } else if (m.kind === "end") {
-      checking = false;
-      curChunk = 0;
-      stageText = "";
-      progress = `done: ${frames.length} frames in ${fmtTime(m.result.ms)}`;
-      archiveRun(runStatus = "finished");
-    } else if (m.kind === "error") {
-      checking = false;
-      stageText = "";
-      progress = "checker error";
-      archiveRun(runStatus = "failed");
-      console.error(m.text);
-      showToast(m.text.split("\n")[0]);
+    if (playing && cur >= m.index - 1) {
+      drawFrame(m.index);
+      if (typeof doomAudio !== "undefined") { doomAudio.onFrame(m.index, labels[m.index] || "", true); doomAudio.syncBgm(); }
     }
+  } else if (m.kind === "end" && m.result.failed) {
+    // drive.ts gave up on a chunk: the run stopped early, it did not finish.
+    checking = false;
+    stageText = "";
+    progress = `checker failed after ${frames.length} frames`;
+    playing = false;
+    playBtn.textContent = "Play";
+    drawFrame(frames.length - 1);
+    console.error(m.result.failed);
+    showToast(`The checker failed on frame ${frames.length + 1}: ${m.result.failed.split("\n")[0]}`);
+    archiveRun(runStatus = "failed");
+    if (typeof doomAudio !== "undefined") doomAudio.syncBgm();
+  } else if (m.kind === "end") {
+    checking = false;
+    curChunk = 0;
+    stageText = "";
+    progress = `done: ${frames.length} frames in ${fmtTime(m.result.ms)}`;
+    archiveRun(runStatus = "finished");
+    if (typeof doomAudio !== "undefined") doomAudio.syncBgm();
+  } else if (m.kind === "error") {
+    checking = false;
+    stageText = "";
+    progress = "checker error";
+    archiveRun(runStatus = "failed");
+    console.error(m.text);
+    showToast(m.text.split("\n")[0]);
+    if (typeof doomAudio !== "undefined") doomAudio.syncBgm();
+  }
     if (!frames.length || m.kind !== "frame") drawHud();
   };
   if (saved) return worker.postMessage({ resume: true });
@@ -1223,6 +1237,186 @@ const playBtn = document.getElementById("playBtn");
 const presetSel = document.getElementById("presetSel");
 const fpsSel = document.getElementById("fpsSel");
 const loopChk = document.getElementById("loopChk");
+const soundChk = document.getElementById("soundChk");
+
+// Procedural Web Audio API E-Phrygian Doom synth + tic-synced SFX (zero external assets).
+const doomAudio = (() => {
+  let actx = null, master = null, mediaDest = null, noiseBuf = null, distCurve = null;
+  let bgmTimer = null, stepIdx = 0, nextNoteTime = 0, lastStepSfxAt = 0, recordingVideo = false;
+  const STEP_DUR = 60 / 138 / 4; // 138 BPM 16th notes
+  const SEC_A = [[0,0,1],[0,0,1],[12,1,1],[0,0,1],[0,0,1],[10,1,1],[0,0,1],[0,0,1],[7,1,1],[0,0,1],[0,0,1],[5,1,1],[0,0,1],[0,0,1],[1,1,2],[0,0,1],[0,0,1],[12,1,1],[0,0,1],[0,0,1],[10,1,1],[0,0,1],[0,0,1],[7,1,1],[0,0,1],[8,1,2],[7,1,2],[5,1,2]];
+  const SEC_B = [[0,1,2],[0,0,1],[0,0,1],[1,1,2],[0,0,1],[0,0,1],[3,1,2],[0,0,1],[0,0,1],[1,1,2],[0,0,1],[0,0,1],[0,1,2],[0,0,1],[0,0,1],[1,1,2],[0,0,1],[0,0,1],[6,1,4],[5,1,4]];
+  const LEAD = [[0,12,3],[3,15,3],[6,14,2],[8,12,3],[11,10,3],[14,8,2],[16,7,4],[20,8,2],[22,10,2],[24,12,4],[28,6,4]];
+  const hz = (semi) => 41.2034 * Math.pow(2, semi / 12);
+  function ensure() {
+    if (!actx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      actx = new Ctx();
+      master = actx.createGain();
+      master.gain.value = soundChk.checked ? 0.32 : 0;
+      master.connect(actx.destination);
+      try { mediaDest = actx.createMediaStreamDestination(); master.connect(mediaDest); } catch {}
+      noiseBuf = actx.createBuffer(1, actx.sampleRate * 0.5, actx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      distCurve = new Float32Array(512);
+      for (let i = 0; i < 512; i++) { const x = (i * 2) / 512 - 1; distCurve[i] = Math.tanh(x * 3.2); }
+    }
+    if (actx.state === "suspended") actx.resume().catch(() => {});
+    master.gain.setTargetAtTime(soundChk.checked || recordingVideo ? 0.32 : 0, actx.currentTime, 0.015);
+    return actx;
+  }
+  function playChug(t, semi, open, dur) {
+    const o1 = actx.createOscillator(), o2 = actx.createOscillator(), sh = actx.createWaveShaper(), flt = actx.createBiquadFilter(), g = actx.createGain();
+    o1.type = "sawtooth"; o2.type = "square";
+    const f = hz(semi);
+    o1.frequency.setValueAtTime(f, t); o2.frequency.setValueAtTime(f * (open ? 1.4983 : 2), t);
+    sh.curve = distCurve;
+    flt.type = "lowpass"; flt.frequency.setValueAtTime(open ? 1900 : 820, t);
+    const a = open ? 0.14 : 0.11;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(a, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + Math.max(0.04, dur * (open ? 0.92 : 0.65)));
+    o1.connect(sh); o2.connect(sh); sh.connect(flt); flt.connect(g); g.connect(master);
+    o1.start(t); o2.start(t); o1.stop(t + dur); o2.stop(t + dur);
+  }
+  function playLead(t, semi, dur) {
+    const o1 = actx.createOscillator(), o2 = actx.createOscillator(), flt = actx.createBiquadFilter(), g = actx.createGain();
+    o1.type = "sawtooth"; o2.type = "sawtooth";
+    const f = hz(24 + semi);
+    o1.frequency.setValueAtTime(f, t); o2.frequency.setValueAtTime(f * 1.004, t);
+    flt.type = "lowpass"; flt.frequency.setValueAtTime(2600, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.085, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    o1.connect(flt); o2.connect(flt); flt.connect(g); g.connect(master);
+    o1.start(t); o2.start(t); o1.stop(t + dur); o2.stop(t + dur);
+  }
+  function playKick(t, amp = 0.24) {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(155, t);
+    o.frequency.exponentialRampToValueAtTime(38, t + 0.11);
+    g.gain.setValueAtTime(amp, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + 0.17);
+  }
+  function playSnare(t, amp = 0.14) {
+    const n = actx.createBufferSource(), flt = actx.createBiquadFilter(), g = actx.createGain();
+    n.buffer = noiseBuf;
+    flt.type = "bandpass"; flt.frequency.setValueAtTime(1800, t); flt.Q.setValueAtTime(0.9, t);
+    g.gain.setValueAtTime(amp, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+    n.connect(flt); flt.connect(g); g.connect(master);
+    n.start(t); n.stop(t + 0.15);
+  }
+  function playHat(t, open = false) {
+    const n = actx.createBufferSource(), flt = actx.createBiquadFilter(), g = actx.createGain();
+    n.buffer = noiseBuf;
+    flt.type = "highpass"; flt.frequency.setValueAtTime(6800, t);
+    const dur = open ? 0.14 : 0.04;
+    g.gain.setValueAtTime(open ? 0.045 : 0.03, t);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    n.connect(flt); flt.connect(g); g.connect(master);
+    n.start(t); n.stop(t + dur + 0.01);
+  }
+  function scheduleBar(barStart, barIdx) {
+    const sec = barIdx % 4 === 2 ? SEC_B : SEC_A;
+    let sub = 0;
+    for (const [semi, open, d16] of sec) {
+      if (sub >= 32) break;
+      playChug(barStart + sub * STEP_DUR, semi, open, d16 * STEP_DUR);
+      sub += d16;
+    }
+    if (barIdx % 2 === 1) {
+      for (const [st, semi, d16] of LEAD) {
+        playLead(barStart + st * STEP_DUR, semi, d16 * STEP_DUR);
+      }
+    }
+    for (let s = 0; s < 32; s++) {
+      const t = barStart + s * STEP_DUR;
+      if (s % 4 === 0) playKick(t, 0.22);
+      if (s % 8 === 4) playSnare(t, 0.13);
+      if (s % 2 === 0) playHat(t, s % 8 === 6);
+    }
+  }
+  function tickScheduler() {
+    if (!actx) return;
+    while (nextNoteTime < actx.currentTime + 0.25) {
+      scheduleBar(nextNoteTime, stepIdx++);
+      nextNoteTime += 32 * STEP_DUR;
+    }
+  }
+  function shouldPlayBgm() {
+    if (!soundChk.checked && !recordingVideo) return false;
+    if (recordingVideo || past.playing) return true;
+    if (!playing || frames.length < 2) return false;
+    if (checking && cur >= frames.length - 1 && !loopChk.checked) return false;
+    return true;
+  }
+  function syncBgm() {
+    if (shouldPlayBgm()) {
+      if (!ensure()) return;
+      if (!bgmTimer) {
+        nextNoteTime = actx.currentTime + 0.02;
+        tickScheduler();
+        bgmTimer = setInterval(tickScheduler, 80);
+      }
+    } else if (bgmTimer) {
+      clearInterval(bgmTimer);
+      bgmTimer = null;
+    }
+  }
+  function onFrame(idx, label = "", fromWorker = false) {
+    if (!soundChk.checked && !recordingVideo) return;
+    if (!ensure()) return;
+    const t = actx.currentTime;
+    const lbl = String(label).toLowerCase();
+    if (lbl.includes("enter") && idx < 10) {
+      playSnare(t, 0.18);
+      playChug(t + 0.05, 12, 1, 0.12);
+    } else if ((lbl.includes("arrowdown") || lbl.includes("arrowup")) && idx < 6) {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = "square"; o.frequency.setValueAtTime(260, t); o.frequency.exponentialRampToValueAtTime(520, t + 0.045);
+      g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.055);
+    } else if (lbl.includes("fire") || lbl.includes("controlleft")) {
+      playKick(t, 0.34);
+      playSnare(t, 0.28);
+    } else if (lbl.includes("use") || lbl.includes("space") || lbl.includes("set demo tic")) {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = "sawtooth";
+      const isExit = idx >= 170;
+      o.frequency.setValueAtTime(isExit ? 880 : 75, t);
+      o.frequency.exponentialRampToValueAtTime(isExit ? 210 : 125, t + 0.16);
+      g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.19);
+      if (isExit) playKick(t, 0.3);
+    } else if (lbl.includes("extend demo")) {
+      playKick(t, 0.32);
+      playChug(t, 0, 1, 0.25);
+    } else if (t - lastStepSfxAt >= 0.12 && (lbl.includes("forward") || lbl.includes("strafe") || lbl.includes("arrow") || fromWorker)) {
+      lastStepSfxAt = t;
+      playKick(t, fromWorker ? 0.12 : 0.08);
+    }
+  }
+  return {
+    unlock() { ensure(); syncBgm(); },
+    syncBgm,
+    onFrame,
+    setRecording(v) { recordingVideo = v; ensure(); syncBgm(); },
+    getAudioTracks() { ensure(); return mediaDest ? mediaDest.stream.getAudioTracks() : []; },
+  };
+})();
+soundChk.addEventListener("change", () => {
+  const v = document.getElementById("recVideo");
+  if (v) v.muted = !soundChk.checked;
+  doomAudio.unlock();
+});
+loopChk.addEventListener("change", () => doomAudio.syncBgm());
+document.addEventListener("pointerdown", () => { if (soundChk.checked) doomAudio.unlock(); }, { once: true });
 await new Promise((resolve) => {
   const base = new URL("monaco/", location.href).href;
   window.MonacoEnvironment = {
@@ -1299,19 +1493,17 @@ function updateLiveStatus(elapsed) {
   liveBarFill.className = "live-bar-fill" + (isDone ? " done" : "");
   overlayBarFill.className = "overlay-bar-fill" + (isDone ? " done" : "");
 
-  let pct = 6;
-  if (isDone) {
-    pct = 100;
-  } else if (checking) {
-    pct = stageText
-      ? 5
-      : Math.min(98, Math.max(6, Math.round(((curChunk + 0.35) / targetChunks) * 100)));
-  } else {
-    pct = frames.length ? Math.min(100, Math.round((frames.length / total) * 100)) : 0;
-  }
-  liveBarFill.style.width = `${pct}%`;
-  overlayBarFill.style.width = `${pct}%`;
-
+  const chunkFrac = checking && !stageText ? Math.min(0.98, curChunk / targetChunks) : 0;
+  const runPct = isDone ? 100 : total > 0 ? Math.min(100, ((frames.length + chunkFrac) / total) * 100) : 0;
+  const frame1Pct = isDone
+    ? 100
+    : checking
+      ? stageText
+        ? 5
+        : Math.min(98, Math.max(6, Math.round(((curChunk + 0.35) / targetChunks) * 100)))
+      : 0;
+  liveBarFill.style.width = `${runPct.toFixed(2)}%`;
+  overlayBarFill.style.width = `${frame1Pct}%`;
   if (checking) {
     const chunkDesc = stageText
       ? stageText
@@ -1506,15 +1698,19 @@ playBtn.addEventListener("click", () => {
   if (!playing && cur >= frames.length - 1) drawFrame(0);
   playing = !playing;
   playBtn.textContent = playing ? "Pause" : "Play";
+  doomAudio.unlock();
 });
 document.getElementById("stepBackBtn").addEventListener("click", () => {
   playing = false; playBtn.textContent = "Play"; drawFrame(cur - 1);
+  doomAudio.syncBgm(); doomAudio.onFrame(cur, labels[cur] || "");
 });
 document.getElementById("stepFwdBtn").addEventListener("click", () => {
   playing = false; playBtn.textContent = "Play"; drawFrame(cur + 1);
+  doomAudio.syncBgm(); doomAudio.onFrame(cur, labels[cur] || "");
 });
 scrub.addEventListener("input", () => {
   playing = false; playBtn.textContent = "Play"; drawFrame(Number(scrub.value));
+  doomAudio.syncBgm();
 });
 
 document.getElementById("shareBtn").addEventListener("click", async () => {
@@ -1529,10 +1725,13 @@ document.getElementById("videoBtn").addEventListener("click", async () => {
   if (!frames.length) return;
   const btn = document.getElementById("videoBtn");
   btn.disabled = true;
-  const wasPlaying = playing; playing = false;
+  const wasPlaying = playing;
+  playing = false;
+  doomAudio.setRecording(true);
   const dt = frameMs();
   const stream = canvas.captureStream(Math.ceil(1000 / dt));
-  const mime = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"].find((m) => MediaRecorder.isTypeSupported(m)) || "";
+  for (const tr of doomAudio.getAudioTracks()) stream.addTrack(tr);
+  const mime = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"].find((m) => MediaRecorder.isTypeSupported(m)) || "";
   const rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 4_000_000 } : undefined);
   const chunks = [];
   rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
@@ -1541,11 +1740,13 @@ document.getElementById("videoBtn").addEventListener("click", async () => {
   const start = performance.now();
   for (let i = 0; i < frames.length; i++) {
     drawFrame(i);
-    btn.textContent = `Recording ${i + 1}/${frames.length}…`;
+    doomAudio.onFrame(i, labels[i] || "");
+    btn.textContent = `Recording ${i + 1}/${frames.length}..`;
     await new Promise((r) => setTimeout(r, Math.max(0, start + (i + 1) * dt - performance.now())));
   }
   rec.stop();
   await done;
+  doomAudio.setRecording(false);
   const ext = mime.includes("mp4") ? "mp4" : "webm";
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(chunks, { type: mime || "video/webm" }));
@@ -1554,6 +1755,7 @@ document.getElementById("videoBtn").addEventListener("click", async () => {
   btn.disabled = false;
   btn.textContent = "Download Video";
   playing = wasPlaying;
+  doomAudio.syncBgm();
   showToast(`Saved doom-speedrun.${ext}`);
 });
 
@@ -1567,10 +1769,13 @@ function loop(now) {
   if (now - lastTick >= interval) {
     const steps = Math.floor((now - lastTick) / interval);
     lastTick += steps * interval;
-    if (cur + steps < frames.length) drawFrame(cur + steps);
-    else if (checking) drawFrame(frames.length - 1);
-    else if (loopChk.checked) drawFrame(0);
-    else { playing = false; playBtn.textContent = "Play"; }
+    if (cur + steps < frames.length) {
+      drawFrame(cur + steps);
+      doomAudio.syncBgm();
+      doomAudio.onFrame(cur, labels[cur] || "");
+    } else if (checking) { drawFrame(frames.length - 1); doomAudio.syncBgm(); }
+    else if (loopChk.checked) { drawFrame(0); doomAudio.onFrame(0, labels[0] || ""); }
+    else { playing = false; playBtn.textContent = "Play"; doomAudio.syncBgm(); }
   }
 }
 
