@@ -1289,12 +1289,35 @@ const soundChk = document.getElementById("soundChk");
 // Doom E1M1 background music (normal 1x speed) + authentic Doom WAD SFX (DSPISTOL, DSSWTCHX, DSDOROPN, DSPSTOP, DSSWTCHN)
 const doomAudio = (() => {
   let actx = null, master = null, bgmGain = null, mediaDest = null;
-  let sfxRaw = null, sfxBuffers = {}, bgmArrayBuf = null, bgmBuffer = null;
-  let bgmSource = null, bgmPlaying = false, bgmOffset = 0, bgmStartedAt = 0;
+  let sfxRaw = null, sfxBuffers = {}, sfxUrls = {}, bgmArrayBuf = null, bgmBuffer = null, decodingBgm = false;
+  let bgmSource = null, bgmPlaying = false;
   let recordingVideo = false, lastFireIdx = -999;
+
+  const bgmEl = new Audio("recordings/e1m1.m4a?v=3");
+  bgmEl.loop = true;
+  bgmEl.preload = "auto";
+  bgmEl.volume = 0.55;
+
+  function makeWavUrl(bin, rate) {
+    const n = bin.length;
+    const buf = new ArrayBuffer(44 + n);
+    const v = new DataView(buf);
+    const str = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+    str(0, "RIFF"); v.setUint32(4, 36 + n, true); str(8, "WAVEfmt ");
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate, true);
+    v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+    str(36, "data"); v.setUint32(40, n, true);
+    const u8 = new Uint8Array(buf, 44);
+    for (let i = 0; i < n; i++) u8[i] = bin.charCodeAt(i);
+    return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+  }
 
   fetch("recordings/doom-sfx.json?v=3").then((r) => r.json()).then((data) => {
     sfxRaw = data;
+    for (const [name, item] of Object.entries(data)) {
+      sfxUrls[name] = makeWavUrl(atob(item.pcm), item.rate);
+    }
     if (actx) buildSfxBuffers();
   }).catch(() => {});
 
@@ -1316,12 +1339,14 @@ const doomAudio = (() => {
   }
 
   function decodeBgm() {
-    if (!actx || !bgmArrayBuf || bgmBuffer) return;
+    if (!actx || !bgmArrayBuf || bgmBuffer || decodingBgm) return;
+    decodingBgm = true;
     const copy = bgmArrayBuf.slice(0);
     actx.decodeAudioData(copy).then((decoded) => {
       bgmBuffer = decoded;
-      syncBgm();
-    }).catch(() => {});
+      decodingBgm = false;
+      if (recordingVideo) syncBgm();
+    }).catch(() => { decodingBgm = false; });
   }
 
   function ensure() {
@@ -1339,26 +1364,34 @@ const doomAudio = (() => {
       bgmGain = actx.createGain();
       bgmGain.gain.value = 0.65;
       bgmGain.connect(master);
-      buildSfxBuffers();
-      decodeBgm();
     }
+    buildSfxBuffers();
+    decodeBgm();
     if (actx.state === "suspended") actx.resume().catch(() => {});
     master.gain.setTargetAtTime(soundChk.checked || recordingVideo ? 0.85 : 0, actx.currentTime, 0.015);
     return actx;
   }
 
   function playSfx(name, vol = 1.0) {
-    if (!ensure()) return;
-    buildSfxBuffers();
-    const buf = sfxBuffers[name];
-    if (!buf) return;
-    const src = actx.createBufferSource();
-    const g = actx.createGain();
-    src.buffer = buf;
-    g.gain.value = vol;
-    src.connect(g);
-    g.connect(master);
-    src.start();
+    if (recordingVideo || (actx && actx.state === "running")) {
+      ensure();
+      const buf = sfxBuffers[name];
+      if (buf) {
+        const src = actx.createBufferSource();
+        const g = actx.createGain();
+        src.buffer = buf;
+        g.gain.value = vol;
+        src.connect(g);
+        g.connect(master);
+        src.start();
+        return;
+      }
+    }
+    if (sfxUrls[name] && soundChk.checked) {
+      const a = new Audio(sfxUrls[name]);
+      a.volume = Math.min(1, vol * 0.85);
+      a.play().catch(() => {});
+    }
   }
 
   function shouldPlayBgm() {
@@ -1369,36 +1402,39 @@ const doomAudio = (() => {
     if (checking && (frames.length === 0 || cur >= frames.length - 1)) return true;
     return false;
   }
-  function startBgmNode() {
+
+  function startRecBgmNode() {
     if (bgmPlaying || !bgmBuffer || !actx) return;
     const src = actx.createBufferSource();
     src.buffer = bgmBuffer;
     src.loop = true;
-    src.playbackRate.value = 1.0; // Always normal 1x speed
+    src.playbackRate.value = 1.0;
     src.connect(bgmGain);
-    const offset = bgmBuffer.duration > 0 ? bgmOffset % bgmBuffer.duration : 0;
-    src.start(0, offset);
-    bgmStartedAt = actx.currentTime - offset;
+    src.start(0, 0);
     bgmSource = src;
     bgmPlaying = true;
   }
 
-  function stopBgmNode() {
+  function stopRecBgmNode() {
     if (!bgmPlaying) return;
-    if (actx && bgmBuffer && bgmBuffer.duration > 0) {
-      bgmOffset = (actx.currentTime - bgmStartedAt) % bgmBuffer.duration;
-    }
     try { bgmSource.stop(); bgmSource.disconnect(); } catch {}
     bgmSource = null;
     bgmPlaying = false;
   }
 
   function syncBgm() {
+    if (recordingVideo) {
+      bgmEl.pause();
+      if ( ensure()) startRecBgmNode();
+      return;
+    }
+    stopRecBgmNode();
+    bgmEl.muted = !soundChk.checked;
+    bgmEl.playbackRate = 1.0;
     if (shouldPlayBgm()) {
-      if (!ensure()) return;
-      startBgmNode();
+      if (bgmEl.paused) bgmEl.play().catch(() => {});
     } else {
-      stopBgmNode();
+      if (!bgmEl.paused) bgmEl.pause();
     }
   }
 
@@ -1444,7 +1480,7 @@ const doomAudio = (() => {
     unlock() { ensure(); syncBgm(); },
     syncBgm,
     onFrame,
-    setRecording(v) { recordingVideo = v; if (v) bgmOffset = 0; ensure(); syncBgm(); },
+    setRecording(v) { recordingVideo = v; ensure(); syncBgm(); },
     getAudioTracks() { ensure(); return mediaDest ? mediaDest.stream.getAudioTracks() : []; },
   };
 })();
@@ -1454,7 +1490,7 @@ soundChk.addEventListener("change", () => {
   doomAudio.unlock();
 });
 loopChk.addEventListener("change", () => doomAudio.syncBgm());
-for (const ev of ["pointerdown", "keydown", "wheel", "touchstart"]) {
+for (const ev of ["pointerdown", "keydown", "wheel", "touchstart", "click"]) {
   window.addEventListener(ev, () => { if (soundChk.checked) doomAudio.unlock(); }, { passive: true });
 }
 await new Promise((resolve) => {
