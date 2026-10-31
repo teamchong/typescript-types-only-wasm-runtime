@@ -1390,15 +1390,17 @@ const doomAudio = (() => {
     }
   }
 
+  let decodeBgmPromise = null;
   function decodeBgm() {
-    if (!actx || !bgmArrayBuf || bgmBuffer || decodingBgm) return;
-    decodingBgm = true;
+    if (!actx || !bgmArrayBuf || bgmBuffer) return Promise.resolve();
+    if (decodeBgmPromise) return decodeBgmPromise;
     const copy = bgmArrayBuf.slice(0);
-    actx.decodeAudioData(copy).then((decoded) => {
+    decodeBgmPromise = actx.decodeAudioData(copy).then((decoded) => {
       bgmBuffer = decoded;
-      decodingBgm = false;
+      decodeBgmPromise = null;
       if (recordingVideo) syncBgm();
-    }).catch(() => { decodingBgm = false; });
+    }).catch(() => { decodeBgmPromise = null; });
+    return decodeBgmPromise;
   }
 
   function ensure() {
@@ -1412,6 +1414,13 @@ const doomAudio = (() => {
       try {
         mediaDest = actx.createMediaStreamDestination();
         master.connect(mediaDest);
+        // Keep-alive silent oscillator so Firefox's WebM muxer always receives audio packets.
+        const keepOsc = actx.createOscillator();
+        const keepGain = actx.createGain();
+        keepGain.gain.value = 0.00001;
+        keepOsc.connect(keepGain);
+        keepGain.connect(mediaDest);
+        keepOsc.start();
       } catch {}
       bgmGain = actx.createGain();
       bgmGain.gain.value = 0.65;
@@ -1540,7 +1549,14 @@ const doomAudio = (() => {
     isBlocked() { return bgmBlocked; },
     syncBgm,
     onFrame,
-    setRecording(v) { recordingVideo = v; ensure(); syncBgm(); },
+    async setRecording(v) {
+      recordingVideo = v;
+      if (ensure()) {
+        if (actx.state === "suspended") await actx.resume().catch(() => {});
+        if (v) await decodeBgm();
+      }
+      syncBgm();
+    },
     getAudioTracks() { ensure(); return mediaDest ? mediaDest.stream.getAudioTracks() : []; },
   };
 })();
@@ -1883,20 +1899,37 @@ document.getElementById("shareBtn").addEventListener("click", async () => {
 
 document.getElementById("videoBtn").addEventListener("click", async () => {
   if (!frames.length) return;
+  const isFirefox = navigator.userAgent.includes("Firefox");
+  const candidates = isFirefox
+    ? ["video/webm;codecs=vp8,opus", "video/webm", "video/mp4"]
+    : ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"];
+  const mime = candidates.find((m) => MediaRecorder.isTypeSupported(m)) || "";
+  const ext = mime.includes("mp4") ? "mp4" : "webm";
+  const fileName = `doom-speedrun.${ext}`;
+  let fh = null;
+  if (window.showSaveFilePicker) {
+    try {
+      fh = await showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{ description: "Doom speedrun video", accept: { [mime.split(";")[0] || "video/webm"]: [`.${ext}`] } }],
+      });
+    } catch (e) {
+      if (e.name === "AbortError") return;
+    }
+  }
   const btn = document.getElementById("videoBtn");
   btn.disabled = true;
   const wasPlaying = playing;
   playing = false;
-  doomAudio.setRecording(true);
+  await doomAudio.setRecording(true);
   const dt = frameMs();
   const stream = canvas.captureStream(Math.ceil(1000 / dt));
   for (const tr of doomAudio.getAudioTracks()) stream.addTrack(tr);
-  const mime = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"].find((m) => MediaRecorder.isTypeSupported(m)) || "";
   const rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 4_000_000 } : undefined);
   const chunks = [];
-  rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
   const done = new Promise((r) => { rec.onstop = r; });
-  rec.start();
+  rec.start(100);
   const start = performance.now();
   for (let i = 0; i < frames.length; i++) {
     drawFrame(i);
@@ -1906,17 +1939,29 @@ document.getElementById("videoBtn").addEventListener("click", async () => {
   }
   rec.stop();
   await done;
-  doomAudio.setRecording(false);
-  const ext = mime.includes("mp4") ? "mp4" : "webm";
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob(chunks, { type: mime || "video/webm" }));
-  a.download = `doom-speedrun.${ext}`;
-  a.click();
+  for (const tr of stream.getVideoTracks()) tr.stop();
+  await doomAudio.setRecording(false);
+  const blob = new Blob(chunks, { type: mime || "video/webm" });
+  if (fh) {
+    const w = await fh.createWritable();
+    await w.write(blob);
+    await w.close();
+    showToast(`Saved ${fh.name}`);
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 60000);
+    showToast(`Downloaded ${fileName}`);
+  }
   btn.disabled = false;
   btn.textContent = "Download Video";
   playing = wasPlaying;
   doomAudio.syncBgm();
-  showToast(`Saved doom-speedrun.${ext}`);
 });
 
 // Playback loop
