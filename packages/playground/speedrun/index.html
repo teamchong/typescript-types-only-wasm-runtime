@@ -1897,7 +1897,28 @@ document.getElementById("shareBtn").addEventListener("click", async () => {
 });
 
 
+let readyVideo = null;
+function triggerBlobDownload(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 60000);
+}
 document.getElementById("videoBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("videoBtn");
+  if (readyVideo) {
+    const { blob, fileName } = readyVideo;
+    readyVideo = null;
+    btn.classList.remove("primary");
+    btn.textContent = "Download Video";
+    triggerBlobDownload(blob, fileName);
+    showToast(`Saved ${fileName}`);
+    return;
+  }
   if (!frames.length) return;
   const isFirefox = navigator.userAgent.includes("Firefox");
   const candidates = isFirefox
@@ -1905,19 +1926,19 @@ document.getElementById("videoBtn").addEventListener("click", async () => {
     : ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"];
   const mime = candidates.find((m) => MediaRecorder.isTypeSupported(m)) || "";
   const ext = mime.includes("mp4") ? "mp4" : "webm";
+  const cleanMime = ext === "mp4" ? "video/mp4" : "video/webm";
   const fileName = `doom-speedrun.${ext}`;
   let fh = null;
   if (window.showSaveFilePicker) {
     try {
       fh = await showSaveFilePicker({
         suggestedName: fileName,
-        types: [{ description: "Doom speedrun video", accept: { [mime.split(";")[0] || "video/webm"]: [`.${ext}`] } }],
+        types: [{ description: "Doom speedrun video", accept: { [cleanMime]: [`.${ext}`] } }],
       });
     } catch (e) {
       if (e.name === "AbortError") return;
     }
   }
-  const btn = document.getElementById("videoBtn");
   btn.disabled = true;
   const wasPlaying = playing;
   playing = false;
@@ -1941,27 +1962,26 @@ document.getElementById("videoBtn").addEventListener("click", async () => {
   await done;
   for (const tr of stream.getVideoTracks()) tr.stop();
   await doomAudio.setRecording(false);
-  const blob = new Blob(chunks, { type: mime || "video/webm" });
+  const blob = new Blob(chunks, { type: cleanMime });
+  btn.disabled = false;
+  playing = wasPlaying;
+  doomAudio.syncBgm();
   if (fh) {
     const w = await fh.createWritable();
     await w.write(blob);
     await w.close();
+    btn.textContent = "Download Video";
     showToast(`Saved ${fh.name}`);
+  } else if (!navigator.userActivation || navigator.userActivation.isActive) {
+    btn.textContent = "Download Video";
+    triggerBlobDownload(blob, fileName);
+    showToast(`Saved ${fileName}`);
   } else {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 60000);
-    showToast(`Downloaded ${fileName}`);
+    readyVideo = { blob, fileName };
+    btn.classList.add("primary");
+    btn.textContent = `Save ${fileName}`;
+    showToast(`Video ready — click "Save ${fileName}" to save`);
   }
-  btn.disabled = false;
-  btn.textContent = "Download Video";
-  playing = wasPlaying;
-  doomAudio.syncBgm();
 });
 
 // Playback loop
