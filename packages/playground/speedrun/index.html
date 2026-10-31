@@ -1897,29 +1897,9 @@ document.getElementById("shareBtn").addEventListener("click", async () => {
 });
 
 
-let readyVideo = null;
-function triggerBlobDownload(blob, fileName) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  a.style.display = "none";
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 60000);
-}
 document.getElementById("videoBtn").addEventListener("click", async () => {
-  const btn = document.getElementById("videoBtn");
-  if (readyVideo) {
-    const { blob, fileName } = readyVideo;
-    readyVideo = null;
-    btn.classList.remove("primary");
-    btn.textContent = "Download Video";
-    triggerBlobDownload(blob, fileName);
-    showToast(`Saved ${fileName}`);
-    return;
-  }
   if (!frames.length) return;
+  const btn = document.getElementById("videoBtn");
   const isFirefox = navigator.userAgent.includes("Firefox");
   const candidates = isFirefox
     ? ["video/webm;codecs=vp8,opus", "video/webm", "video/mp4"]
@@ -1963,25 +1943,26 @@ document.getElementById("videoBtn").addEventListener("click", async () => {
   for (const tr of stream.getVideoTracks()) tr.stop();
   await doomAudio.setRecording(false);
   const blob = new Blob(chunks, { type: cleanMime });
-  btn.disabled = false;
-  playing = wasPlaying;
-  doomAudio.syncBgm();
   if (fh) {
     const w = await fh.createWritable();
     await w.write(blob);
     await w.close();
-    btn.textContent = "Download Video";
     showToast(`Saved ${fh.name}`);
-  } else if (!navigator.userActivation || navigator.userActivation.isActive) {
-    btn.textContent = "Download Video";
-    triggerBlobDownload(blob, fileName);
-    showToast(`Saved ${fileName}`);
   } else {
-    readyVideo = { blob, fileName };
-    btn.classList.add("primary");
-    btn.textContent = `Save ${fileName}`;
-    showToast(`Video ready — click "Save ${fileName}" to save`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 60000);
+    showToast(`Saved ${fileName}`);
   }
+  btn.disabled = false;
+  btn.textContent = "Download Video";
+  playing = wasPlaying;
+  doomAudio.syncBgm();
 });
 
 // Playback loop
