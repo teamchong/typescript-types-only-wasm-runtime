@@ -403,7 +403,7 @@
       <div class="live-bar" title="Overall run progress across all frames"><div id="liveBarFill" class="live-bar-fill" style="width:0%"></div></div>
     </div>
     <div id="screenWrap">
-      <canvas id="screen" width="320" height="200"></canvas>
+      <canvas id="screen" width="960" height="600"></canvas>
       <div id="screenOverlay" class="screen-overlay">
         <div class="overlay-rec-pill">
           <span class="rec-dot" id="overlayDot"></span>
@@ -926,7 +926,7 @@ const maskOf = (keys) => keys.reduce((m, k) => {
 const hud = document.getElementById("hud");
 const canvas = document.getElementById("screen");
 const ctx = canvas.getContext("2d");
-const img = ctx.createImageData(320, 200);
+const img = ctx.createImageData(960, 600);
 const rgba = new Uint32Array(img.data.buffer);
 
 let frames = [];   // Uint32Array(64000) per checked frame
@@ -1260,7 +1260,7 @@ function execute(script, saved) {
       progress = m.frames ? `continuing after frame ${m.frames}` : "type-checking chunk 1";
       if (m.frames) drawFrame(frames.length - 1);
       else {
-        ctx.clearRect(0, 0, 320, 200);
+        ctx.clearRect(0, 0, 960, 600);
         scrub.value = "0";
         frameLabel.textContent = "0 / 0";
       }
@@ -1740,8 +1740,20 @@ function drawFrame(idx) {
   if (!frames.length) return drawHud();
   cur = Math.max(0, Math.min(frames.length - 1, idx));
   // a kept frame still being read back from OPFS
-  if (frames[cur]) rgba.set(frames[cur]);
-  else rgba.fill(0);
+  const src = frames[cur];
+  if (src) {
+    for (let y = 0; y < 200; y++) {
+      const sRow = y * 320, d0 = y * 3 * 960, d1 = d0 + 960, d2 = d1 + 960;
+      for (let x = 0; x < 320; x++) {
+        const p = src[sRow + x], dx = x * 3;
+        rgba[d0 + dx] = rgba[d0 + dx + 1] = rgba[d0 + dx + 2] =
+        rgba[d1 + dx] = rgba[d1 + dx + 1] = rgba[d1 + dx + 2] =
+        rgba[d2 + dx] = rgba[d2 + dx + 1] = rgba[d2 + dx + 2] = p;
+      }
+    }
+  } else {
+    rgba.fill(0);
+  }
   ctx.putImageData(img, 0, 0);
   scrub.value = String(cur);
   frameLabel.textContent = `${cur + 1} / ${frames.length}`;
